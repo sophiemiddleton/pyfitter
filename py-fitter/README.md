@@ -11,7 +11,6 @@ Eventually we aim to have a setup script inside this Repo, meaning that all this
 $ virtualenv <env_name>
 $ source <env_name>/bin/activate
 (<env_name>)$ pip install -r path/to/requirements.txt
-
 ```
 
 This can be a bit dangerous as you may have missed dependencies, but it will get you some way towards replicating the developer environments.

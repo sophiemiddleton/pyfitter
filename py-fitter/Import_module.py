@@ -13,15 +13,15 @@ import awkward as ak
 import pandas
 import numpy as np
 
+
 class ImportClass :
 
-    def __init__(self, fileName, treeName, branchName, flatten = False):
+    def __init__(self, fileName, treeName, branchName):
         """Initialise the Class Object"""
 
         self.FileName= fileName
         self.TreeName = treeName
         self.BranchName = branchName
-        self.Flatten = flatten
         self.Array = ak.Array
 
     def Import(self):
@@ -32,18 +32,10 @@ class ImportClass :
 
         # Uproot5 using awkward array
         self.Array = input_tree.arrays(library='ak')
+
         return self.Array
 
-    def GetFlatname(self, branchname, featurename, index):
-        """flatten the tree branch names for making querying later easier e.g. de.status --> de_status """
 
-        flattened_branches = self.BranchName.replace(".", "_")
-        if not isinstance(self.BranchName, str):
-            flattened_branches = self.BranchName.decode("utf-8")
-        if self.FeatureName is not None:
-            self.FeatureName.replace(".", "_")
-            flattened_branches += "_" + self.FeatureName
-        if index != ():
-            flattened_branches += "[" + "][".join(str(x) for x in index) + "]"
-
-        return flattened_branches
+    def printAllField(self):
+        """Print all the field variable in the array with their type"""
+        return self.Array.type.show()

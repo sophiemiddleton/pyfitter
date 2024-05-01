@@ -10,11 +10,11 @@ import numpy as np
 
 class CutClass:
 
-    def __init__(self, opt = 'cd3', use_CRV = True):
+    def __init__(self, opt = 'su2020', use_CRV = True):
         self.use_CRV = use_CRV
         self.Cut_List = {}
 
-        if opt == 'cd3':
+        if opt == 'su2020': # TODO make sure you are using SU2020 cuts
             self.Cut_List = {
                 ('de','status') : [0., float('inf')] ,  #goodfit
                 'trigbits' : [0., float('inf')], #triggeredbits0x208
@@ -30,15 +30,7 @@ class CutClass:
                 #('deent','mom') : [95., 115.]   #FIXME changed to have fixed bin size in plot
             }
 
-        if opt == 'su2020':
-                self.Cut_List =  {
-                      "de.t0" : [700., 1695],    #inTimeWindow
-                      "deent.td" : [0.5, 1.0],    #inTanDipCut
-                      "deent.d0" : [-100,100.], #inD0Cut
-                      "dequal.TrkQual" : [0.2, float("inf")],  #TrkQual
-                    }
-
-    def ApplyCut(self, array): # will this work with su2020 cuts?
+    def ApplyCut(self, array):
         array_cut = array
         print("Applying cuts\n")
         for key, value in self.Cut_List.items():
