@@ -1,7 +1,14 @@
 # Mu2e Analysis
 
-
 Python based analysis tool for analysis of reconstructed Mu2e data or MC.
+
+# Developers
+
+The current code base has been primarily developed by Leo Borrel and Sophie Middleton. Moving forward it will be part of the joint Mu2e Caltech/LBNL/Berkeley.... Working Group.
+
+# Current Code
+
+The current code base (May 2024)  was developed using MDC2018 TrkAna NTuples. Please run it with these (e.g. /pnfs/mu2e/scratch/users/sophie/MDC2018/trkana7.root). See the Mu2e wiki page for more information on MDC2018.
 
 # Building the python environment:
 
@@ -32,13 +39,25 @@ We plan to expand to a 2D momentum and time fit eventually.
 
 # The Momentum PDF Parameterizations
 
-* conversion e- signal (CE) is currently parameterized as a Gaussian, assuming their has been multiple scattering, energy losses and detector distortions
-* decay in orbit (DIO) is currently parameterized using the work of Czernecki et al and the polynomial functional form derived in [REF]
+* conversion e- signal (CE) is currently parameterized as a Crystal Ball, assuming there has been multiple scattering, energy losses and detector distortions.
+* decay in orbit (DIO) is currently parameterized using the work of Czernecki et al and the polynomial functional form derived in [Phys. Rev. D 94, 051301]
 * cosmic induced background is currently parameterized as a uniform distribution
 
-These distributions are all defined inside of the "mom_shapes" script. Each function is represented by a class.
+These distributions are all defined inside of the "Custom_PDF" script. This infrastructure needs to evolve as we develop more complexity.
 
 # The Time PDF Parameterizations
+
+* TODO
+
+# 2D fits
+
+* TODO
+
+# Resoluton and Efficency parameterizations
+
+* TODO
+
+# Systematics and Nusiance Parameters
 
 * TODO
 
