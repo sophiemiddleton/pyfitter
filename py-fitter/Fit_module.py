@@ -1,10 +1,6 @@
 # Fit class
 # Fit the data to a a product of PDFs defined in PDF_list
 
-# Original Author: Leo Borrel
-# Edits: Sophie Middleton
-# Date: 2024-04-19
-
 import numpy as np
 import awkward as ak
 import matplotlib.pyplot as plt
@@ -12,7 +8,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import zfit
 
-from Custom_PDF import poly58
+from Mom_PDF import poly58
 from Plot_module import plot_fit
 
 def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):

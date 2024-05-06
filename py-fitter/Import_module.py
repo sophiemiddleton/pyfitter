@@ -2,11 +2,6 @@
 # Import the data stored in a root tree by TrkAna and save it as an Awkward array
 # Additional functions allows to dump the TrkAna tree as csv
 
-# Original Author: Leo Borrel
-# Edits: Sophie Middleton
-# Date: 2024-04-19
-
-
 import sys
 import uproot
 import awkward as ak

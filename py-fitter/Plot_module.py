@@ -1,8 +1,6 @@
 # Plot class
 # Make some plots and histogram on the data
-
-# Author: Leo Borrel
-# Date: 2024-04-19
+# TODO - do we need this?
 
 import numpy as np
 import awkward as ak
@@ -10,7 +8,7 @@ import matplotlib.pyplot as plt
 from cycler import cycler
 
 # setup a cycler to get a different default color and linestyle
-custom_cycler = (cycler(color=list('bgm')) + 
+custom_cycler = (cycler(color=list('bgm')) +
                  cycler(linestyle=['--', ':', '-.']))
 
 
@@ -55,7 +53,7 @@ def plot_MC(data, feature, n_bins=100, plot_range=None):
     #data_CE_np = ak.to_numpy(data_CE['deent','mom'])
     #data_DIO_np = ak.to_numpy(data_DIO['deent','mom'])
     #data_Cosmic_np = ak.to_numpy(data_Cosmic['deent','mom'])
-    
+
     data_hist, data_binedge = np.histogram(data_np, bins=n_bins, range=plot_range)
     data_bincenter = 0.5 * (data_binedge[1:] + data_binedge[:-1])
 
@@ -69,7 +67,7 @@ def plot_MC(data, feature, n_bins=100, plot_range=None):
 
 def count_MC(data):
     """MC gen code can be found in Offline/MCDataProducts/inc/GenId.hh"""
-    
+
     gen_code = ['unknown', 'particleGun', 'CeEndpoint',
             'cosmicToy', 'cosmicDYB', 'cosmic', 'obsolete1', #6
             'dioTail', 'obsolete2', 'obsolete3', 'obsolete4', 'ExternalRPC', #11
@@ -110,7 +108,7 @@ def plot_fit(data, fit_range, list_pdfs):
     ax1.hist(data, color='black', bins=n_bins, range=fit_range, histtype='stepfilled', alpha=0.1)
     ax1.hist(data, color='black', bins=n_bins, range=fit_range, histtype='step')
     ax1.errorbar(data_bincenter, data_hist, yerr=np.sqrt(data_hist), color='None', ecolor='black', capsize=3)
-    
+
     #set custom cycler
     ax1.set_prop_cycle(custom_cycler)
     combine_plot = np.zeros(len(mom_plot))
@@ -127,7 +125,7 @@ def plot_fit(data, fit_range, list_pdfs):
     #ax1.plot(mom_plot, dio_plot, ':', color='green', label='DIO')
     #ax1.plot(mom_plot, cosmic_plot, '-.', color='orange', label='Cosmic')
     ax1.plot(mom_plot, combine_plot, '-r', label='Total')
-    
+
     ax1.grid(True)
     ax1.set_yscale('log')
     ax1.set_xlim(fit_range) #FIXME change range to variables

@@ -1,10 +1,6 @@
 # Main
 # Main program which calls all the modules in the correct order with the correct inputs
 
-# Original Author: Leo Borrel
-# Edits: Sophie Middleton
-# Date: 2024-04-19
-
 import sys
 import numpy as np
 import matplotlib.pyplot as plt

@@ -43,7 +43,7 @@ We plan to expand to a 2D momentum and time fit eventually.
 * decay in orbit (DIO) is currently parameterized using the work of Czernecki et al and the polynomial functional form derived in [Phys. Rev. D 94, 051301]
 * cosmic induced background is currently parameterized as a uniform distribution
 
-These distributions are all defined inside of the "Custom_PDF" script. This infrastructure needs to evolve as we develop more complexity.
+These distributions are all defined inside of the "Mom_PDF" script. This infrastructure needs to evolve as we develop more complexity.
 
 # The Time PDF Parameterizations
 

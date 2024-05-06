@@ -1,10 +1,6 @@
 # Cut class
 # Apply the selection cuts on the data listed as a pandas dataframe
 
-# Original Author: Leo Borrel
-# Edits: Sophie Middleton
-# Date: 2024-04-19
-
 import awkward as ak
 import numpy as np
 
