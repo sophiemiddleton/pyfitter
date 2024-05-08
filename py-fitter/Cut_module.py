@@ -22,7 +22,7 @@ class CutClass:
                 ('dequal','TrkQual') : [0.8, float('inf')],  #TrkQual
                 ('dequal','TrkPID') : [0.95, float('inf')],  #TrkPID
                 ('ue','status') : [float('-inf'), 0.],   #noUpstream
-                ('deent','mom') : [95., float('inf')]   #recomom
+                ('deent','mom') : [95., 115.]   #recomom
                 #('deent','mom') : [95., 115.]   #FIXME changed to have fixed bin size in plot
             }
 
