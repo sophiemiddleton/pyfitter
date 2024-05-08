@@ -23,7 +23,6 @@ class CutClass:
                 ('dequal','TrkPID') : [0.95, float('inf')],  #TrkPID
                 ('ue','status') : [float('-inf'), 0.],   #noUpstream
                 ('deent','mom') : [95., 115.]   #recomom
-                #('deent','mom') : [95., 115.]   #FIXME changed to have fixed bin size in plot
             }
 
     def ApplyCut(self, array):
