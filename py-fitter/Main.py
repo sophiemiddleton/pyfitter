@@ -10,7 +10,7 @@ from Cut_module import CutClass
 from Fit_module import Unbinned_fit_mom
 import argparse
 from optparse import OptionParser
-from Plot_module import *
+from MCPlot_module import *
 
 def  main(options, args):
     # Import the data from the Trkana root tree and convert it into an Awkward array
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser.add_option('-l','--fitrange_mom_low', dest='fitrange_mom_low', default = 95, help='fitrange_mom_low', metavar='ldir')
     parser.add_option('-g','--fitrange_mom_hi', dest='fitrange_mom_hi', default = 115, help='fitrange_mom_hi', metavar='hdir')
     parser.add_option('-a','--showplots', dest='showplots', default =False, help='showplots', metavar='sdir')
-    parser.add_option('-m','--hasMC', dest='hasMC', default =False, help='hasMC', metavar='hdir') #TODO use this for the plot module
+    parser.add_option('-m','--hasMC', dest='hasMC', default =False, help='hasMC', metavar='hdir') # use this for the plot module
     parser.add_option('-v','--verbose', dest='verbose', default =0, help='verbose', metavar='vdir')
 
     (options, args) = parser.parse_args()

@@ -30,7 +30,6 @@ class ImportClass :
 
         return self.Array
 
-
     def printAllField(self):
         """Print all the field variable in the array with their type"""
         return self.Array.type.show()
