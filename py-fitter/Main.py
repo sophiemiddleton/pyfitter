@@ -47,8 +47,8 @@ if __name__ == "__main__":
 
     # example use: python main.py --filelist "trkana7.root" --treename "TrkAnaNeg" --branchname "trkana"
     parser.add_option('-b', action='store_true', dest='noX', default=False, help='no X11 windows')
-    parser.add_option('-f','--filelist', dest='filelist', default = 'trkana7.root',help='filelist', metavar='fdir')
-    parser.add_option('-t','--treename', dest='treename', default = 'TrkAnaNeg',help='treename', metavar='tdir')
+    parser.add_option('-f','--filelist', dest='filelist', default = 'nts.mu2e.trkana-reco-CE-DIO-1month.MDC2020ad_perfect_v1_2.0.tka',help='filelist', metavar='fdir')
+    parser.add_option('-t','--treename', dest='treename', default = 'TrkAna',help='treename', metavar='tdir')
     parser.add_option('-n','--branchname', dest='branchname', default = 'trkana', help='branchname', metavar='bdir')
     parser.add_option('-l','--fitrange_mom_low', dest='fitrange_mom_low', default = 95, help='fitrange_mom_low', metavar='ldir')
     parser.add_option('-g','--fitrange_mom_hi', dest='fitrange_mom_hi', default = 115, help='fitrange_mom_hi', metavar='hdir')
