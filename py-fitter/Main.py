@@ -15,11 +15,13 @@ from MCPlot_module import *
 def  main(options, args):
     # Import the data from the Trkana root tree and convert it into an Awkward array
     i_MC = ImportClass(options.filelist, options.treename, options.branchname)
-    array_MC = i_MC.Import()
 
+     # find track fit branches for downstream (d) electron (em) loop helix (lh):
+    array_MC = i_MC.Import_branch("demfit", "demlh")
+    data_np = i_MC.Import_mom(array_MC)
     # Apply the selection cuts from cd3
-    cuts = CutClass("su2020", False)
-    array_MC_cuts = cuts.ApplyCut(array_MC)
+    #cuts = CutClass("su2020", False) # TODO
+    #array_MC_cuts = cuts.ApplyCut(array_MC) # TODO:
 
     if (options.verbose != 0):
         print('\nMC count (before cut):')
@@ -29,7 +31,7 @@ def  main(options, args):
         gen_count_cuts = count_MC(array_MC_cuts)
         print(gen_count_cuts)
 
-    result = Unbinned_fit_mom(array_MC_cuts, options.fitrange_mom_low, options.fitrange_mom_hi)
+    result = Unbinned_fit_mom(data_np, options.fitrange_mom_low, options.fitrange_mom_hi)
     print('Fit result: ', result) # TODO you should have these sent to a file too as an option....
     plt.show()
 

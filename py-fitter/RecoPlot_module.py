@@ -30,6 +30,7 @@ def plot_cut(data, data_cuts):
     ax.set_xlabel('Momentum [MeV]')
     ax.set_ylabel('# of events')
     ax.legend()
+    
 def plot_fit(data, fit_range, list_pdfs):
     n_bins = 100
     mom_plot = np.linspace(fit_range[0], fit_range[1], n_bins)
