@@ -9,7 +9,7 @@ import tensorflow as tf
 import zfit
 
 from Mom_PDF import poly58
-from RecoPlot_module import plot_fit
+from RecoPlot_module import plotmom_fit
 
 def Unbinned_fit_mom(data_np, fit_range_low, fit_range_hi):
     fit_range = (fit_range_low, fit_range_hi)
@@ -48,11 +48,10 @@ def Unbinned_fit_mom(data_np, fit_range_low, fit_range_hi):
     list_pdfs = [('CE', CE, N_CE), ('DIO', DIO, N_DIO), ('cosmic', cosmic, N_cosmic)]
 
     # Convert data to zfit Data
-    #data_np = data # ak.to_numpy(data['deent','mom'])
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_mom)
 
     # Plot before fit with initial guess value
-    plot_fit(data_np, fit_range, list_pdfs)
+    #plotmom_fit(data_np, fit_range, list_pdfs) # FIXME - make this optional
 
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)
     minimizer = zfit.minimize.Minuit()
@@ -61,11 +60,10 @@ def Unbinned_fit_mom(data_np, fit_range_low, fit_range_hi):
     param_errors, _ = result.errors(method='minuit_minos')
 
     # Plot after fit
-    plot_fit(data_np, fit_range, list_pdfs)
+    plotmom_fit(data_np, fit_range, list_pdfs)
 
     return result
 
 
 def Binned_fit(data): # Make using zfit
-
     print('binned_fit not implemented yet')

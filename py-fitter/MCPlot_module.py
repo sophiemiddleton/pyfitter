@@ -1,5 +1,4 @@
-# Plot class
-# Make some plots and histogram on the data
+# Make some plots with features from MC
 
 import numpy as np
 import awkward as ak
@@ -20,21 +19,7 @@ def plot_feature(data, feature, n_bins=100, plot_range=None):
     ax.set_ylabel('# of events')
     ax.legend()
 
-
-def plot_cut(data, data_cuts):
-    n_bins = 100
-    plot_range = (60, 150)
-
-    fig, ax = plt.subplots(1,1)
-    ax.hist(data['deent','mom'], bins=n_bins, range=plot_range, color='blue', label='data (before cut)')
-    ax.hist(data_cuts['deent','mom'], bins=n_bins, range=plot_range, color='red', label='data(after cut)')
-
-    ax.set_xlabel('Momentum [MeV]')
-    ax.set_ylabel('# of events')
-    ax.legend()
-
-
-def plot_MC(data, feature, n_bins=100, plot_range=None):
+def plot_MC(data, feature, n_bins=100, plot_range=None): # FIXME - won't work for MDC2024
     MC_count = count_MC(data)
 
     data_plot = []
