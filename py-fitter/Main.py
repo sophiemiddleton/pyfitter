@@ -14,20 +14,21 @@ from RecoPlot_module import *
 def  main(args):
     # Import the data from the Trkana root tree and convert it into an Awkward array
     i_MC = ImportClass(args.filelist, args.treename, args.branchname)
+    #cuts = CutClass("MDC2024", False)
+    #array_cuts = cuts.ApplyCut(array)
 
-     # find track fit branches for downstream (d) electron (em) loop helix (lh):
-    array_LHFit = i_MC.Import_branch("demfit", "demlh")
+    # find track fit branches for downstream (d) electron (em) loop helix (lh):
+    array_LHFit = i_MC.Import_branches(["demfit", "demlh"])#,"demtrkqual","dem"])
+    cuts = CutClass("MDC2024", False)
+    array_cuts = cuts.ApplyCut_MDC2024(array_LHFit)
     data_np = i_MC.Import_mom(array_LHFit)
-    # Apply the selection cuts
-    #cuts = CutClass("su2020", False) # TODO - this should pass out the fits
-    #array_LHFit_cuts = cuts.ApplyCut(array_LHFit) # TODO - this should be passed to the fitter
 
     if (args.verbose != 0):
         print('\nMC count (before cut):')
         gen_count = count_MC(array_LHFit)
         print(gen_count)
         print('\nMC count (after cut):')
-        gen_count_cuts = count_MC(array_LHFit_cuts)
+        gen_count_cuts = count_MC(array_LHFit)
         print(gen_count_cuts)
 
     if (args.showplots == 1):

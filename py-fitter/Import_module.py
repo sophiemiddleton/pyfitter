@@ -27,19 +27,22 @@ class ImportClass :
         self.Array = input_tree.arrays(library='ak')
         return self.Array
 
-    def Import_branch(self, leafname, leafname_field):
-        """ import reconstructed trk ana"""
-        # import with uproot
+    def Import_branches(self, leafnames):
+        """ import list of branches from trk ana"""
         trkana = uproot.open(self.FileName+":"+str(self.TreeName)+"/"+str(self.BranchName))
-        branches = trkana.arrays(filter_name=["/"+str(leafname)+"/", "/"+str(leafname_field)+"/"])
+        list_names = []
+        for i, leafname  in enumerate(leafnames):
+            #branches = trkana.arrays(filter_name=["/"+str(leafname)+"/", "/"+str(leafname_field)+"/"])
+            list_names.append("/"+str(leafname)+"/")
+        branches = trkana.arrays(filter_name=list_names)
         return branches
 
     def Import_mom(self, array_MC):
+        """ import array select reco mom """
         array_MC['demfit_mom'] = np.sqrt((array_MC['demfit']['mom']['fCoordinates']['fX'])**2 + (array_MC['demfit']['mom']['fCoordinates']['fY'])**2 + (array_MC['demfit']['mom']['fCoordinates']['fZ'])**2)
         trk_ent_mask = (array_MC['demfit']['sid']==0)
-        data_np = np.array(ak.flatten(array_MC[(trk_ent_mask)]['demfit_mom']))#ak.to_numpy(trk_ent_mask)
+        data_np = np.array(ak.flatten(array_MC[(trk_ent_mask)]['demfit_mom']))
         return data_np
-
 
     def printAllField(self):
         """Print all the field variable in the array with their type"""
