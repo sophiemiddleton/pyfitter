@@ -18,19 +18,17 @@ class CutClass:
                 ( 'dem', 'nactive') : [20.,1000.]
                 #('demfit','mom') : [95., 115.]   #recomom --> done in fitter
             }
-    def ApplyCut_MDC2024(self, array):
+    def ApplyCut_MDC2024_mom(self, array_MC):
         """ function applies cuts to MDC2024 trkana --> work in progress!!!!"""
-        print("TODO: cuts not currently being applied!!!!\n")
-        array_cut = array
-        #array['demfit_mom'] = np.sqrt((array['demfit']['mom']['fCoordinates']['fX'])**2 + (array['demfit']['mom']['fCoordinates']['fY'])**2 + (array['demfit']['mom']['fCoordinates']['fZ'])**2)
-        #trk_ent_mask = (array_cut['demfit']['sid']==0)
-        #demlh_cut_mask = (array_cut['demlh']['t0'] >= 1000) #& (array_cut['demlh']['t0err'] < 0.9) & (array_cut['demlh']['maxr'] < 680 )#& array_cut['demtrkqual']['result'] > 0.2)
-        #array_cut = array_cut[(trk_ent_mask) & (demlh_cut_mask)]
-        #ak.flatten(array_cut[(trk_ent_mask) & (demlh_cut_mask)], axis=0)
-        print('array size before cuts', ak.num(array, axis=0))
-        print('array size after cuts', ak.num(array_cut, axis=0))
-
-        return array_cut
+        array_MC['demfit_mom'] = np.sqrt((array_MC['demfit']['mom']['fCoordinates']['fX'])**2 + (array_MC['demfit']['mom']['fCoordinates']['fY'])**2 + (array_MC['demfit']['mom']['fCoordinates']['fZ'])**2)
+        trk_ent_mask = (array_MC['demfit']['sid']==0)
+        time_cut_mask = (array_MC['demlh']['t0']>=650)
+        timeerr_cut_mask = (array_MC['demlh']['t0err']<0.9)
+        maxr_cut_mask = (array_MC['demlh']['maxr']>450.)
+        #active_cut_mask = (array_MC['dem']['nactive']>20) TODO - different type of array
+        #trkqual_cut_mask = (array_MC['demtrkqual']['result']>0.2) TODO - different type of array
+        data_np = np.array(ak.flatten(array_MC[(trk_ent_mask) & (time_cut_mask) & (timeerr_cut_mask) & (maxr_cut_mask)  ]['demfit_mom'], axis=None))
+        return data_np
 
     def ApplyCRVCut_MDC2024(self, array):
         ## TODO:

@@ -3,7 +3,8 @@
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
-
+import uproot
+import awkward as ak
 from Import_module import ImportClass
 from Cut_module import CutClass
 from Fit_module import Unbinned_fit_mom
@@ -14,14 +15,14 @@ from RecoPlot_module import *
 def  main(args):
     # Import the data from the Trkana root tree and convert it into an Awkward array
     i_MC = ImportClass(args.filelist, args.treename, args.branchname)
-    #cuts = CutClass("MDC2024", False)
-    #array_cuts = cuts.ApplyCut(array)
 
     # find track fit branches for downstream (d) electron (em) loop helix (lh):
-    array_LHFit = i_MC.Import_branches(["demfit", "demlh"])#,"demtrkqual","dem"])
+    array_LHFit = i_MC.Import_branches(["demfit", "demlh"])#"dem", "demtrkqual"])
+    #array_LHFit = i_MC.Import()
+
     cuts = CutClass("MDC2024", False)
-    array_cuts = cuts.ApplyCut_MDC2024(array_LHFit)
-    data_np = i_MC.Import_mom(array_LHFit)
+    data_np = cuts.ApplyCut_MDC2024_mom(array_LHFit) #TODO
+    #data_np = i_MC.Import_mom(array_cuts)
 
     if (args.verbose != 0):
         print('\nMC count (before cut):')
@@ -30,9 +31,6 @@ def  main(args):
         print('\nMC count (after cut):')
         gen_count_cuts = count_MC(array_LHFit)
         print(gen_count_cuts)
-
-    if (args.showplots == 1):
-        PlotRecoMomEnt(array_LHFit, args.fitrange_mom_low, args.fitrange_mom_hi)
 
     result = Unbinned_fit_mom(data_np, args.fitrange_mom_low, args.fitrange_mom_hi)
     print('Fit result: ', result) # TODO you should have these sent to a file too as an option....

@@ -35,6 +35,7 @@ class ImportClass :
             #branches = trkana.arrays(filter_name=["/"+str(leafname)+"/", "/"+str(leafname_field)+"/"])
             list_names.append("/"+str(leafname)+"/")
         branches = trkana.arrays(filter_name=list_names)
+        ak.flatten(branches, axis=None)
         return branches
 
     def Import_mom(self, array_MC):
