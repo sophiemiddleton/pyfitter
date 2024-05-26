@@ -10,7 +10,7 @@ from Cut_module import CutClass
 from Fit_module import Unbinned_fit_mom
 import argparse
 from MCPlot_module import *
-from RecoPlot_module import *
+from RecoPlot_module import PlotRecoMomEnt
 
 def  main(args):
     # Import the data from the Trkana root tree and convert it into an Awkward array
@@ -18,33 +18,18 @@ def  main(args):
 
     # find track fit branches for cuts:
     array_TRK = i_MC.Import_branches(["demfit", "demlh"])
-    #array_HIT = i_MC.Import_branches(["dem"])
     array_TRKQUAL = i_MC.Import_branches([ "demtrkqual"])
 
     # apply cuts:
     cuts = CutClass("MDC2024", False)
-    if (args.use_CRV == 1):
-        array_CRV = i_MC.Import_branches(["crvcoincs"])
-        data_np = cuts.ApplyCut_MDC2024_mom(array_TRK, array_TRKQUAL, array_CRV) # returns momentum only
-    if (args.use_CRV != 1):
-        data_np = cuts.ApplyCut_MDC2024_mom(array_TRK, array_TRKQUAL)
+    array_CRV = i_MC.Import_branches(["crvcoincs"])
+    data_np = cuts.ApplyCut_mom(array_TRK, array_TRKQUAL, array_CRV) # returns momentum only
 
-    if (args.verbose != 0):
-        print('\nMC count (before cut):')
-        gen_count = count_MC(array_TRK)
-        print(gen_count)
-        print('\nMC count (after cut):')
-        gen_count_cuts = count_MC(array_TRK)
-        print(gen_count_cuts)
 
     result = Unbinned_fit_mom(data_np, args.fitrange_mom_low, args.fitrange_mom_hi)
     print('Fit result: ', result) # TODO you should have these sent to a file too as an option....
     plt.show()
 
-    #if (args.hasMC is 1 and args.showplots is 1):
-        #plot_MC(array_TRK, ('deent','mom')) FIXME won't work in MDC2024
-        #plot_MC(array_TRK, ('de','t0'))
-        #plot_MC_comparison(MC_count_cuts, result)
 
 
 if __name__ == "__main__":

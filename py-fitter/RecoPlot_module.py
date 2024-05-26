@@ -30,6 +30,7 @@ def PlotRecoMomEnt(branches, low, hi):
     ax.set_ylabel('# events per bin')
     ax.grid(True)
     ax.legend()
+    plt.savefig("mom.pdf")
     plt.show()
 
 def plotmom_fit(data, fit_range, list_pdfs):
