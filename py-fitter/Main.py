@@ -10,36 +10,26 @@ from Cut_module import CutClass
 from Fit_module import Unbinned_fit_mom
 import argparse
 from MCPlot_module import *
-from RecoPlot_module import *
+from RecoPlot_module import PlotRecoMomEnt
 
 def  main(args):
     # Import the data from the Trkana root tree and convert it into an Awkward array
     i_MC = ImportClass(args.filelist, args.treename, args.branchname)
 
-    # find track fit branches for downstream (d) electron (em) loop helix (lh):
-    array_LHFit = i_MC.Import_branches(["demfit", "demlh"])#"dem", "demtrkqual"])
-    #array_LHFit = i_MC.Import()
+    # find track fit branches for cuts:
+    array_TRK = i_MC.Import_branches(["demfit", "demlh"])
+    array_TRKQUAL = i_MC.Import_branches([ "demtrkqual"])
 
+    # apply cuts:
     cuts = CutClass("MDC2024", False)
-    data_np = cuts.ApplyCut_MDC2024_mom(array_LHFit) #TODO
-    #data_np = i_MC.Import_mom(array_cuts)
+    array_CRV = i_MC.Import_branches(["crvcoincs"])
+    data_np = cuts.ApplyCut_mom(array_TRK, array_TRKQUAL, array_CRV) # returns momentum only
 
-    if (args.verbose != 0):
-        print('\nMC count (before cut):')
-        gen_count = count_MC(array_LHFit)
-        print(gen_count)
-        print('\nMC count (after cut):')
-        gen_count_cuts = count_MC(array_LHFit)
-        print(gen_count_cuts)
 
     result = Unbinned_fit_mom(data_np, args.fitrange_mom_low, args.fitrange_mom_hi)
     print('Fit result: ', result) # TODO you should have these sent to a file too as an option....
     plt.show()
 
-    #if (args.hasMC is 1 and args.showplots is 1):
-        #plot_MC(array_LHFit, ('deent','mom')) FIXME won't work in MDC2024
-        #plot_MC(array_LHFit, ('de','t0'))
-        #plot_MC_comparison(MC_count_cuts, result)
 
 
 if __name__ == "__main__":
@@ -52,6 +42,7 @@ if __name__ == "__main__":
     parser.add_argument("--fitrange_mom_hi", default=115, help="fitrange_mom_hi")
     parser.add_argument("--showplots", default=0, help="showplots")
     parser.add_argument("--hasMC", default=0, help="hasMC")
+    parser.add_argument("--use_CRV", default=1, help="use_CRV")
     parser.add_argument("--verbose", default=0, help="verbose")
     args = parser.parse_args()
     (args) = parser.parse_args()

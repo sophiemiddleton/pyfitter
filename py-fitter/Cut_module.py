@@ -3,7 +3,8 @@
 
 import awkward as ak
 import numpy as np
-
+import matplotlib.pyplot as plt
+import math
 class CutClass:
 
     def __init__(self,  opt = 'MDC2024', use_CRV = True):
@@ -11,50 +12,42 @@ class CutClass:
         self.Cut_List = {}
         if opt == 'MDC2024': #TODO these are SU2020 cuts, and some are missing....
             self.Cut_List = {
-                ('demlh','t0') : [700., 1695],    #inTimeWindow
-                ('demlh','t0err') : [0,0.9], #intimeErr
-                ('demlh','maxr') : [450., 680.], #inMaxRCut
-                ('demtrkqual','result') : [0.2,1],   # trk qual
-                ( 'dem', 'nactive') : [20.,1000.]
-                #('demfit','mom') : [95., 115.]   #recomom --> done in fitter
+                "demfit.time" : [640., 1650], #inTimeWindow
+                "demlh.t0err.max" : [0.9], #intimeErr
+                "demlh.maxr" : [450., 680.], #inMaxRCut
+                "demtrkqual.result" : [0.2], # trk qual
+                #dem', 'nactive') : [20],
+                 "time_diff" : [150.] # cut anything with a track - crv time difference less than this
             }
-    def ApplyCut_MDC2024_mom(self, array_MC):
-        """ function applies cuts to MDC2024 trkana --> work in progress!!!!"""
-        array_MC['demfit_mom'] = np.sqrt((array_MC['demfit']['mom']['fCoordinates']['fX'])**2 + (array_MC['demfit']['mom']['fCoordinates']['fY'])**2 + (array_MC['demfit']['mom']['fCoordinates']['fZ'])**2)
-        trk_ent_mask = (array_MC['demfit']['sid']==0)
-        time_cut_mask = (array_MC['demlh']['t0']>=650)
-        timeerr_cut_mask = (array_MC['demlh']['t0err']<0.9)
-        maxr_cut_mask = (array_MC['demlh']['maxr']>450.)
-        #active_cut_mask = (array_MC['dem']['nactive']>20) TODO - different type of array
-        #trkqual_cut_mask = (array_MC['demtrkqual']['result']>0.2) TODO - different type of array
-        data_np = np.array(ak.flatten(array_MC[(trk_ent_mask) & (time_cut_mask) & (timeerr_cut_mask) & (maxr_cut_mask)  ]['demfit_mom'], axis=None))
+    def ApplyCut_mom(self, array_TRK, array_TRKQUAL, array_CRV = None):
+        """ function applies cuts to MDC2024 trkana """
+        array_TRK['demfit_mom'] = np.sqrt((array_TRK['demfit']['mom']['fCoordinates']['fX'])**2 + (array_TRK['demfit']['mom']['fCoordinates']['fY'])**2 + (array_TRK['demfit']['mom']['fCoordinates']['fZ'])**2)
+        trk_ent_mask = (array_TRK['demfit']['sid']==0)
+        # build masks for cuts
+        time_cut_mask_min = (array_TRK['demfit']['time']>=self.Cut_List["demfit.time"][0])
+        time_cut_mask_max = (array_TRK['demfit']['time']<self.Cut_List["demfit.time"][1])
+        timeerr_cut_mask = (array_TRK['demlh']['t0err']< self.Cut_List["demlh.t0err.max"][0])
+        maxr_cut_mask = (array_TRK['demlh']['maxr']> self.Cut_List["demlh.maxr"][0])
+        """
+        trkqual_mask = (array_TRKQUAL['result'] > self.Cut_List["demtrkqual.result"][0]) # FIXME - here due to TrkAna v5 issue
+        data_np = np.array(ak.flatten(array_TRK[ (trkqual_mask ) & (trk_ent_mask) & (time_cut_mask_max) & (time_cut_mask_min) & (timeerr_cut_mask) & (maxr_cut_mask)  ]['demfit_mom'], axis=None))
+        """
+        # look for CRV coincidences
+        array_CRVTRKTimes = self.ApplyCRVCut(array_TRK, array_CRV)
+        crv_cut_mask = (array_CRVTRKTimes['time_diff'] > self.Cut_List["time_diff"][0])
+        # apply all cuts and convert to numpy array
+        data_np = np.array(ak.flatten(array_TRK[(crv_cut_mask) & (trk_ent_mask) & (time_cut_mask_max) & (time_cut_mask_min) & (timeerr_cut_mask) & (maxr_cut_mask)  ]['demfit_mom'], axis=None))
         return data_np
 
-    def ApplyCRVCut_MDC2024(self, array):
-        ## TODO:
-        print("TODO: cuts not currently being applied!!!!\n")
-
-    def ApplyCut(self, array):
-        """ function applies cuts to MDC2018 trkana """
-        array_cut = array
-        print("Applying cuts\n")
-        for key, value in self.Cut_List.items():
-            print(key)
-
-            if self.use_CRV == True:
-                n_event = ak.num(array_cut, axis=0)
-                condition = np.full(n_event, True)
-                for i in range(n_event):
-                    bestcrv = array_cut['bestcrv',i]
-                    if bestcrv >= 0:
-                        if (array_cut['de','t0',i] - array_cut['crvinfo._timeWindowStart',i,bestcrv] > value[0]) & (array_cut['de','t0',i] - array_cut['crvinfo._timeWindowStart',i,bestcrv] < value[1]):
-                            condition[i] = False
-                array_cut = array_cut[condition]
-
-            else:
-                array_cut = array_cut[(array_cut[key] > value[0]) & (array_cut[key] <= value[1])]
-
-        print('array size before cuts', ak.num(array, axis=0))
-        print('array size after cuts', ak.num(array_cut, axis=0))
-
-        return array_cut
+    def ApplyCRVCut(self, array_TRK, array_CRV):
+        """ function applies time based cut on comparison of TRK and CRV times """ # FIXME this is a bit hacky ...
+        TRK_CRV_Times_all = []
+        for i, j in enumerate(array_TRK):
+            trktime = ak.firsts(ak.firsts(array_TRK['demfit']['time'])) # for SID == 0
+            maxCRVtime = ak.max(array_CRV["crvcoincs.time"][i])
+            time_diff = 1e6
+            if(trktime[i] != None and maxCRVtime!=None):
+                time_diff = trktime[i] - maxCRVtime
+            TRK_CRV_Times_all.append({"time_diff" :time_diff})
+        TRK_CRV_Times_awk = ak.Array(TRK_CRV_Times_all)
+        return TRK_CRV_Times_awk
