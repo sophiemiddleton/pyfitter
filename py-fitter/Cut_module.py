@@ -40,7 +40,7 @@ class CutClass:
         return data_np
 
     def ApplyCRVCut(self, array_TRK, array_CRV, cut_value):
-        """ function applies time based cut on comparison of TRK and CRV times """ # FIXME this is a bit hacky ...
+        """ function applies time based cut on comparison of TRK and CRV times """
         # Remove events without any track
         trk_valid = ak.num(array_TRK['demfit','time'], axis=1) > 0
         mask_trk = ak.mask(array_TRK, trk_valid)
