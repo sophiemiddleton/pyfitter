@@ -17,7 +17,7 @@ def Unbinned_fit_mom(data_np, fit_range_low, fit_range_hi):
 
     # Parameters CE
     mu = zfit.Parameter('mu', 104, 103, 107)
-    sigma = zfit.Parameter('sigma', 0.5, 0.08, 1.5)
+    sigma = zfit.Parameter('sigma', 0.5, 0.1, 1.5)
     N_CE = zfit.Parameter('N_CE', 10, 0, 1e6)
 
     # Parameters DIO
