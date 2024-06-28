@@ -23,6 +23,7 @@ class CutClass:
         """ function applies cuts to MDC2024 trkana """
         array_TRK['demfit_mom'] = np.sqrt((array_TRK['demfit']['mom']['fCoordinates']['fX'])**2 + (array_TRK['demfit']['mom']['fCoordinates']['fY'])**2 + (array_TRK['demfit']['mom']['fCoordinates']['fZ'])**2)
         trk_ent_mask = (array_TRK['demfit']['sid']==0)
+        
         # build masks for cuts
         time_cut_mask_min = (array_TRK['demfit']['time']>=self.Cut_List["demfit.time"][0])
         time_cut_mask_max = (array_TRK['demfit']['time']<self.Cut_List["demfit.time"][1])
