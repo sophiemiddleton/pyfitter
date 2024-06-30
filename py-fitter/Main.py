@@ -19,11 +19,12 @@ def  main(args):
     # find track fit branches for cuts:
     array_TRK = i_MC.Import_branches(["demfit", "demlh"])
     array_TRKQUAL = i_MC.Import_branches([ "demtrkqual"])
+    array_dem = i_MC.Import_branches(["dem.nactive"])
 
     # apply cuts:
     cuts = CutClass("MDC2024", False)
     array_CRV = i_MC.Import_branches(["crvcoincs"])
-    data_np = cuts.ApplyCut_mom(array_TRK, array_TRKQUAL, array_CRV) # returns momentum only
+    data_np = cuts.ApplyCut_mom(array_TRK, array_TRKQUAL, array_dem, array_CRV) # returns momentum only
 
 
     result = Unbinned_fit_mom(data_np, args.fitrange_mom_low, args.fitrange_mom_hi)
