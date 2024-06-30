@@ -77,4 +77,4 @@ def plotmom_fit(data, fit_range, list_pdfs):
     ax2.grid(True)
     ax2.set_xlim(fit_range)
     ax2.set_xlabel('Reconstructed Momentum [MeV/c]')
-    ax2.set_ylabel('MC/Data')
+    ax2.set_ylabel('Fit - Data')
