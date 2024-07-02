@@ -19,6 +19,7 @@ class CutClass:
                 #dem', 'nactive') : [20],
                  "time_diff" : [150.] # cut anything with a track - crv time difference less than this
             }
+
     def ApplyCut_mom(self, array_TRK, array_TRKQUAL, array_CRV = None):
         """ function applies cuts to MDC2024 trkana """
         array_TRK['demfit_mom'] = np.sqrt((array_TRK['demfit']['mom']['fCoordinates']['fX'])**2 + (array_TRK['demfit']['mom']['fCoordinates']['fY'])**2 + (array_TRK['demfit']['mom']['fCoordinates']['fZ'])**2)
@@ -33,11 +34,11 @@ class CutClass:
         data_np = np.array(ak.flatten(array_TRK[ (trkqual_mask ) & (trk_ent_mask) & (time_cut_mask_max) & (time_cut_mask_min) & (timeerr_cut_mask) & (maxr_cut_mask)  ]['demfit_mom'], axis=None))
         """
         # look for CRV coincidences
-        crv_cut_mask = self.ApplyCRVCutNew(array_TRK, array_CRV, self.Cut_List['time_diff'][0])
+        crv_cut_mask = self.ApplyCRVCut(array_TRK, array_CRV, self.Cut_List['time_diff'][0])
 
         # apply all cuts and convert to numpy array
-        data_np = np.array(ak.flatten(array_TRK[(crv_cut_mask) & (trk_ent_mask) & (time_cut_mask_max) & (time_cut_mask_min) & (timeerr_cut_mask) & (maxr_cut_mask)  ]['demfit_mom'], axis=None))
-        return data_np
+        data_cut = array_TRK[(crv_cut_mask) & (trk_ent_mask) & (time_cut_mask_max) & (time_cut_mask_min) & (timeerr_cut_mask) & (maxr_cut_mask)]
+        return data_cut
 
     def ApplyCRVCut(self, array_TRK, array_CRV, cut_value):
         """ function applies time based cut on comparison of TRK and CRV times """ # FIXME this is a bit hacky ...
