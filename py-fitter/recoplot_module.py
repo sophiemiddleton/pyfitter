@@ -67,14 +67,14 @@ def plotmom_fit(data, fit_range, list_pdfs):
     ax1.grid(True)
     ax1.set_yscale('log')
     ax1.set_xlim(fit_range) #FIXME change range to variables
-    ax1.set_ylim([1e-1, 1e3]) #FIXME should allow for more events
+    ax1.set_ylim([1e-1, max(data_hist)]) #FIXME should allow for more events
     ax1.set_xlabel('Reconstructed Momentum [MeV/c]')
     ax1.set_ylabel('# of events per bin')
     ax1.legend()
-    err = np.sqrt((np.sqrt(data_hist))*(np.sqrt(data_hist)) + (np.sqrt(combine_plot))* (np.sqrt(combine_plot)))
-    ax2.errorbar(mom_plot, np.abs(combine_plot - data_hist), yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3)
+    err = np.sqrt((np.sqrt(data_hist))*(np.sqrt(data_hist)) + (np.sqrt(combine_plot))* (np.sqrt(combine_plot)))/data_hist
+    ax2.errorbar(mom_plot, np.abs(combine_plot - data_hist)/data_hist, yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3)
 
     ax2.grid(True)
     ax2.set_xlim(fit_range)
     ax2.set_xlabel('Reconstructed Momentum [MeV/c]')
-    ax2.set_ylabel('residual')
+    ax2.set_ylabel('Normalized Residual')

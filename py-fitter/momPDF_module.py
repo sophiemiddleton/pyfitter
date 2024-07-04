@@ -23,5 +23,6 @@ class poly58(zfit.pdf.ZPDF):
 
         return a5 * delta**5 + a6 * delta**6 + a7 * delta**7 + a8 * delta**8
 
+
 #class CELL(zfit.pdf.ZPDF):
 #TODO
