@@ -6,12 +6,10 @@ import awkward as ak
 import pandas
 import numpy as np
 
-
 class ImportClass :
 
     def __init__(self, fileName, treeName, branchName):
         """Initialise the Class Object"""
-
         self.FileName= fileName
         self.TreeName = treeName
         self.BranchName = branchName
@@ -19,7 +17,6 @@ class ImportClass :
 
     def Import(self):
         """ Import root tree and save it as an Awkward array """
-
         input_file = uproot.open(self.FileName)
         input_tree = input_file[self.TreeName][self.BranchName]
 
