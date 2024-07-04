@@ -122,7 +122,7 @@ def count_MC(data_MC):
     for index_gen, name_gen in enumerate(gen_code):
         N_gen = ak.num(array_gen[array_gen == index_gen], axis=0)
         if N_gen != 0:
-            gen_count.append((index_gen, name_gen, N_gen.item()))
+            gen_count.append(( name_gen, N_gen.item()))
 
 
     array_proc = ak.flatten(data_MC['demmcsim','startCode',...,:1], axis=None)
@@ -131,7 +131,7 @@ def count_MC(data_MC):
     for index_proc, name_proc in enumerate(proc_code):
         N_proc = ak.num(array_proc[array_proc == index_proc], axis=0)
         if N_proc != 0:
-            proc_count.append((index_proc, name_proc, N_proc.item()))
+            proc_count.append(( name_proc, N_proc.item()))
 
     MC_count = gen_count + proc_count
 
