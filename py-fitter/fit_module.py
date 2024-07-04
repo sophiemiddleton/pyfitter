@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import zfit
 
-from Mom_PDF import poly58
-from RecoPlot_module import plotmom_fit
+from momPDF_module import poly58
+from recoplot_module import plotmom_fit
 
 def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):
     fit_range = (fit_range_low, fit_range_hi)
@@ -17,7 +17,7 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):
 
     # Parameters CE
     mu = zfit.Parameter('mu', 104, 103, 107)
-    sigma = zfit.Parameter('sigma', 0.5, 0.08, 1.5)
+    sigma = zfit.Parameter('sigma', 0.5, 0.08, 2.0)
     N_CE = zfit.Parameter('N_CE', 10, 0, 1e6)
 
     # Parameters DIO
