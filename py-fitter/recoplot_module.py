@@ -63,8 +63,8 @@ def plotmom_fit(data, fit_range, list_pdfs):
     ax1.set_xlabel('Reconstructed Momentum [MeV/c]')
     ax1.set_ylabel('# of events per bin')
     ax1.legend()
-    err = np.sqrt((np.sqrt(data_hist))*(np.sqrt(data_hist)) + (np.sqrt(combine_plot))* (np.sqrt(combine_plot)))/data_hist
-    ax2.errorbar(mom_plot, np.abs(combine_plot - data_hist)/data_hist, yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3)
+    err = np.sqrt((np.sqrt(data_hist))*(np.sqrt(data_hist)) + (np.sqrt(combine_plot))* (np.sqrt(combine_plot)))/np.sqrt(data_hist)
+    ax2.errorbar(mom_plot, np.abs(combine_plot - data_hist)/np.sqrt(data_hist), yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3)
 
     ax2.grid(True)
     ax2.yaxis.set_ticks(np.arange(-5, 5,2))
