@@ -35,7 +35,7 @@ class ImportClass :
 
     def AddMomentumBranch(self, array_trk):
         """ Add momentum branch """
-        array_trk['trksegs.mom.mag'] = np.sqrt((array_trk['trksegs','mom','fCoordinates','fX'])**2 + (array_trk['trksegs','mom','fCoordinates','fY'])**2 + (array_trk['trksegs','mom','fCoordinates','fZ'])**2)
+        array_trk['trksegs','mom.mag'] = np.sqrt((array_trk['trksegs','mom','fCoordinates','fX'])**2 + (array_trk['trksegs','mom','fCoordinates','fY'])**2 + (array_trk['trksegs','mom','fCoordinates','fZ'])**2)
 
         return array_trk
 

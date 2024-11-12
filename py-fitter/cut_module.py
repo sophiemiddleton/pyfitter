@@ -36,7 +36,7 @@ class CutClass:
         """ function applies cuts to MDC2024 trkana """
         print("Applying cuts\n")
         print("# of events before cut: ", ak.num(array_trk, axis=0))
-        print("# of tracks before cut: ", ak.sum(ak.num(array_trk['trk.status'], axis=1)))
+        print("# of tracks before cut: ", ak.count(array_trk['trk.status']))
 
         array_cut = array_trk
 
@@ -55,7 +55,6 @@ class CutClass:
             array_trksegpars_lh_cut = array_cut['trksegpars_lh'].mask[mask]
             array_cut['trksegs'] = array_trksegs_cut
             array_cut['trksegpars_lh'] = array_trksegpars_lh_cut
-            array_cut[eval(key)].show()
 
         # Track level cut
         for key, value in self.Track_cut.items():
@@ -68,12 +67,31 @@ class CutClass:
 
             print("# of tracks passing this cut: ", ak.sum(mask))
             array_cut = array_cut.mask[mask]
-            array_cut[eval(key)].show()
 
-        return array_trk
+        # CRV cuts
+        print('crv cut')
+        condition = np.ones(ak.num(array_trk, axis=0), dtype=bool)
+        for i_evt, evt in enumerate(array_trk['trksegs','time']):
+            #print('evt: ', evt)
+            for i_trk, trk in enumerate(evt):
+                #print('trk: ', trk)
+                #print(ak.num(trk, axis=0))
+                #print('drop_trk: ', ak.drop_none(trk))
+                if ak.num(ak.drop_none(trk), axis=0) > 0:
+                    for i_crv, crv in enumerate(array_crv['crvcoincs.time', i_evt]):
+                        #print('trk[0]: ', trk[0])
+                        if np.abs(trk[0] - crv) < 150:
+                            condition[i_evt] = False
+
+        array_cut = array_cut.mask[condition]
+
+        #print("# ofevents after all the cuts: ", ak.num(array_trk, axis=0)
+        print("# of tracks after all the cuts: ", ak.count(array_cut['trksegs','time']))
+
+        return array_cut
 
 
-    def ApplyCRVCut(self, demfits, crvcoin, cut_value):
+    def ApplyCRVCut(self, array_trk, array_crv):
         """ function applies time based cut on comparison of TRK and CRV times """
         # Remove events without any track
         trk_valid = ak.num(demfits['trksegs','time'], axis=1) > 0

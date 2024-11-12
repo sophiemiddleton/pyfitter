@@ -17,9 +17,12 @@ def  main(args):
     mds1 = ImportClass(args.filelist, args.treename, args.branchname)
 
     # find track fit branches for cuts:
-    array_trk = mds1.Import(filter_branch="trk[!h]*")
-    #trkqual = mds1.Import(["trkqual*"])
-    #demhits = mds1.Import(["trk.nactive"])
+    # FIXME temporary only import branches that behaves correctly with the cuts
+    #array_trk = mds1.Import(filter_branch="trk[!h]*")
+    array_trk = mds1.Import(filter_branch="trk.*")
+    array_trkseg = mds1.Import(filter_branch="trkseg*")
+    array_trk['trksegs'] = array_trkseg['trksegs']
+    array_trk['trksegpars_lh'] = array_trkseg['trksegpars_lh']
     array_trk = mds1.AddMomentumBranch(array_trk)
     array_crv = mds1.Import(filter_branch="crv*")
 
