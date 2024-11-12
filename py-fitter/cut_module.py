@@ -29,7 +29,7 @@ class CutClass:
                 #"'trkqual.result'" : [0.2, float('inf')], # trk qual
             }
             self.CRV_cut = {
-                "crv_coincidence" : [50.,150.] # cut anything with a track - crv time difference less than this
+                "crv_coincidence" : 150. # cut anything with a track - crv time difference less than this
             }
 
     def ApplyCut(self, array_trk, array_crv):
@@ -74,13 +74,9 @@ class CutClass:
         for i_evt, evt in enumerate(array_trk['trksegs','time']):
             #print('evt: ', evt)
             for i_trk, trk in enumerate(evt):
-                #print('trk: ', trk)
-                #print(ak.num(trk, axis=0))
-                #print('drop_trk: ', ak.drop_none(trk))
                 if ak.num(ak.drop_none(trk), axis=0) > 0:
                     for i_crv, crv in enumerate(array_crv['crvcoincs.time', i_evt]):
-                        #print('trk[0]: ', trk[0])
-                        if np.abs(trk[0] - crv) < 150:
+                        if np.abs(trk[0] - crv) < self.CRV_cut.get('crv_coincidence'):
                             condition[i_evt] = False
 
         array_cut = array_cut.mask[condition]

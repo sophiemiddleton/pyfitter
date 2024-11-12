@@ -49,9 +49,6 @@ def Unbinned_fit_mom(array_trk, fit_range_low, fit_range_hi):
 
     # Convert data to zfit Data
     data_np = ak.to_numpy(ak.flatten(array_trk['trksegs','mom.mag'], axis=None))
-    ak.flatten(array_trk['trksegs','mom.mag'], axis=None).show()
-    print(data_np)
-    print(len(data_np))
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_mom)
 
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)

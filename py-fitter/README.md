@@ -41,15 +41,15 @@ It has been tested with the latest MDC2024 mock data samples, listed here: https
 
 The code is currently object orientated with a set of distinct classes:
 
-* Main.py - the driver function. The user can define several input parameters, check the default settings (at the bottom of the Main.py script). 
+* main.py - the driver function. The user can define several input parameters, check the default settings (at the bottom of the Main.py script). 
 
 To run for example:
 
 ```
-python Main.py --filelist "MDS0a.root" --treename "TrkAna" --branchname "trkana"
+python main.py --filelist "MDS1a.root" --treename "EventNtuple" --branchname "ntuple"
 ```
 
-* The Main function imports the given root NTuple via the ImportClass defined in Import_module.py. The code currently assumes the Mu2e/TrkAna will be in input NTuple but the user parameters allow some flexibility.
+* The Main function imports the given root NTuple via the ImportClass defined in Import_module.py. The code currently assumes the Mu2e/EventNtuple will be an input NTuple but the user parameters allow some flexibility.
 
 # The Fitting Code:
 
@@ -59,7 +59,7 @@ zfit is likelihood fitting code, it is very similar to the popular RooFit code b
 
 zfit allows for custom (and predefined) -log likelihood maximizaton. Underneath it interfaces with iminuit and TensorFlow and is purely python based.
 
-We import the Mu2e ntuples using uproot and awkward array.
+We import the Mu2e ntuples using uproot and store it as an awkward array.
 
 ## Our interface:
 
