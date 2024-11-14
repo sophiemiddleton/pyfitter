@@ -11,7 +11,7 @@ import zfit
 from momPDF_module import poly58
 from recoplot_module import plotmom_fit
 
-def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):
+def Unbinned_fit_mom(array_trk, fit_range_low, fit_range_hi):
     fit_range = (fit_range_low, fit_range_hi)
     obs_mom = zfit.Space('mom', limits=fit_range)
 
@@ -48,7 +48,7 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):
     list_pdfs = [('CE', CE, N_CE), ('DIO', DIO, N_DIO), ('cosmic', cosmic, N_cosmic)]
 
     # Convert data to zfit Data
-    data_np = ak.to_numpy(ak.flatten(data['demfit_mom'], axis=None))
+    data_np = ak.to_numpy(ak.flatten(array_trk['trksegs','mom.mag'], axis=None))
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_mom)
 
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)
