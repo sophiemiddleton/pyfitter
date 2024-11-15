@@ -16,11 +16,11 @@ class ImportClass :
         self.Array = ak.Array
 
 
-    def Import(self, filter_branch="*"):
+    def Import(self, list_branch = [], filter_name="*"):
         """ Import root tree and save it as an Awkward array """
         input_file = uproot.open(self.FileName)
         input_tree = input_file[self.TreeName][self.BranchName]
-        self.Array = input_tree.arrays(filter_name = filter_branch, library='ak')
+        self.Array = input_tree.arrays(list_branch, library='ak')
 
         return self.Array
 

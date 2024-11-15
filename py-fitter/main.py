@@ -19,24 +19,28 @@ def  main(args):
     # find track fit branches for cuts:
     # FIXME temporary only import branches that behaves correctly with the cuts
     #array_trk = mds1.Import(filter_branch="trk[!h]*")
-    array_trk = mds1.Import(filter_branch="trk.*")
-    array_trkseg = mds1.Import(filter_branch="trkseg*")
-    array_trk['trksegs'] = array_trkseg['trksegs']
-    array_trk['trksegpars_lh'] = array_trkseg['trksegpars_lh']
+    list_branch_trk = ["trk","trksegs","trksegpars_lh","trkcalohit", "trkmats"]
+    list_branch_crv = ["crvsummary.","crvcoincs"]
+    array_trk = mds1.Import(list_branch=list_branch_trk)
     array_trk = mds1.AddMomentumBranch(array_trk)
-    array_crv = mds1.Import(filter_branch="crv*")
+    array_crv = mds1.Import(list_branch=list_branch_crv)
 
     # apply cuts:
     cuts = CutClass("MDC2024", False)
     array_cut = cuts.ApplyCut(array_trk, array_crv)
+    array_trk['trk','trk.nactive'].show()
+    array_cut['trk','trk.nactive'].show()
 
     # Use when you want to incoperate MC information FIXME - this just repeats the above
     if int(args.showMC) ==1:
-        array_MC = i_MC.Import_branches(["trksegs","trksdegpars_lh","trkmcsim"])
+        list_branch_mc = ["trkmc","trkmcsim","trkmcvd","trkcalohitmc","trksegsmc"]
+        list_branch_crv_mc = ["crvsummarymc.","crvcoincsmc","crvcoincsmcplane"]
+        array_MC = mds1.Import(list_branch=list_branch_mc)
+        array_crv_MC = mds1.Import(list_branch=list_branch_crv_mc)
         cuts_MC = CutClass("MDC2024", False)
-        data_cut_MC = cuts_MC.ApplyCut_mom(array_MC, trkqual, demhits, crvcoin)
-        print('Before cut:\n', count_MC(array_MC))
-        print('After cut:\n', count_MC(data_cut_MC))
+        array_cut_MC = cuts_MC.ApplyCut(array_MC, aray_crv_MC)
+        #print('Before cut:\n', count_MC(array_MC))
+        #print('After cut:\n', count_MC(data_cut_MC))
 
     result = Unbinned_fit_mom(array_cut, (args.fitrange_mom_low), (args.fitrange_mom_hi))
     print('Fit result: ', result) # TODO you should have these sent to a file too as an option....
