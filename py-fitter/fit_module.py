@@ -167,7 +167,7 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, include_cosmic
 
     if (include_cosmic):
         N_cosmic = zfit.Parameter('N_cosmic', 0, 0, 1e6)
-        combine_cosmic_pdf = zfit.pdf.ProductPDF([cosmic, exp_t], extended=N_cosmic)
+        combine_cosmic_pdf = zfit.pdf.ProductPDF([cosmic, cosmic_t], extended=N_cosmic)
 
         combine_pdf = zfit.pdf.SumPDF([combine_CE_pdf, combine_DIO_pdf, combine_cosmic_pdf])
         list_pdfs.append(('cosmic', cosmic, N_cosmic))
