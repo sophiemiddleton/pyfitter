@@ -26,7 +26,7 @@ def  main(args):
     crvcoin = i_MC.Import_branches(["crvcoincs"])
     data_cut = cuts.ApplyCut_mom(demfits, trkqual, demhits, crvcoin) # returns momentum only
 
-    # Use when you want to incoperate MC information FIXME - this just repeats the above
+    # Use when you want to incorporate MC information FIXME - this just repeats the above
     if int(args.showMC) ==1:
         array_MC = i_MC.Import_branches(["demfit","demlh","demmcsim"])
         cuts_MC = CutClass("MDC2024", False)
