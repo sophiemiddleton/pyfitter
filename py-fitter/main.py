@@ -30,7 +30,7 @@ def  main(args):
     cuts = CutClass("MDC2024", False)
     array_cut = cuts.ApplyCut(array_trk, array_crv)
 
-    # Use when you want to incoperate MC information FIXME - this just repeats the above
+    # Use when you want to incorporate MC information FIXME - this just repeats the above
     if int(args.showMC) ==1:
         array_MC = i_MC.Import_branches(["trksegs","trksdegpars_lh","trkmcsim"])
         cuts_MC = CutClass("MDC2024", False)
