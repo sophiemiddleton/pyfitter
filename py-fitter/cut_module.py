@@ -10,50 +10,90 @@ class CutClass:
 
     def __init__(self,  opt = 'MDC2024', use_CRV = True):
         self.use_CRV = use_CRV
-        self.Cut_List = {}
+        self.Event_cut = {} # Cut applied at the event level
+        self.SID_select = {}# Cut to only select track values at the entrance of the tracker
+        self.Track_cut = {} # Cut applied at the track level
+        self.CRV_cut = {}   # Cut applied based on CRV coincidence
+        self.MC_cut = {}    # Cut applied on the MC data
         if opt == 'MDC2024': #TODO these are SU2020 cuts, and some are missing....
-            self.Cut_List = {
-                "demfit.time" : [640., 1650], #inTimeWindow
-                "demlh.t0err.max" : [0.9], #intimeErr
-                "demlh.maxr" : [450., 680.], #inMaxRCut
-                "demtrkqual.result" : [0.2], # trk qual
-                "dem.nactive" : [20], # active hits in fit
-                "time_diff" : [50.,150.] # cut anything with a track - crv time difference less than this
+            self.Event_cut = {
+            }
+            self.SID_select = {
+                "'trksegs','sid'" : 0
+            }
+            self.Track_cut = {
+                "'trk.nactive'" : [20, float('inf')], # active hits in the tracker
+                "'trksegs','time'" : [640., 1650], #inTimeWindow
+                "'trksegpars_lh','t0err'" : [0, 0.9], #intimeErr
+                "'trksegpars_lh','maxr'" : [450., 680.], #inMaxRCut
+                #"'trkqual.result'" : [0.2, float('inf')], # trk qual
+            }
+            self.CRV_cut = {
+                "crv_coincidence" : 150. # cut anything with a track - crv time difference less than this
             }
 
-    def ApplyCut_mom(self, demfits, trkqual, demhits, crvcoin = None):
+    def ApplyCut(self, array_trk, array_crv):
         """ function applies cuts to MDC2024 trkana """
+        print("Applying cuts\n")
+        print("# of events before cut: ", ak.num(array_trk, axis=0))
+        print("# of tracks before cut: ", ak.count(array_trk['trk.status']))
 
-        # find magnitude
-        demfits['demfit_mom'] = np.sqrt((demfits['demfit']['mom']['fCoordinates']['fX'])**2 + (demfits['demfit']['mom']['fCoordinates']['fY'])**2 + (demfits['demfit']['mom']['fCoordinates']['fZ'])**2)
+        array_cut = array_trk
 
-        # select trak fit at entrance
-        trk_ent_mask = (demfits['demfit']['sid']==0)
+        # Event level cut: TODO when there is one
+        
+        # Surface ID (SID) selection
+        for key, value in self.SID_select.items():
+            print(eval(key))
 
-        # build masks for cuts
-        time_cut_mask_min = (demfits['demfit']['time'] >= self.Cut_List["demfit.time"][0])
-        time_cut_mask_max = (demfits['demfit']['time'] < self.Cut_List["demfit.time"][1])
-        timeerr_cut_mask = (demfits['demlh']['t0err'] < self.Cut_List["demlh.t0err.max"][0])
-        maxr_cut_mask = (demfits['demlh']['maxr'] > self.Cut_List["demlh.maxr"][0])
-        active_mask = (demhits['dem.nactive'] > self.Cut_List["dem.nactive"][0])
+            if type(value) == int:
+                mask = array_trk[eval(key)] == value
+            elif len(value) == 2:
+                mask = (array_trk[eval(key)] >= value[0]) & (array_trk[eval(key)] <= value[1])
 
-        # apply trkqual cut # FIXME - commented here due to TrkAna v5 issue
-        # trkqual_mask = (trkqual['demtrkqual.result'] > self.Cut_List["demtrkqual.result"][0])
+            array_trksegs_cut = array_cut['trksegs'].mask[mask]
+            array_trksegpars_lh_cut = array_cut['trksegpars_lh'].mask[mask]
+            array_cut['trksegs'] = array_trksegs_cut
+            array_cut['trksegpars_lh'] = array_trksegpars_lh_cut
 
-        # look for CRV coincidences
-        crv_cut_mask = self.ApplyCRVCut(demfits, crvcoin, self.Cut_List['time_diff'][1])
+        # Track level cut
+        for key, value in self.Track_cut.items():
+            print(eval(key))
 
-        # apply all cuts and convert to numpy array
-        data_cut = demfits[(active_mask) & (crv_cut_mask) & (trk_ent_mask) & (time_cut_mask_max) & (time_cut_mask_min) & (timeerr_cut_mask) & (maxr_cut_mask)]
-        return data_cut
+            if type(value) == int:
+                mask = array_trk[eval(key)] == value
+            elif len(value) == 2:
+                mask = (array_trk[eval(key)] >= value[0]) & (array_trk[eval(key)] <= value[1])
 
-    def ApplyCRVCut(self, demfits, crvcoin, cut_value):
+            print("# of tracks passing this cut: ", ak.sum(mask))
+            array_cut = array_cut.mask[mask]
+
+        # CRV cuts
+        print('crv cut')
+        condition = np.ones(ak.num(array_trk, axis=0), dtype=bool)
+        for i_evt, evt in enumerate(array_trk['trksegs','time']):
+            #print('evt: ', evt)
+            for i_trk, trk in enumerate(evt):
+                if ak.num(ak.drop_none(trk), axis=0) > 0:
+                    for i_crv, crv in enumerate(array_crv['crvcoincs.time', i_evt]):
+                        if np.abs(trk[0] - crv) < self.CRV_cut.get('crv_coincidence'):
+                            condition[i_evt] = False
+
+        array_cut = array_cut.mask[condition]
+
+        #print("# ofevents after all the cuts: ", ak.num(array_trk, axis=0)
+        print("# of tracks after all the cuts: ", ak.count(array_cut['trksegs','time']))
+
+        return array_cut
+
+
+    def ApplyCRVCut(self, array_trk, array_crv):
         """ function applies time based cut on comparison of TRK and CRV times """
         # Remove events without any track
-        trk_valid = ak.num(demfits['demfit','time'], axis=1) > 0
+        trk_valid = ak.num(demfits['trksegs','time'], axis=1) > 0
         mask_trk = ak.mask(demfits, trk_valid)
         crv_coinc = np.ones(ak.num(demfits, axis=0), dtype='bool')    # Create a boolean array of True for the mask
-        for evt_idx, evt in enumerate(demfits['demfit','time']):   # loop through every event
+        for evt_idx, evt in enumerate(demfits['trksegs','time']):   # loop through every event
             for trk_idx, trk in enumerate(evt):     # loop through every track within an event
                 if ak.num(trk, axis=0) > 0:       # rare case when an event has 2 tracks, with one being empty (Ask why?)
                     for crv_idx, crv in enumerate(crvcoin['crvcoincs.time', evt_idx]):    # loop through CRV hits
