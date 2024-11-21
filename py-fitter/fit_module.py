@@ -62,6 +62,52 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):
 
     return result
 
+def Unbinned_fit_time(data, fit_range_low, fit_range_hi, include_cosmic=True):
+    '''
+    Fit the time data to a exponential distribution
+
+    Parameters:
+        data (awkward array): Time data
+        fit_range_low (float): Lower limit of the fit range
+        fit_range_hi (float): Upper limit of the fit range
+        include_cosmic (bool): Include cosmic distribution in the fit
+    '''
+
+    fit_range = (fit_range_low, fit_range_hi)
+    obs_time = zfit.Space('time', limits=fit_range)
+
+    #PDF components
+    ## Exponential decay
+    decay_rate = zfit.Parameter('decay_rate', -1/864, -1/10, -1/1000)
+    N_exp = zfit.Parameter('N_exp', 6000, 0, 1e5)
+    exp_t = zfit.pdf.Exponential(decay_rate, obs=obs_time, extended=N_exp)
+    if (include_cosmic):
+        ## Uniform distribution
+        N_cosmic = zfit.Parameter('N_cosmic', 0, 0, 1e4)
+        cosmic_t = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_time, extended=N_cosmic)
+
+    # Combine the time PDFs
+    combine_pdf = exp_t
+    list_pdfs = [('exp', exp_t, N_exp)]
+    if (include_cosmic):
+        combine_pdf = zfit.pdf.SumPDF([exp_t, cosmic_t])
+        list_pdfs.append(('cosmic', cosmic_t, N_cosmic))
+
+    # Convert data to zfit Data
+    data_np = ak.to_numpy(ak.flatten(data['demfit']['time'], axis=None))
+    data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_time)
+
+    # Loss function and minimizer
+    loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)
+    minimizer = zfit.minimize.Minuit()
+
+    if (include_cosmic):
+        result = minimizer.minimize(loss, params=[decay_rate, N_exp, N_cosmic])
+    else:
+        result = minimizer.minimize(loss, params=[decay_rate, N_exp])
+    param_errors, _ = result.errors(method='minuit_minos')
+
+    return result
 
 def Binned_fit(data): # Make using zfit
     print('binned_fit not implemented yet')
