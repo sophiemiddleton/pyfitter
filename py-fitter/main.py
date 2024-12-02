@@ -33,12 +33,12 @@ def  main(args):
 
     # Use when you want to incoperate MC information FIXME - this just repeats the above
     if int(args.showMC) ==1:
-        list_branch_mc = ["trkmc","trkmcsim","trkmcvd","trkcalohitmc","trksegsmc"]
+        list_branch_mc = ["trkmc","trkmcsim","trksegsmc"] #,"trkmcvd","trkcalohitmc","trksegsmc"]
         list_branch_crv_mc = ["crvsummarymc.","crvcoincsmc","crvcoincsmcplane"]
         array_MC = mds1.Import(list_branch=list_branch_mc)
-        array_crv_MC = mds1.Import(list_branch=list_branch_crv_mc)
+        #array_crv_MC = mds1.Import(list_branch=list_branch_crv_mc)
         cuts_MC = CutClass("MDC2024", False)
-        array_cut_MC = cuts_MC.ApplyCut(array_MC, aray_crv_MC)
+        array_cut_MC = cuts_MC.ApplyCutMC(array_MC, array_cut)
         #print('Before cut:\n', count_MC(array_MC))
         #print('After cut:\n', count_MC(data_cut_MC))
 
@@ -49,7 +49,7 @@ def  main(args):
 if __name__ == "__main__":
     # example use: python main.py --filelist "pass0a.tka" --treename "TrkAna" --branchname "trkana" --fitrange_low 95 --fitrange_hi 115 --showMC 1
     parser = argparse.ArgumentParser(description='command arguments', formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--filelist", type=str, default="nts.mu2e.ensembleMDS1aOnSpillTriggered.MDC2020ai_perfect_v1_3.0.root", help="filename")
+    parser.add_argument("--filelist", type=str, default="nts.lborrel.ensembleMDS1aOnSpillTriggered.MDC2020ai_perfect_v1_3.0.root", help="filename")
     parser.add_argument("--treename", type=str, default="EventNtuple", help="treename")
     parser.add_argument("--branchname", type=str, default="ntuple", help="branchname")
     parser.add_argument("--fitrange_mom_low", type=float, default=95, help="fitrange_mom_low")
