@@ -1,17 +1,25 @@
 # Fit class
 # Fit the data to a a product of PDFs defined in PDF_list
-
 import numpy as np
 import awkward as ak
 import matplotlib.pyplot as plt
-
 import tensorflow as tf
 import zfit
 
 from momPDF_module import poly58
 from recoplot_module import plotmom_fit
 
-def Unbinned_fit_mom(array_trk, fit_range_low, fit_range_hi):
+#FIXME - remove the copies of the parameters, place these in some version controled class/file and use that
+#FIXME - can we make one fit function for 1D fits that does either time or mom? PDF created outside and called via an arguement choice?
+def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):
+    '''
+    Fit the time data to a exponential distribution
+
+    Parameters:
+        data (awkward array): Time data
+        fit_range_low (float): Lower limit of the fit range
+        fit_range_hi (float): Upper limit of the fit range
+    '''
     fit_range = (fit_range_low, fit_range_hi)
     obs_mom = zfit.Space('mom', limits=fit_range)
 
@@ -48,7 +56,7 @@ def Unbinned_fit_mom(array_trk, fit_range_low, fit_range_hi):
     list_pdfs = [('CE', CE, N_CE), ('DIO', DIO, N_DIO), ('cosmic', cosmic, N_cosmic)]
 
     # Convert data to zfit Data
-    data_np = ak.to_numpy(ak.flatten(array_trk['trksegs','mom.mag'], axis=None))
+    data_np = ak.to_numpy(ak.flatten(data['trksegs','mom.mag'], axis=None))
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_mom)
 
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)
