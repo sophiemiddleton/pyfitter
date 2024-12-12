@@ -23,7 +23,7 @@ def  main(args):
     list_branch_trk = ["trk","trksegs","trksegpars_lh","trkcalohit", "trkmats"]
     list_branch_crv = ["crvsummary.","crvcoincs"]
     array_trk = mds1.Import(list_branch=list_branch_trk)
-    array_trk = mds1.AddMomentumBranch(array_trk)
+    array_trk = mds1.GetVectorMag(array_trk,'trksegs', 'mom')
     array_crv = mds1.Import(list_branch=list_branch_crv)
 
     # apply cuts:

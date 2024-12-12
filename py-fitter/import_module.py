@@ -5,6 +5,7 @@ import uproot
 import awkward as ak
 import pandas
 import numpy as np
+import vector
 
 #FIXME - use pyutils
 class ImportClass :
@@ -30,23 +31,23 @@ class ImportClass :
         self.Array = input_tree[branch_name].array(library='ak')
         return self.Array
 
-    def AddMomentumBranch(self, array_trk):
-        """ Add momentum branch """ 
+    def GetVectorMag(self, branch, leaf, vectorname):
+        """ add a magnitude branch """ 
         # FIXME - use utils
         # register the vector class
         vector.register_awkward()
 
         # make the Vector 3D
         trkvect3D = ak.zip({
-            "x": branch[str(vectorname)]["fCoordinates"]["fX"],
-            "y": branch[str(vectorname)]["fCoordinates"]["fY"],
-            "z": branch[str(vectorname)]["fCoordinates"]["fZ"],
+            "x": branch[str(leaf)][str(vectorname)]["fCoordinates"]["fX"],
+            "y": branch[str(leaf)][str(vectorname)]["fCoordinates"]["fY"],
+            "z": branch[str(leaf)][str(vectorname)]["fCoordinates"]["fZ"],
         }, with_name="Vector3D")
         
-        mag = vector.mag
-        array_trk['trksegs','mom.mag'] = mag
+        mag = trkvect3D.mag
+        branch[str(leaf),str(vectorname)+".mag"] = mag
 
-        return array_trk
+        return branch
 
 
     def printAllField(self):
