@@ -9,6 +9,7 @@ import zfit
 from momPDF_module import poly58
 from momPDF_module import CeModel
 from momPDF_module import DIOModel
+from momPDF_module import CosmicModel
 from recoplot_module import plotmom_fit
 
 #FIXME - remove the copies of the parameters, place these in some version controled class/file and use that
@@ -27,13 +28,11 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):
     fit_range = (fit_range_low, fit_range_hi)
     obs_mom = zfit.Space('mom', limits=fit_range)
 
-    # Parameters Cosmic
-    N_cosmic = zfit.Parameter('N_cosmic', 10, 0, 1e6)
-
     # PDF components
-    CE, N_CE = CeModel(obs_mom,'dscb')
-    DIO, N_DIO = DIOModel(obs_mom, 'poly58')
-    cosmic = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_mom, extended=N_cosmic)
+    pars = []
+    CE, N_CE = CeModel(obs_mom, pars,'dscb')
+    DIO, N_DIO = DIOModel(obs_mom, pars,'poly58')
+    cosmic, N_cosmic = CosmicModel(obs_mom, pars, 'uniform', fit_range)
 
     # build combined PDF
     combine_pdf = zfit.pdf.SumPDF([CE, DIO, cosmic])
@@ -46,7 +45,7 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)
     minimizer = zfit.minimize.Minuit()
 
-    result = minimizer.minimize(loss, params=[ N_CE, N_DIO, N_cosmic])#mu, sigma, alphal, nl, alphar, nr, #FIXME assumes fixed CE
+    result = minimizer.minimize(loss, params=pars)
     param_errors, _ = result.errors(method='minuit_minos')
 
     # Plot after fit
