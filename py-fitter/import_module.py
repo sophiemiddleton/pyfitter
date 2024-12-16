@@ -31,7 +31,7 @@ class ImportClass :
         self.Array = input_tree[branch_name].array(library='ak')
         return self.Array
 
-    def GetVectorMag(self, branch, leaf, vectorname):
+    def AddVectorMag(self, branch, leaf, vectorname):
         """ add a magnitude branch """ 
         # FIXME - use utils
         # register the vector class
