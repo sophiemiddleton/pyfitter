@@ -28,7 +28,7 @@ def CeModel(obs_mom, params, model=None):
   N_CE = 0
   CE = ""
 
-  if model == 'dscb':
+  if model == 'dscb': # Double-Sided Crystalball function
     mu = zfit.Parameter('mu', 104, 103, 107)
     sigma = zfit.Parameter('sigma', 0.5, 0.08, 2.0)
     # Parameters resolution
