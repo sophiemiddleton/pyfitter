@@ -75,3 +75,4 @@ xxhash==3.4.1
 zfit==0.16.0
 zfit-interface==0.0.3
 zipp==3.17.0
+vector==1.5.2
