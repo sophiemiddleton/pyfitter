@@ -8,7 +8,7 @@ import math
 
 class CutClass:
 
-    def __init__(self,  opt = 'MDC2024', use_CRV = True):
+    def __init__(self,  opt = 'SU2020', use_CRV = True):
         self.use_CRV = use_CRV
         self.Event_cut = {} # Cut applied at the event level
         self.SID_select = {} # Select the Surface ID
@@ -16,7 +16,7 @@ class CutClass:
         self.Trksegs_cut = {}# Cut applied at the trksegs level
         self.CRV_cut = {}   # Cut applied based on CRV coincidence
         self.MC_cut = {}    # Cut applied on the MC data
-        if opt == 'MDC2024': #TODO these are SU2020 cuts, and some are missing....
+        if opt == 'SU2020':
             self.Event_cut = {
             }
             self.SID_select = {
@@ -39,7 +39,7 @@ class CutClass:
             }
 
     def ApplyCut(self, array_trk, array_crv):
-        """ function applies cuts to MDC2024 trkana """
+        """ function applies cuts to MDS1 """
         print("\nApplying cuts\n")
         print("# of events before cut: ", ak.num(array_trk, axis=0))
         print("# of tracks before cut: ", ak.count(array_trk['trk','trk.status']))

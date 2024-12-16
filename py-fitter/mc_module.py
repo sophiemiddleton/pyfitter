@@ -11,7 +11,12 @@ custom_cycler = (cycler(color=list('bgm')) +
 
 
 def plot_feature(data, feature, n_bins=100, plot_range=None):
-
+    '''
+    make a 1D plot:
+      - feature is the chosen leaf from the ntuple
+      - n_bins is choice of bins (optional, default is 100)
+      - plot_range defined range in x (optional, default is auto)
+    '''
     fig, ax = plt.subplots(1,1)
     ax.hist(data[feature], bins=n_bins, range=plot_range, label=feature)
 
@@ -20,6 +25,13 @@ def plot_feature(data, feature, n_bins=100, plot_range=None):
     ax.legend()
 
 def plot_MC(data, feature, n_bins=100, plot_range=None): # FIXME - won't work for MDC2024
+    '''
+    make a 1D plot:
+      - feature is the chosen leaf from the ntuple
+      - n_bins is choice of bins (optional, default is 100)
+      - plot_range defined range in x (optional, default is auto)
+    '''
+    #FIXME overlaps with above function - can we combine?
     MC_count = count_MC(data)
 
     data_plot = []
@@ -43,7 +55,7 @@ def plot_MC(data, feature, n_bins=100, plot_range=None): # FIXME - won't work fo
 
 def count_MC(data_MC):
     """MC gen code can be found in Offline/MCDataProducts/inc/GenId.hh"""
-
+    # FIXME - we should be doing this  on the mu2e machines, using pywrapper!
     # MC gen code can be found in Offline/MCDataProducts/inc/genId.hh
     gen_code = ['unknown', 'particleGun', 'CeEndpoint',
                 'cosmicToy', 'cosmicDYB', 'cosmic', 'obsolete1', #6
@@ -148,7 +160,7 @@ def plot_MC_comparison(MC_count, result):
             MC_count_CE = N_gen
         elif name_gen == 'dioTail':
             MC_count_DIO = N_gen
-        elif name_gen == 'cosmicCRY':
+        elif name_gen == 'cosmicCRY': # FIXME should be 'or corsika' statement to be inclusive
             MC_count_cosmic = N_gen
 
     MC_count_total = MC_count_CE + MC_count_DIO + MC_count_cosmic

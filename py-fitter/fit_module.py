@@ -1,60 +1,51 @@
 # Fit class
 # Fit the data to a a product of PDFs defined in PDF_list
-
 import numpy as np
 import awkward as ak
 import matplotlib.pyplot as plt
-
 import tensorflow as tf
 import zfit
 
 from momPDF_module import poly58
+from momPDF_module import CeModel
+from momPDF_module import DIOModel
+from momPDF_module import CosmicModel
 from recoplot_module import plotmom_fit
 
-def Unbinned_fit_mom(array_trk, fit_range_low, fit_range_hi):
+#FIXME - remove the copies of the parameters, place these in some version controled class/file and use that
+#FIXME - can we make one fit function for 1D fits that does either time or mom? PDF created outside and called via an arguement choice?
+
+
+def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):
+    '''
+    Fit the time data to a exponential distribution
+
+    Parameters:
+        data (awkward array): Time data
+        fit_range_low (float): Lower limit of the fit range
+        fit_range_hi (float): Upper limit of the fit range
+    '''
     fit_range = (fit_range_low, fit_range_hi)
     obs_mom = zfit.Space('mom', limits=fit_range)
 
-    # Parameters CE
-    mu = zfit.Parameter('mu', 104, 103, 107)
-    sigma = zfit.Parameter('sigma', 0.5, 0.08, 2.0)
-    N_CE = zfit.Parameter('N_CE', 10, 0, 1e6)
-
-    # Parameters DIO
-    a5 = zfit.Parameter('a5', 8.6434e-17, 0, 1e-16)
-    a6 = zfit.Parameter('a6', 1.16874e-17, 0, 1e-16)
-    a7 = zfit.Parameter('a7', -1.87828e-19, -1e-18, 0)
-    a8 = zfit.Parameter('a8', 9.16327e-20, 0, 1e-18)
-    N_DIO = zfit.Parameter('N_DIO', 3000, 0, 1e6)
-
-    # Parameters Cosmic
-    N_cosmic = zfit.Parameter('N_cosmic', 10, 0, 1e6)
-
-    # Parameters resolution
-    mean_res = zfit.Parameter('mean_res', -0.5798, -10, 10)
-    sigma_res = zfit.Parameter('sigma_res', 0.2671, 0, 10)
-    alphal = zfit.Parameter('alphal', 0.422, 0, 10)
-    nl = zfit.Parameter('nl', 25.1, 0, 100)
-    alphar = zfit.Parameter('alphar', 2.227, 0, 100)
-    nr = zfit.Parameter('nr', 5.954, 0, 100)
-
     # PDF components
-    CE = zfit.pdf.DoubleCB(obs=obs_mom, mu=mu, sigma=sigma, alphal=alphal, nl=nl, alphar=alphar, nr=nr, extended=N_CE)
-    DIO = poly58(obs=obs_mom, a5=a5, a6=a6, a7=a7, a8=a8, extended=N_DIO)
-    cosmic = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_mom, extended=N_cosmic)
+    pars = []
+    CE, N_CE = CeModel(obs_mom, pars,'dscb')
+    DIO, N_DIO = DIOModel(obs_mom, pars,'poly58')
+    cosmic, N_cosmic = CosmicModel(obs_mom, pars, 'uniform', fit_range)
 
+    # build combined PDF
     combine_pdf = zfit.pdf.SumPDF([CE, DIO, cosmic])
-
     list_pdfs = [('CE', CE, N_CE), ('DIO', DIO, N_DIO), ('cosmic', cosmic, N_cosmic)]
 
     # Convert data to zfit Data
-    data_np = ak.to_numpy(ak.flatten(array_trk['trksegs','mom.mag'], axis=None))
+    data_np = ak.to_numpy(ak.flatten(data['trksegs','mom.mag'], axis=None))
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_mom)
 
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)
     minimizer = zfit.minimize.Minuit()
 
-    result = minimizer.minimize(loss, params=[mu, sigma, alphal, nl, alphar, nr, N_CE, N_DIO, N_cosmic])
+    result = minimizer.minimize(loss, params=pars)
     param_errors, _ = result.errors(method='minuit_minos')
 
     # Plot after fit
