@@ -4,11 +4,14 @@ Python based analysis tool for analysis of reconstructed Mu2e data or MC.
 
 # Developers
 
-The current code base has been initially developed by Leo Borrel and Sophie Middleton. Moving forward it will be part of the joint Mu2e Analysis Working Group. The current members include: Caltech, LBNL, Berkeley, Northwestern and Andy Edmonds (from CUNY but acting in on his own).
+The current code base has been developed by Leo Borrel, Sam Zhou and Sophie Middleton as part of the joint Mu2e Analysis Working Group.
 
-# Legacy Branch: MDC2018
+# Legacy Branches
 
-The MDC2018 branch  was developed using MDC2018 TrkAna NTuples. See the Mu2e wiki page for more information on MDC2018.
+As the code base has been applied to several mock data sets over the years we have two legacy branches:
+
+* MDC2018 branch  was developed using MDC2018 TrkAna NTuples. See the Mu2e wiki page for more information on MDC2018.
+* MDS0 branch was developed using the MDS0 samples of MDC2020.
 
 # Building the python environment:
 
@@ -63,30 +66,38 @@ We import the Mu2e ntuples using uproot and store it as an awkward array.
 
 ## Our interface:
 
-
-The Fit_module.py calls zfit and the various parameterizations of the signal (CE) and backgrounds (currently DIO, Cosmics only). The PDFs are written only for the momentum parameter currently.
+The fit_module.py calls zfit and the various parameterizations of the signal (CE) and backgrounds (currently DIO, Cosmics only). The PDFs are written only for the momentum parameter currently.
 We plan to expand to a 2D momentum and time fit eventually.
 
 ### The Momentum PDF Parameterizations
 
-* conversion e- signal (CE) is currently parameterized as a Double Sided Crystal Ball, assuming there has been multiple scattering, energy losses and detector distortions;
-* decay in orbit (DIO) is currently parameterized using the work of Czernecki et al and the polynomial functional form derived in [Phys. Rev. D 94, 051301];
-* cosmic induced background is currently parameterized as a uniform distribution;
-* RPC will be characterized as a Gaussian, centered on 100MeV/c.
+* Conversion e- signal (CE) is currently parameterized as a Double Sided Crystal Ball, assuming there has been multiple scattering, energy losses and detector distortions;
+* Decay in orbit (DIO) is currently parameterized using the work of Czernecki et al and the polynomial functional form derived in [Phys. Rev. D 94, 051301];
+* Cosmic induced background is currently parameterized as a uniform distribution;
+* RPC will be characterized as a Gaussian, centered on 100MeV/c following studies outline in mu2e-doc-db: 36503.
 
 These distributions are all defined inside of the "Mom_PDF" script. This infrastructure needs to evolve as we develop more complexity.
 
 ### The Time PDF Parameterizations
 
-* TODO
+Our final goal is to conduct a 2D fit in momentum and time. The time component helps remove in-time RPC.
+
+The time fit currently parameterizes things as follows:
+
+* Muon beam products (CE, DIO, RMC) are parameterized as an exponential with a rate according to the mean lifetime in Al (864ns)
+* Cosmic induced background is assumed uniform in time
+* RPC is parameterized as an exponential with dependance on the pion lifetime.
 
 ### 2D fits
 
-* TODO
+* The 2D fit combines the momentum and time 1D fits to provide a combined momentum time fit. The individual components are parameterized in the same way as the 1D fits.
 
-### Resoluton and Efficency parameterizations
+Currently all fits are defined in the fit_module.py. We expect this to evolve as we begin learning more and implementing more complexity in our model. In that case we will want version contol of our models.
+
+### Resoluton and Efficiency parameterizations
 
 * TODO
+* Further study is required to help us parameterize the momentum resolution and tracker acceptance.
 
 # Characterizing Uncertainties
 
