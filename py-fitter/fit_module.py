@@ -1,5 +1,5 @@
 # Fit class
-# Fit the data to a a product of PDFs defined in PDF_list
+# Fit the data to a product of PDFs defined in PDF_list
 
 import numpy as np
 import awkward as ak
