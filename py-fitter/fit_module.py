@@ -11,7 +11,7 @@ from momPDF_module import poly58
 from momPDF_module import CeModel
 from momPDF_module import DIOModel
 from momPDF_module import CosmicModel
-from recoplot_module import plotmom_fit
+from recoplot_module import plotmom_fit, plot_time_fit
 
 #FIXME - remove the copies of the parameters, place these in some version controled class/file and use that
 #FIXME - can we make one fit function for 1D fits that does either time or mom? PDF created outside and called via an arguement choice?
@@ -98,6 +98,9 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, include_cosmic=True):
     else:
         result = minimizer.minimize(loss, params=[decay_rate, N_exp])
     param_errors, _ = result.errors(method='minuit_minos')
+
+    # Plot after fit
+    plot_time_fit(data_np, fit_range, list_pdfs)
 
     return result
 
