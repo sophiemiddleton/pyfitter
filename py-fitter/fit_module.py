@@ -86,7 +86,7 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, include_cosmic=True):
         list_pdfs.append(('cosmic', cosmic_t, N_cosmic))
 
     # Convert data to zfit Data
-    data_np = ak.to_numpy(ak.flatten(data['demfit']['time'], axis=None))
+    data_np = ak.to_numpy(ak.flatten(data['trksegs']['time'], axis=None))
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_time)
 
     # Loss function and minimizer
@@ -119,11 +119,9 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, include_cosmic
     # time PDF components
     ## Exponential decay
     decay_rate = zfit.Parameter('decay_rate', -1 / 864, -1 / 10, -1 / 1000)
-    N_exp = zfit.Parameter('N_exp', 6000, 0, 1e5)
     exp_t = zfit.pdf.Exponential(decay_rate, obs=obs_time)
     if (include_cosmic):
         ## Uniform distribution
-        N_cosmic = zfit.Parameter('N_cosmic', 0, 0, 1e4)
         cosmic_t = zfit.pdf.Uniform(low=fit_range_time[0], high=fit_range_time[1], obs=obs_time)
 
     # momentum PDF components
@@ -165,8 +163,8 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, include_cosmic
         list_pdfs.append(('cosmic', cosmic, N_cosmic))
 
     # Convert data to zfit Data
-    data_np_mom = ak.to_numpy(ak.flatten(data['demfit_mom'], axis=None))
-    data_np_time = ak.to_numpy(ak.flatten(data['demfit']['time'], axis=None))
+    data_np_mom = ak.to_numpy(ak.flatten(data['trksegs']['mom.mag'], axis=None))
+    data_np_time = ak.to_numpy(ak.flatten(data['trksegs']['time'], axis=None))
     data_zfit = zfit.Data.from_numpy(array=np.column_stack((data_np_mom, data_np_time)), obs=obs_2D)
 
     # Loss function and minimizer
@@ -178,8 +176,8 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, include_cosmic
     else:
         result = minimizer.minimize(loss, params=[mu, sigma, alphal, nl, alphar, nr, N_CE, N_DIO, decay_rate])
 
-    #param_errors, _ = result.errors(method='minuit_minos')
-    result.hesse(method='minuit_hesse', name='Hesse')
+    param_errors, _ = result.errors(method='minuit_minos')
+    #result.hesse(method='minuit_hesse', name='Hesse')
 
     return result
 
