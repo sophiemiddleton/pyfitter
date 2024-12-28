@@ -1,5 +1,6 @@
 # Fit class
-# Fit the data to a a product of PDFs defined in PDF_list
+# Fit the data to a product of PDFs defined in PDF_list
+
 import numpy as np
 import awkward as ak
 import matplotlib.pyplot as plt
@@ -10,7 +11,7 @@ from momPDF_module import poly58
 from momPDF_module import CeModel
 from momPDF_module import DIOModel
 from momPDF_module import CosmicModel
-from recoplot_module import plotmom_fit
+from recoplot_module import plotmom_fit, plot_time_fit
 
 #FIXME - remove the copies of the parameters, place these in some version controled class/file and use that
 #FIXME - can we make one fit function for 1D fits that does either time or mom? PDF created outside and called via an arguement choice?
@@ -85,7 +86,7 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, include_cosmic=True):
         list_pdfs.append(('cosmic', cosmic_t, N_cosmic))
 
     # Convert data to zfit Data
-    data_np = ak.to_numpy(ak.flatten(data['demfit']['time'], axis=None))
+    data_np = ak.to_numpy(ak.flatten(data['trksegs']['time'], axis=None))
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_time)
 
     # Loss function and minimizer
@@ -97,6 +98,9 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, include_cosmic=True):
     else:
         result = minimizer.minimize(loss, params=[decay_rate, N_exp])
     param_errors, _ = result.errors(method='minuit_minos')
+
+    # Plot after fit
+    plot_time_fit(data_np, fit_range, list_pdfs)
 
     return result
 
@@ -118,11 +122,9 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, include_cosmic
     # time PDF components
     ## Exponential decay
     decay_rate = zfit.Parameter('decay_rate', -1 / 864, -1 / 10, -1 / 1000)
-    N_exp = zfit.Parameter('N_exp', 6000, 0, 1e5)
     exp_t = zfit.pdf.Exponential(decay_rate, obs=obs_time)
     if (include_cosmic):
         ## Uniform distribution
-        N_cosmic = zfit.Parameter('N_cosmic', 0, 0, 1e4)
         cosmic_t = zfit.pdf.Uniform(low=fit_range_time[0], high=fit_range_time[1], obs=obs_time)
 
     # momentum PDF components
@@ -164,8 +166,8 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, include_cosmic
         list_pdfs.append(('cosmic', cosmic, N_cosmic))
 
     # Convert data to zfit Data
-    data_np_mom = ak.to_numpy(ak.flatten(data['demfit_mom'], axis=None))
-    data_np_time = ak.to_numpy(ak.flatten(data['demfit']['time'], axis=None))
+    data_np_mom = ak.to_numpy(ak.flatten(data['trksegs']['mom.mag'], axis=None))
+    data_np_time = ak.to_numpy(ak.flatten(data['trksegs']['time'], axis=None))
     data_zfit = zfit.Data.from_numpy(array=np.column_stack((data_np_mom, data_np_time)), obs=obs_2D)
 
     # Loss function and minimizer
@@ -177,8 +179,8 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, include_cosmic
     else:
         result = minimizer.minimize(loss, params=[mu, sigma, alphal, nl, alphar, nr, N_CE, N_DIO, decay_rate])
 
-    #param_errors, _ = result.errors(method='minuit_minos')
-    result.hesse(method='minuit_hesse', name='Hesse')
+    param_errors, _ = result.errors(method='minuit_minos')
+    #result.hesse(method='minuit_hesse', name='Hesse')
 
     return result
 
