@@ -17,7 +17,7 @@ from recoplot_module import plotmom_fit, plot_time_fit
 #FIXME - can we make one fit function for 1D fits that does either time or mom? PDF created outside and called via an arguement choice?
 
 
-def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):
+def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False):
     '''
     Fit the time data to a exponential distribution
 
@@ -50,7 +50,8 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):
     param_errors, _ = result.errors(method='minuit_minos')
 
     # Plot after fit
-    plotmom_fit(data_np, fit_range, list_pdfs)
+    cat = ak.to_numpy(ak.flatten(data['trksegs','cat'], axis=None)) if plot_cat else None
+    plotmom_fit(data_np, fit_range, list_pdfs, cat)
 
     return result
 
