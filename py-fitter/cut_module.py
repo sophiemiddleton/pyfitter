@@ -89,21 +89,22 @@ class CutClass:
             #array_cut[eval(key)].show()
 
         # CRV cuts
-        print('crv cut')
-        builder = ak.ArrayBuilder()
-        for i_evt, evt in enumerate(array_trk['trksegs','time']):
-            builder.begin_list()
-            for i_trk, trk in enumerate(evt):
-                flag = True
-                if ak.num(ak.drop_none(trk), axis=0) > 0:
-                    for i_crv, crv in enumerate(array_crv['crvcoincs','crvcoincs.time', i_evt]):
-                        if np.abs(trk[0] - crv) < self.CRV_cut.get('crv_coincidence'):
-                            flag = False
-                builder.boolean(flag)
-            builder.end_list()
+        if self.use_CRV:
+            print('crv cut')
+            builder = ak.ArrayBuilder()
+            for i_evt, evt in enumerate(array_trk['trksegs','time']):
+                builder.begin_list()
+                for i_trk, trk in enumerate(evt):
+                    flag = True
+                    if ak.num(ak.drop_none(trk), axis=0) > 0:
+                        for i_crv, crv in enumerate(array_crv['crvcoincs','crvcoincs.time', i_evt]):
+                            if np.abs(trk[0] - crv) < self.CRV_cut.get('crv_coincidence'):
+                                flag = False
+                    builder.boolean(flag)
+                builder.end_list()
 
-        coincidence = builder.snapshot()
-        ApplyMaskTrk(array_cut, coincidence)
+            coincidence = builder.snapshot()
+            ApplyMaskTrk(array_cut, coincidence)
 
         #print("# of events after all the cuts: ", ak.num(array_trk, axis=0)
         print("# of tracks after all the cuts: ", ak.count(array_cut['trksegs','time']))
