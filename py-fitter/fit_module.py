@@ -11,6 +11,7 @@ from momPDF_module import poly58
 from momPDF_module import CeModel
 from momPDF_module import DIOModel
 from momPDF_module import CosmicModel
+from momPDF_module import RPCModel
 from recoplot_module import plotmom_fit, plot_time_fit
 
 #FIXME - remove the copies of the parameters, place these in some version controled class/file and use that
@@ -33,11 +34,12 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi):
     pars = []
     CE, N_CE = CeModel(obs_mom, pars,'dscb')
     DIO, N_DIO = DIOModel(obs_mom, pars,'poly58')
+    RPC, N_RPC = RPCModel(obs_mom, pars, 'Gauss')
     cosmic, N_cosmic = CosmicModel(obs_mom, pars, 'uniform', fit_range)
 
     # build combined PDF
     combine_pdf = zfit.pdf.SumPDF([CE, DIO, cosmic])
-    list_pdfs = [('CE', CE, N_CE), ('DIO', DIO, N_DIO), ('cosmic', cosmic, N_cosmic)]
+    list_pdfs = [('CE', CE, N_CE), ('DIO', DIO, N_DIO), ('RPC', RPC, N_RPC), ('cosmic', cosmic, N_cosmic)]
 
     # Convert data to zfit Data
     data_np = ak.to_numpy(ak.flatten(data['trksegs','mom.mag'], axis=None))
