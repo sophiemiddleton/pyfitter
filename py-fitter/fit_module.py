@@ -69,20 +69,24 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, include_cosmic=True):
     obs_time = zfit.Space('time', limits=fit_range)
 
     #PDF components
-    ## Exponential decay
+    ## Exponential decay for muons
     decay_rate = zfit.Parameter('decay_rate', -1/864, -1/10, -1/1000)
     N_exp = zfit.Parameter('N_exp', 6000, 0, 1e5)
     exp_t = zfit.pdf.Exponential(decay_rate, obs=obs_time, extended=N_exp)
+    ## Exponential decay for pions
+    decay_rate_RPC = zfit.Parameter('decay_rate_rpc', -1/864, -1/10, -1/1000)
+    N_RPC = zfit.Parameter('N_rpc', 0, 0, 1e4)
+    exp_t_RPC = zfit.pdf.Exponential(decay_rate_RPC, obs=obs_time, extended=N_rpc)
     if (include_cosmic):
         ## Uniform distribution
         N_cosmic = zfit.Parameter('N_cosmic', 0, 0, 1e4)
         cosmic_t = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_time, extended=N_cosmic)
 
     # Combine the time PDFs
-    combine_pdf = exp_t
-    list_pdfs = [('exp', exp_t, N_exp)]
+    combine_pdf = zfit.pdf.SumPDF([exp_t, exp_t_RPC])
+    list_pdfs = [('exp', exp_t, N_exp), ('rpc', exp_t_RPC, N_RPC)]
     if (include_cosmic):
-        combine_pdf = zfit.pdf.SumPDF([exp_t, cosmic_t])
+        combine_pdf = zfit.pdf.SumPDF([exp_t, exp_t_RPC, cosmic_t])
         list_pdfs.append(('cosmic', cosmic_t, N_cosmic))
 
     # Convert data to zfit Data
@@ -94,9 +98,9 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, include_cosmic=True):
     minimizer = zfit.minimize.Minuit()
 
     if (include_cosmic):
-        result = minimizer.minimize(loss, params=[decay_rate, N_exp, N_cosmic])
+        result = minimizer.minimize(loss, params=[decay_rate, N_exp, N_cosmic, decay_rate_RPC, N_RPC])
     else:
-        result = minimizer.minimize(loss, params=[decay_rate, N_exp])
+        result = minimizer.minimize(loss, params=[decay_rate, N_exp, decay_rate_RPC, N_RPC])
     param_errors, _ = result.errors(method='minuit_minos')
 
     # Plot after fit
