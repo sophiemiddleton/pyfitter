@@ -139,6 +139,26 @@ class CutClass:
         #print("# of events after all the cuts: ", ak.num(array_trk, axis=0)
         print("# of tracks after all the cuts: ", ak.count(array_mc_cut['trksegsmc','time']))
 
+    def SelectTrackType(self, array_trk, startCode):
+        '''
+            Select tracks based on the startCode
+            startCode = [178, 179] for RPC electrons
+        '''
+
+        # Convert the startCode to a list if it is an integer
+        if type(startCode) == int:
+            startCode = [startCode]
+
+        startCode_max = ak.max(array_trk['trkmcsim','startCode'], axis=2)
+        mask = ak.zeros_like(startCode_max, dtype=bool)
+
+        for code in startCode:
+            mask = mask | (startCode_max == code)
+
+        array = ak.copy(array_trk)
+        ApplyMaskTrk(array, mask)
+
+        return array
 
 def ApplyMaskTrk(array_cut, mask):
     """ Apply the mask onto each track-level branch of the array """
