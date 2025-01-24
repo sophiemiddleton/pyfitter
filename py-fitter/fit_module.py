@@ -124,9 +124,12 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, include_cosmic
     obs_2D = obs_mom * obs_time
 
     # time PDF components
-    ## Exponential decay
+    ## Exponential decay for muons
     decay_rate = zfit.Parameter('decay_rate', -1 / 864, -1 / 10, -1 / 1000)
     exp_t = zfit.pdf.Exponential(decay_rate, obs=obs_time)
+    ## Exponential decay for pions
+    decay_rate_RPC = zfit.Parameter('decay_rate_rpc', -1 / 864, -1 / 10, -1 / 1000)
+    exp_t_RPC = zfit.pdf.Exponential(decay_rate_RPC, obs=obs_time)
     if (include_cosmic):
         ## Uniform distribution
         cosmic_t = zfit.pdf.Uniform(low=fit_range_time[0], high=fit_range_time[1], obs=obs_time)
@@ -148,6 +151,11 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, include_cosmic
     a8 = zfit.Parameter('a8', 9.16327e-20, 0, 1e-18)
     DIO = poly58(obs=obs_mom, a5=a5, a6=a6, a7=a7, a8=a8)
 
+    ## RPC
+    mu_RPC = zfit.Parameter('mu_rpc', 100, 95, 115)
+    sigma_RPC = zfit.Parameter('sigma_rpc', 0.5, 1e-3, 1e3)
+    RPC = zfit.pdf.Gauss(obs=obs_mom, mu=mu_RPC, sigma=sigma_RPC)
+
     if (include_cosmic):
         ## cosmic
         cosmic = zfit.pdf.Uniform(low=fit_range_mom[0], high=fit_range_mom[1], obs=obs_mom)
@@ -159,14 +167,17 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, include_cosmic
     N_DIO = zfit.Parameter('N_DIO', 4398.87, 0, 1e6)
     combine_DIO_pdf = zfit.pdf.ProductPDF([DIO, exp_t], extended=N_DIO)
 
-    combine_pdf = zfit.pdf.SumPDF([combine_CE_pdf, combine_DIO_pdf])
-    list_pdfs = [('CE', CE, N_CE), ('DIO', DIO, N_DIO)]
+    N_RPC = zfit.Parameter('N_rpc', 0, 0, 1e6)
+    combine_RPC_pdf = zfit.pdf.ProductPDF([RPC, exp_t_RPC], extended=N_RPC)
+
+    combine_pdf = zfit.pdf.SumPDF([combine_CE_pdf, combine_DIO_pdf, combine_RPC_pdf])
+    list_pdfs = [('CE', CE, N_CE), ('DIO', DIO, N_DIO), ('RPC', RPC, N_RPC)]
 
     if (include_cosmic):
         N_cosmic = zfit.Parameter('N_cosmic', 0, 0, 1e6)
         combine_cosmic_pdf = zfit.pdf.ProductPDF([cosmic, cosmic_t], extended=N_cosmic)
 
-        combine_pdf = zfit.pdf.SumPDF([combine_CE_pdf, combine_DIO_pdf, combine_cosmic_pdf])
+        combine_pdf = zfit.pdf.SumPDF([combine_CE_pdf, combine_DIO_pdf, combine_RPC_pdf, combine_cosmic_pdf])
         list_pdfs.append(('cosmic', cosmic, N_cosmic))
 
     # Convert data to zfit Data
@@ -179,9 +190,9 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, include_cosmic
     minimizer = zfit.minimize.Minuit()
 
     if (include_cosmic):
-        result = minimizer.minimize(loss, params=[mu, sigma, alphal, nl, alphar, nr, N_CE, N_DIO, N_cosmic, decay_rate])
+        result = minimizer.minimize(loss, params=[mu, sigma, alphal, nl, alphar, nr, N_CE, N_DIO, decay_rate, N_cosmic, mu_RPC, sigma_RPC, N_RPC])
     else:
-        result = minimizer.minimize(loss, params=[mu, sigma, alphal, nl, alphar, nr, N_CE, N_DIO, decay_rate])
+        result = minimizer.minimize(loss, params=[mu, sigma, alphal, nl, alphar, nr, N_CE, N_DIO, decay_rate, mu_RPC, sigma_RPC, N_RPC])
 
     param_errors, _ = result.errors(method='minuit_minos')
     #result.hesse(method='minuit_hesse', name='Hesse')
