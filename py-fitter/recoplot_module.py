@@ -7,8 +7,8 @@ import matplotlib.ticker as ticker
 from cycler import cycler
 
 # setup a cycler to get a different default color and linestyle
-custom_cycler = (cycler(color=list('bgm')) +
-                 cycler(linestyle=['--', ':', '-.']))
+custom_cycler = (cycler(color=['b','g','m','r']) +
+                 cycler(linestyle=['--', ':', '-.',(0, (3, 5, 1, 5))]))
 
 
 def PlotRecoMomEnt(branches, low, hi):
@@ -46,11 +46,13 @@ def plotmom_fit(data, fit_range, list_pdfs, cat=None):
     fig, (ax1, ax2) = plt.subplots(2,1, height_ratios=[3,1])
 
     if cat is not None:
-        colors = ['violet','lightskyblue','lightgreen']
-        hists,_,_ = ax1.hist([data[cat==icat] for icat in range(3)], color=colors, bins=n_bins, range=fit_range, histtype='bar',stacked=True)
-        print('DIO   :',np.sum(hists[2])-np.sum(hists[1])-np.sum(hists[0]))
-        print('CeLL  :',np.sum(hists[1])-np.sum(hists[0]))
-        print('Other :',np.sum(hists[0]))
+        colors = ['lightgrey','violet','lightcoral','lightskyblue','lightgreen']
+        hists,_,_ = ax1.hist([data[cat==icat] for icat in range(5)], color=colors, bins=n_bins, range=fit_range, histtype='bar',stacked=True)
+        print('DIO    :',np.sum(hists[4])-np.sum(hists[3]))
+        print('CeLL   :',np.sum(hists[3])-np.sum(hists[2]))
+        print('RPC    :',np.sum(hists[2])-np.sum(hists[1]))
+        print('Cosmic :',np.sum(hists[1])-np.sum(hists[0]))
+        print('Other  :',np.sum(hists[0]))
     else:
         ax1.hist(data, color='black', bins=n_bins, range=fit_range, histtype='step')
     ax1.errorbar(data_bincenter, data_hist, yerr=np.sqrt(data_hist), color='None', ecolor='black', capsize=3)

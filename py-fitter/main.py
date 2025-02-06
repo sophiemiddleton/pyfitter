@@ -27,12 +27,12 @@ def  main(args):
     array_crv = mds1.Import(list_branch=list_branch_crv)
 
     # apply cuts:
-    cuts = CutClass("SU2020", False)
+    cuts = CutClass("SU2020", True)
 
     if int(args.categorize) == 1:
         list_branch_mc  = ["trkmcsim"]
         array_mc  = mds1.Import(list_branch=list_branch_mc)
-        track_cat = cuts.CategorizeTracks(array_mc)
+        track_cat = cuts.CategorizeTracks(array_mc,args.mismatch)
         array_trk['trksegs','cat'] = ak.broadcast_arrays(array_trk['trksegs','time'],track_cat)[1]
     
     array_cut = cuts.ApplyCut(array_trk, array_crv)
@@ -62,6 +62,7 @@ if __name__ == "__main__":
     parser.add_argument("--fitrange_mom_hi", type=float, default=115, help="fitrange_mom_hi")
     parser.add_argument("--showMC", type=int, default=0, help="showMC")
     parser.add_argument("--categorize", type=int, default=0, help="Categorize tracks by MC matching")
+    parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")
     parser.add_argument("--verbose", default=0, help="verbose")
     args = parser.parse_args()
     (args) = parser.parse_args()

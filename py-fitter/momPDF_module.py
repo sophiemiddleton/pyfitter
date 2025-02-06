@@ -78,10 +78,19 @@ def CosmicModel(obs_mom, params, model=None, fit_range=[95, 115]):
   
 def RPCModel(obs_mom, params, model=None):
   """ model of rpc momentum spectra """
-  N_rpc = 0
-  rpc= ""
-  #TODO
-  return rpc, N_rpc
+  N_RPC = 0
+  RPC= ""
+  if model == 'Gauss':
+    mu_RPC = zfit.Parameter('mu', 100, 95, 115)
+    sigma_RPC = zfit.Parameter('sigma', 0.5, 1e-3, 1e3)
+
+    N_RPC = zfit.Parameter('N_RPC', 23, 0, 1e6)
+    RPC = zfit.pdf.Gauss(obs=obs_mom, mu=mu_RPC, sigma=sigma_RPC, extended=N_RPC)
+    params.extend([mu_RPC, sigma_RPC, N_RPC])
+  else:
+      raise Exception("ERROR: RPC Model not Defined!")
+
+  return RPC, N_RPC
   
 def RMCModel(obs_mom, params, model=None):
   """ model of rmc momentum spectra """

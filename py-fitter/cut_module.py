@@ -76,22 +76,22 @@ class CutClass:
             print("# of trksegs passing this cut: ", ak.count(array_cut['trksegs','time']))
 
         # CRV cuts
-        print('crv cut')
-        # TODO to decide
-        # - Look only at first trkseg (current implementation), all trksegs, trkseg for specific sid?
-        # - Look at trkseg before or after applying selection? (This doesn't matter for current implementation, might matter if we changed trkseg choice)
+        if self.use_CRV:
+            print('crv cut')
+            # TODO to decide
+            # - Look only at first trkseg (current implementation), all trksegs, trkseg for specific sid?
+            # - Look at trkseg before or after applying selection? (This doesn't matter for current implementation, might matter if we changed trkseg choice)
 
-        # Get array where for each event, for each track, we have all combinations of leading trkseg time and crv time
-        combinations = ak.cartesian([ak.firsts(array_trk['trksegs','time'],axis=-1),array_crv['crvcoincs','crvcoincs.time']],axis=1,nested=True)
-        trksegtime, crvtime = ak.unzip(combinations)
-        mintimediff = ak.min(abs(trksegtime-crvtime),axis=-1)
-        # True if mintimediff >= cut or no crv hit; False if mintimediff < cut
-        mask = ak.fill_none((mintimediff >= self.CRV_cut.get('crv_coincidence')),True)
-
-        ApplyMaskTrk(array_cut, mask)
-
+            # Get array where for each event, for each track, we have all combinations of leading trkseg time and crv time
+            combinations = ak.cartesian([ak.firsts(array_trk['trksegs','time'],axis=-1),array_crv['crvcoincs','crvcoincs.time']],axis=1,nested=True)
+            trksegtime, crvtime = ak.unzip(combinations)
+            mintimediff = ak.min(abs(trksegtime-crvtime),axis=-1)
+            # True if mintimediff >= cut or no crv hit; False if mintimediff < cut
+            mask = ak.fill_none((mintimediff >= self.CRV_cut.get('crv_coincidence')),True)
+            ApplyMaskTrk(array_cut, mask)
+            
         print("# of trksegs after all the cuts: ", ak.count(array_cut['trksegs','time']))
-
+        
         return array_cut
 
 
@@ -122,22 +122,43 @@ class CutClass:
         #print("# of events after all the cuts: ", ak.num(array_trk, axis=0)
         print("# of tracks after all the cuts: ", ak.count(array_mc_cut['trksegsmc','time']))
 
-        
-    def CategorizeTracks(self, array_mc):
-        """ Categorize tracks as Other (0), CeLL (1), DIO (2) """
+    def CategorizeTracks(self, array_mc, mismatch=False):
+
         print('Doing track categorization')
+
+        codes = {'Cosmic' : {'startCode' : [None],    'genCode' : [44]},
+                 'RPC'    : {'startCode' : [178,179], 'genCode' : [None]},
+                 'CeLL'   : {'startCode' : [168],     'genCode' : [None]},
+                 'DIO'    : {'startCode' : [166,170], 'genCode' : [None]}}
+
         array_tmp = ak.copy(array_mc)
-        
+
         mask = (array_tmp['trkmcsim']['rank'] == 0) & (array_tmp['trkmcsim']['nhits'] > 0)
         ApplyMaskTrkVec(array_tmp, mask)
 
-        #primaryCode = ak.flatten(ak.drop_none(array_tmp['trkmcsim']['startCode']),axis=2,mask_identity=True)
-        primaryCode = ak.max(ak.flatten(array_tmp['trkmcsim']['startCode'],axis=2),axis=1,mask_identity=True) # TEMP event-level categorization for MDS1d
-        primaryCode = ak.fill_none(primaryCode,0)
-        categories = (1 * (primaryCode == 168) + 2 * (primaryCode == 166) + 0 * (primaryCode < 163))
+        if mismatch:
+            pStartCode = ak.max(ak.flatten(array_tmp['trkmcsim']['startCode'],axis=2),axis=1,mask_identity=True)
+            pGenCode = ak.max(ak.flatten(array_tmp['trkmcsim']['gen'],axis=2),axis=1,mask_identity=True)
+        else:
+            pStartCode = ak.flatten(ak.drop_none(array_tmp['trkmcsim']['startCode']),axis=2,mask_identity=True)
+            pGenCode = ak.flatten(ak.drop_none(array_tmp['trkmcsim']['gen']),axis=2,mask_identity=True)
+        pStartCode = ak.fill_none(pStartCode,-1)
+        pGenCode = ak.fill_none(pGenCode,-1)
         
-        return categories
+        categories = ak.zeros_like(pStartCode)
+        for icat, idict in enumerate(codes.values()):
+            startCodes = idict['startCode']
+            genCodes = idict['genCode']
+            goodCode = ak.zeros_like(pStartCode,dtype=bool)
+            for startCode in startCodes:
+                for genCode in genCodes:
+                    goodStartCode = ak.ones_like(pStartCode,dtype=bool) if startCode is None else (pStartCode == startCode)
+                    goodGenCode = ak.ones_like(pGenCode,dtype=bool) if genCode is None else (pGenCode == genCode)
+                    goodCode = goodCode | (goodStartCode & goodGenCode)
+            categories = categories + (icat+1) * (goodCode)
 
+        return categories
+    
     
 def ApplyMaskTrk(array_cut, mask):
     """ Apply the mask onto all branches of the array, broadcasting to vector-type branches """
