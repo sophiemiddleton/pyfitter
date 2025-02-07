@@ -33,7 +33,8 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False):
     norms = {}
     for proc in components:
         pdf = components[proc]['pdf']
-        pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, fit_range)
+        pardict = components[proc]['pars']
+        pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, pardict, fit_range)
 
     # build combined PDF
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
