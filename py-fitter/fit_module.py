@@ -7,12 +7,9 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import zfit
 
-from momPDF_module import poly58
-from momPDF_module import CeModel
-from momPDF_module import DIOModel
-from momPDF_module import CosmicModel
-from momPDF_module import RPCModel
+from momPDF_module import MomModel
 from recoplot_module import plotmom_fit, plot_time_fit
+from components import components
 
 #FIXME - remove the copies of the parameters, place these in some version controled class/file and use that
 #FIXME - can we make one fit function for 1D fits that does either time or mom? PDF created outside and called via an arguement choice?
@@ -32,14 +29,15 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False):
 
     # PDF components
     pars = []
-    CE, N_CE = CeModel(obs_mom, pars,'dscb')
-    DIO, N_DIO = DIOModel(obs_mom, pars,'poly58')
-    RPC, N_RPC = RPCModel(obs_mom, pars, 'Gauss')
-    cosmic, N_cosmic = CosmicModel(obs_mom, pars, 'uniform', fit_range)
+    pdfs = {}
+    norms = {}
+    for proc in components:
+        pdf = components[proc]['pdf']
+        pardict = components[proc]['pars']
+        pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, pardict, fit_range)
 
     # build combined PDF
-    combine_pdf = zfit.pdf.SumPDF([CE, DIO, cosmic])
-    list_pdfs = [('CE', CE, N_CE), ('DIO', DIO, N_DIO), ('RPC', RPC, N_RPC), ('cosmic', cosmic, N_cosmic)]
+    combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # Convert data to zfit Data
     data_np = ak.to_numpy(ak.flatten(data['trksegs','mom.mag'], axis=None))
@@ -49,11 +47,14 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False):
     minimizer = zfit.minimize.Minuit()
 
     result = minimizer.minimize(loss, params=pars)
-    param_errors, _ = result.errors(method='minuit_minos')
+    try:
+        param_errors, _ = result.errors(method='minuit_minos')
+    except:
+        print('WARNING! Invalid fit, postfit parameters may not be optimal')
 
     # Plot after fit
     cat = ak.to_numpy(ak.flatten(data['trksegs','cat'], axis=None)) if plot_cat else None
-    plotmom_fit(data_np, fit_range, list_pdfs, cat)
+    plotmom_fit(data_np, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in components.keys()], cat)
 
     return result
 

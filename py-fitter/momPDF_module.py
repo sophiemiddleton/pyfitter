@@ -22,79 +22,62 @@ class poly58(zfit.pdf.ZPDF):
 
         return a5 * delta**5 + a6 * delta**6 + a7 * delta**7 + a8 * delta**8
 
+default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
+                                    'sigma'  : (0.5,           0.08,  2.0),
+                                    'alphal' : (0.422,         0,     10),
+                                    'nl'     : (25.1,          0,     100),
+                                    'alphar' : (2.227,         0,     100),
+                                    'nr'     : (5.954,         0,     100)},
+                        'poly58' : {'a5'     : (8.6434e-17,    0,     1e-16),
+                                    'a6'     : (1.16874e-17,   0,     1e-16),
+                                    'a7'     : (-1.87828e-19, -1e-18, 0),
+                                    'a8'     : (9.16327e-20,   0,     1e-18)},
+                        'Gauss'  : {'mu'     : (100,           95,    115),
+                                    'sigma'  : (0.5,           1e-3,  1e3)},
+                        'uniform' : {}
+                        }
 
-def CeModel(obs_mom, params, model=None):
-  """ model of conversion electron momentum spectra """
-  N_CE = 0
-  CE = ""
+default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 200, 'RPC' : 23}
 
-  if model == 'dscb': # Double-Sided Crystalball function
-    mu = zfit.Parameter('mu', 104, 103, 107)
-    sigma = zfit.Parameter('sigma', 0.5, 0.08, 2.0)
-    # Parameters resolution
-    mean_res = zfit.Parameter('mean_res', -0.5798, -10, 10)
-    sigma_res = zfit.Parameter('sigma_res', 0.2671, 0, 10)
-    alphal = zfit.Parameter('alphal', 0.422, 0, 10)
-    nl = zfit.Parameter('nl', 25.1, 0, 100)
-    alphar = zfit.Parameter('alphar', 2.227, 0, 100)
-    nr = zfit.Parameter('nr', 5.954, 0, 100)
+def MomModel(obs_mom, params_tot, process, model, pardict, fit_range):
 
-    N_CE= zfit.Parameter('N_CE', 10, 0, 1e6)
-    params.extend([mu, sigma, alphal, nl, alphar, nr, N_CE])
-    CE = zfit.pdf.DoubleCB(obs=obs_mom, mu=mu, sigma=sigma, alphal=alphal, nl=nl, alphar=alphar, nr=nr, extended=N_CE)
-  else:
-    raise Exception("ERROR: CE Model not Defined!")
+    if pardict is not None and 'N' in pardict:
+        N = zfit.Parameter('N_'+process, pardict['N'][0], pardict['N'][1], pardict['N'][2])
+    elif process in list(default_norms.keys()):
+        N = zfit.Parameter('N_'+process, default_norms[process], 0, 1e6)
+    else:
+        N = zfit.Parameter('N_'+process, 10,                     0, 1e6)
 
-  return CE, N_CE
+    # Start with default parameters for model
+    params = default_model_params[model]
+
+    # If any parameters are specified in components, override
+    if pardict is not None:
+        for par in pardict: 
+            if par in default_model_params: params[par] = pardict[par]                
+
+    zpars = {'N' : N}
+    for p in params.keys():
+        zpars[p] = zfit.Parameter(p+'_'+process, params[p][0], params[p][1], params[p][2])
+        
+    if model == 'dscb': # Double-Sided Crystalball function
+        params_tot.extend(list(zpars.values()))
+        PDF = zfit.pdf.DoubleCB(obs=obs_mom, mu=zpars['mu'], sigma=zpars['sigma'], alphal=zpars['alphal'], nl=zpars['nl'], alphar=zpars['alphar'], nr=zpars['nr'], extended=N)
     
-def DIOModel(obs_mom, params, model=None):
-  """ model of dio momentum spectra"""
-  N_DIO = 0
-  DIO = ""
-  if model == 'poly58':
-    a5 = zfit.Parameter('a5', 8.6434e-17, 0, 1e-16)
-    a6 = zfit.Parameter('a6', 1.16874e-17, 0, 1e-16)
-    a7 = zfit.Parameter('a7', -1.87828e-19, -1e-18, 0)
-    a8 = zfit.Parameter('a8', 9.16327e-20, 0, 1e-18)
-    
-    N_DIO = zfit.Parameter('N_DIO', 3000, 0, 1e6)
-    params.append(N_DIO)
-    DIO = poly58(obs=obs_mom, a5=a5, a6=a6, a7=a7, a8=a8, extended=N_DIO)
-  else:
-    raise Exception("ERROR: DIO Model not Defined!")
-  return DIO, N_DIO
-  
-def CosmicModel(obs_mom, params, model=None, fit_range=[95, 115]):
-  """ model of cosmic momentum spectra """
-  N_cosmic = 0
-  cosmic= ""
-  if model == 'uniform':
-    N_cosmic = zfit.Parameter('N_cosmic', 10, 0, 1e6)
-    cosmic = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_mom, extended=N_cosmic)
-    params.append(N_cosmic)
-  else:
-    raise Exception("ERROR: Cosmic Model not Defined!")
-  return cosmic, N_cosmic
-  
-def RPCModel(obs_mom, params, model=None):
-  """ model of rpc momentum spectra """
-  N_RPC = 0
-  RPC= ""
-  if model == 'Gauss':
-    mu_RPC = zfit.Parameter('mu', 100, 95, 115)
-    sigma_RPC = zfit.Parameter('sigma', 0.5, 1e-3, 1e3)
+    elif model == 'poly58':
+        params_tot.append(N)
+        PDF = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'], extended=N)
 
-    N_RPC = zfit.Parameter('N_RPC', 23, 0, 1e6)
-    RPC = zfit.pdf.Gauss(obs=obs_mom, mu=mu_RPC, sigma=sigma_RPC, extended=N_RPC)
-    params.extend([mu_RPC, sigma_RPC, N_RPC])
-  else:
-      raise Exception("ERROR: RPC Model not Defined!")
+    elif model == 'uniform':
+        params_tot.append(N)
+        PDF = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_mom, extended=N)
 
-  return RPC, N_RPC
+    elif model == 'Gauss':
+        params_tot.extend(list(zpars.values()))
+        PDF = zfit.pdf.Gauss(obs=obs_mom, mu=zpars['mu'], sigma=zpars['sigma'], extended=N)
+
+    else:
+        raise Exception(f"ERROR: model {model} not defined!")
+
+    return PDF, N
   
-def RMCModel(obs_mom, params, model=None):
-  """ model of rmc momentum spectra """
-  N_rmc = 0
-  rmc= ""
-  #TODO
-  return rmc, N_rmc
