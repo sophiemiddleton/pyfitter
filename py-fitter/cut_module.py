@@ -5,6 +5,7 @@ import awkward as ak
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+from components import components
 
 class CutClass:
 
@@ -126,11 +127,6 @@ class CutClass:
 
         print('Doing track categorization')
 
-        codes = {'Cosmic' : {'startCode' : [None],    'genCode' : [44]},
-                 'RPC'    : {'startCode' : [178,179], 'genCode' : [None]},
-                 'CeLL'   : {'startCode' : [168],     'genCode' : [None]},
-                 'DIO'    : {'startCode' : [166,170], 'genCode' : [None]}}
-
         array_tmp = ak.copy(array_mc)
 
         mask = (array_tmp['trkmcsim']['rank'] == 0) & (array_tmp['trkmcsim']['nhits'] > 0)
@@ -146,7 +142,7 @@ class CutClass:
         pGenCode = ak.fill_none(pGenCode,-1)
         
         categories = ak.zeros_like(pStartCode)
-        for icat, idict in enumerate(codes.values()):
+        for icat, idict in enumerate(components.values()):
             startCodes = idict['startCode']
             genCodes = idict['genCode']
             goodCode = ak.zeros_like(pStartCode,dtype=bool)
