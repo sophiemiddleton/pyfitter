@@ -7,11 +7,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import zfit
 
-from momPDF_module import poly58
-from momPDF_module import CeModel
-from momPDF_module import DIOModel
-from momPDF_module import CosmicModel
-from momPDF_module import RPCModel
+from momPDF_module import MomModel
 from recoplot_module import plotmom_fit, plot_time_fit
 from components import components
 
@@ -33,26 +29,14 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False):
 
     # PDF components
     pars = []
-    list_pdfs = []
+    pdfs = {}
+    norms = {}
     for proc in components:
         pdf = components[proc]['pdf']
-        # TODO could make this more generic, i.e. have a single 'Model' function which could generate all models?
-        if proc == "CE":
-            CE, N_CE = CeModel(obs_mom, pars, pdf)
-            list_pdfs.append((proc, CE, N_CE))
-        elif proc == "DIO":
-            DIO, N_DIO = DIOModel(obs_mom, pars, pdf)
-            list_pdfs.append((proc, DIO, N_DIO))
-        elif proc == "RPC":
-            RPC, N_RPC = RPCModel(obs_mom, pars, pdf)
-            list_pdfs.append((proc, RPC, N_RPC))
-        elif proc == "Cosmic":
-            cosmic, N_cosmic = CosmicModel(obs_mom, pars, pdf, fit_range)
-            list_pdfs.append((proc, cosmic, N_cosmic))
-        else: print(f'Process {proc} does not have a defined model, skipping...')
+        pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, fit_range)
 
     # build combined PDF
-    combine_pdf = zfit.pdf.SumPDF([t[1] for t in list_pdfs])
+    combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # Convert data to zfit Data
     data_np = ak.to_numpy(ak.flatten(data['trksegs','mom.mag'], axis=None))
@@ -69,7 +53,7 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False):
 
     # Plot after fit
     cat = ak.to_numpy(ak.flatten(data['trksegs','cat'], axis=None)) if plot_cat else None
-    plotmom_fit(data_np, fit_range, list_pdfs, cat)
+    plotmom_fit(data_np, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in components.keys()], cat)
 
     return result
 
