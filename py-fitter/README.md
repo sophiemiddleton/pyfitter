@@ -4,7 +4,7 @@ Python based analysis tool for analysis of reconstructed Mu2e data or MC.
 
 # Developers
 
-The current code base has been developed by Leo Borrel, Sam Zhou and Sophie Middleton as part of the joint Mu2e Analysis Working Group.
+The current code base has been developed by Leo Borrel, Sam Zhou, Sophie Middleton and Susan Dittmer as part of the joint Mu2e Analysis Working Group.
 
 # Legacy Branches
 
@@ -66,17 +66,24 @@ We import the Mu2e ntuples using uproot and store it as an awkward array.
 
 ## Our interface:
 
-The fit_module.py calls zfit and the various parameterizations of the signal (CE) and backgrounds (currently DIO, Cosmics only). The PDFs are written only for the momentum parameter currently.
-We plan to expand to a 2D momentum and time fit eventually.
+The fit_module.py calls zfit and the various parameterizations of the signal (CE) and backgrounds (currently DIO, RPC, and Cosmics). 1D PDFs are written for the time and momentum distributions, as well as a 2D PDF for time vs momentum (in progress).
 
+### Components specification
+
+The signal and backgrounds considered in the fit are specified in a dictionary within components.py . This dictionary specifies the following:
+* **pdf** -- PDF which describes the component; this will be one of the options described below
+* **pars** -- Optional user-defined values for the PDF values and lower/upper limits in the fit. If not given, default values for the parameters will be used.
+* **startCode**, **genCode**, **catColor** -- When the --categorize option is used, tracks are categorized based on the true particle type when plotting (for better comparison with fit results). The true particle type is defined by the corresponding startCode and genCode, and the component is plotted with color catColor.
+* **lineColor**, **lineStyle** -- The line color and style when drawing the PDF component
+  
 ### The Momentum PDF Parameterizations
 
-* Conversion e- signal (CE) is currently parameterized as a Double Sided Crystal Ball, assuming there has been multiple scattering, energy losses and detector distortions;
-* Decay in orbit (DIO) is currently parameterized using the work of Czernecki et al and the polynomial functional form derived in [Phys. Rev. D 94, 051301];
-* Cosmic induced background is currently parameterized as a uniform distribution;
-* RPC will be characterized as a Gaussian, centered on 100MeV/c following studies outline in mu2e-doc-db: 36503.
+* **dscb** -- The conversion e- signal is expected to follow a Double Sided Crystal Ball distribution, assuming there has been multiple scattering, energy losses and detector distortions;
+* **poly58** -- Decay in orbit (DIO) is currently parameterized using the work of Czernecki et al and the polynomial functional form derived in [Phys. Rev. D 94, 051301];
+* **uniform** -- Cosmic induced background is currently parameterized as a uniform distribution;
+* **Gauss** -- RPC is characterized as a Gaussian, centered on 100MeV/c following studies outline in mu2e-doc-db: 36503.
 
-These distributions are all defined inside of the "Mom_PDF" script. This infrastructure needs to evolve as we develop more complexity.
+These distributions are all defined inside of momPDF_module.py. While the different distributions were developed to describe specific processes, this is not hardcoded in the script.
 
 ### The Time PDF Parameterizations
 
