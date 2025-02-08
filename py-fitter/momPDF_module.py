@@ -1,5 +1,4 @@
-# Custom_PDF
-# Define custom PDF
+# Define custom PDF for momentum
 
 import numpy as np
 import tensorflow as tf

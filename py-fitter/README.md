@@ -4,7 +4,7 @@ Python based analysis tool for analysis of reconstructed Mu2e data or MC.
 
 # Developers
 
-The current code base has been developed by Leo Borrel, Sam Zhou, Sophie Middleton and Susan Dittmer as part of the joint Mu2e Analysis Working Group.
+The current code base has been developed by Leo Borrel, Susan Dittmer, Sophie Middleton and Sam Zhou as part of the joint Mu2e Analysis Working Group.
 
 # Legacy Branches
 
@@ -40,21 +40,43 @@ The code is current imagined to run using the Mu2e standard Ntuple EvtNtuple (fo
 
 It has been tested with the latest MDC2024 mock data samples, listed here: https://mu2ewiki.fnal.gov/wiki/MDC2024:_Mock_Data#MDC_2024:_Mock_Data_samples
 
-# Running the Code:
+# The Code:
 
 The code is currently object orientated with a set of distinct classes:
 
-* main.py - the driver function. The user can define several input parameters, check the default settings (at the bottom of the Main.py script). 
+* main.py - the driver function. The user can define several input parameters, check the default settings (at the bottom of the Main.py script).
+* cut_module.py - takes in an opt to a list of cuts, applies cuts
+* fit_module.py - runs unbinned ML fits to input data
+* recoplot_module.py - plots reconstructed information
+* *PDF_module.py - sets of PDFs to be input into the fit module
+* *component.py - user input list of chosen PDF names, parameters and draw options
+* results_module.py - TODO
+
+# Running:
 
 To run for example:
 
 ```
-python main.py --filelist "MDS1a.root" --treename "EventNtuple" --branchname "ntuple"
+python main.py --file "MDS1a.root" --dirname "EventNtuple" --treename "ntuple"
 ```
 
-* The Main function imports the given root NTuple via the ImportClass defined in Import_module.py. The code currently assumes the Mu2e/EventNtuple will be an input NTuple but the user parameters allow some flexibility.
+* The Main function imports the given root NTuple via the ImportClass defined in import_module.py. The code currently assumes the Mu2e/EventNtuple will be an input NTuple but the user parameters allow some flexibility.
 
-# The Fitting Code:
+Here is a list of the current arguments and what they represent:
+
+* file - filename (include path if not local), required
+* dirname - defaults to "EventNtuple"
+* treename - defaults to "ntuple"
+* fittype - implented opts: "mom1D", "time1D", "momtime2D"
+* fit range (low, hi) - range to fit over
+* showMC - set to 1 if "MC infor is present and I want to use it to help my analysis"
+* cuts - cut list to use, default is SU2020 cuts
+* categorize - uses MC process code to find true nature of the particles making the tracks
+* verbose - has the usual meaning, prints debug statements as desired, off by default
+
+If the verbose option is set then arguments are printed out before running the main.
+
+# Fitting:
 
 ## zfit
 
@@ -64,9 +86,17 @@ zfit allows for custom (and predefined) -log likelihood maximizaton. Underneath 
 
 We import the Mu2e ntuples using uproot and store it as an awkward array.
 
-## Our interface:
+## Our Fitting Interface:
 
-The fit_module.py calls zfit and the various parameterizations of the signal (CE) and backgrounds (currently DIO, RPC, and Cosmics). 1D PDFs are written for the time and momentum distributions, as well as a 2D PDF for time vs momentum (in progress).
+The fit_module.py is our interface to zfit and the various parameterizations of the signal (CE) and backgrounds (currently DIO, RPC, and Cosmics). 1D PDFs are written for the time and momentum distributions, as well as a 2D PDF for time vs momentum (in progress).
+
+There are three functions in the fit module:
+
+1) Unbinned_fit_mom - a 1D unbinned fit for momentum (default)
+2) Unbinned_fit_time - a 1D unbinned fit for time (probably not used on its own)
+3) Unbinned_2d_fit_mom_time - 2D fit for both momentum and time
+
+The user can specify the fit functions using the *components.py files, below is discussion of the parameters defined in these files and how to use them:
 
 ### Components specification
 
@@ -91,30 +121,23 @@ Our final goal is to conduct a 2D fit in momentum and time. The time component h
 
 The time fit currently parameterizes things as follows:
 
-* Muon beam products (CE, DIO, RMC) are parameterized as an exponential with a rate according to the mean lifetime in Al (864ns)
-* Cosmic induced background is assumed uniform in time
-* RPC is parameterized as an exponential with dependance on the pion lifetime.
+* **muexp** -- for all muon processes (CE, DIO, RMC) these are parameterized as an exponential with a rate according to the mean lifetime in Al (864ns)
+* **piexp**  -- for in time RPC
+* **uniform** -- Cosmic induced background is assumed uniform in time
 
 ### 2D fits
 
 * The 2D fit combines the momentum and time 1D fits to provide a combined momentum time fit. The individual components are parameterized in the same way as the 1D fits.
 
-Currently all fits are defined in the fit_module.py. We expect this to evolve as we begin learning more and implementing more complexity in our model. In that case we will want version contol of our models.
-
 ### Resoluton and Efficiency parameterizations
 
-* TODO
 * Further study is required to help us parameterize the momentum resolution and tracker acceptance.
 
 # Characterizing Uncertainties
 
 ## Systematics and Nusiance Parameters
 
-* TODO
-
 ## Shape uncertainties
-
-* TODO
 
 # Results
 

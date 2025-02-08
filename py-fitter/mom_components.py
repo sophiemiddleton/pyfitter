@@ -4,7 +4,7 @@
 #                              : order of components gives stacking order (bottom to top)
 # lineColor, lineStyle         : line color and style for the PDF component in the data-fit plot (see matplotlib documentation for options)
 
-mom_components = {
+components = {
     'Cosmic' : {'pdf' : 'uniform',
                 'pars' : None,
                 'startCode' : [None],

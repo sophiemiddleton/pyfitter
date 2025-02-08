@@ -1,4 +1,3 @@
-# Fit class
 # Fit the data to a product of PDFs defined in PDF_list
 
 import numpy as np
@@ -9,9 +8,8 @@ import zfit
 
 from momPDF_module import MomModel
 from recoplot_module import plotmom_fit, plot_time_fit
-from components import components
+from mom_components import components
 
-#FIXME - remove the copies of the parameters, place these in some version controled class/file and use that
 #FIXME - can we make one fit function for 1D fits that does either time or mom? PDF created outside and called via an arguement choice?
 
 
@@ -80,7 +78,7 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, include_cosmic=True):
     ## Exponential decay for pions
     decay_rate_RPC = zfit.Parameter('decay_rate_rpc', -1/864, -1/10, -1/1000)
     N_RPC = zfit.Parameter('N_rpc', 0, 0, 1e4)
-    exp_t_RPC = zfit.pdf.Exponential(decay_rate_RPC, obs=obs_time, extended=N_rpc)
+    exp_t_RPC = zfit.pdf.Exponential(decay_rate_RPC, obs=obs_time, extended=N_RPC)
     if (include_cosmic):
         ## Uniform distribution
         N_cosmic = zfit.Parameter('N_cosmic', 0, 0, 1e4)

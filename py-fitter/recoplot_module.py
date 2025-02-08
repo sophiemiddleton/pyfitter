@@ -4,11 +4,11 @@ import awkward as ak
 import math
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from components import components
+from mom_components import components
 
 def PlotRecoMomEnt(branches, low, hi):
     """ make basic reco mom plot, requirement for tracker entrance """
-    branches['demfit_mom'] = np.sqrt((branches['demfit']['mom']['fCoordinates']['fX'])**2 + (branches['demfit']['mom']['fCoordinates']['fY'])**2 + (branches['demfit']['mom']['fCoordinates']['fZ'])**2)
+    branches['demfit_mom'] = np.sqrt((branches['demfit']['mom']['fCoordinates']['fX'])**2 + (branches['demfit']['mom']['fCoordinates']['fY'])**2 + (branches['demfit']['mom']['fCoordinates']['fZ'])**2) #FIXME - use util
     trk_ent_mask = (branches['demfit']['sid']==0)
 
     fig, ax = plt.subplots(1,1)
