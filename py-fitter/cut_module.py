@@ -1,11 +1,10 @@
-# Cut class
 # Apply the selection cuts of choice, no optimization is done in this fill
 
 import awkward as ak
 import numpy as np
 import matplotlib.pyplot as plt
 import math
-from components import components
+from mom_components import components
 
 class CutClass:
 
@@ -35,11 +34,12 @@ class CutClass:
                 "crv_coincidence" : 150. # cut anything with a track - crv time difference less than this
             }
 
-    def ApplyCut(self, array_trk, array_crv):
+    def ApplyCut(self, array_trk, array_crv, verbose =0):
         """ function applies cuts to MDS1 """
-        print("\nApplying cuts\n")
-        print("# of events before cut: ", ak.num(array_trk, axis=0))
-        print("# of tracks before cut: ", ak.count(array_trk['trk','trk.status']))
+        if (verbose == 1):
+          print("\nApplying cuts\n")
+          print("# of events before cut: ", ak.num(array_trk, axis=0))
+          print("# of tracks before cut: ", ak.count(array_trk['trk','trk.status']))
 
         array_cut = ak.copy(array_trk)  # Use copy to keep the initial array untouched
 
@@ -47,7 +47,8 @@ class CutClass:
         
         # Track level cut
         for key, value in self.Track_cut.items():
-            print(eval(key))
+            if (verbose == 1):
+              print(eval(key))
 
             if type(value) == int:
                 mask = array_trk[eval(key)] == value
@@ -57,12 +58,13 @@ class CutClass:
             ApplyMaskTrk(array_cut, mask)
             #array_trk[eval(key)].show()
             #array_cut[eval(key)].show()
-
-            print("# of tracks passing this cut: ", ak.count(array_cut['trk','trk.status']))
+            if (verbose == 1):
+              print("# of tracks passing this cut: ", ak.count(array_cut['trk','trk.status']))
             
         # Track segments level cut
         for key, value in self.Trksegs_cut.items():
-            print(eval(key))
+            if (verbose == 1):
+              print(eval(key))
 
             if type(value) == int:
                 mask = array_trk[eval(key)] == value
@@ -74,11 +76,11 @@ class CutClass:
             #array_trk[eval(key)].show()
             #array_cut[eval(key)].show()
 
-            print("# of trksegs passing this cut: ", ak.count(array_cut['trksegs','time']))
+            if (verbose == 1):
+              print("# of trksegs passing this cut: ", ak.count(array_cut['trksegs','time']))
 
         # CRV cuts
         if self.use_CRV:
-            print('crv cut')
             # TODO to decide
             # - Look only at first trkseg (current implementation), all trksegs, trkseg for specific sid?
             # - Look at trkseg before or after applying selection? (This doesn't matter for current implementation, might matter if we changed trkseg choice)
@@ -90,18 +92,19 @@ class CutClass:
             # True if mintimediff >= cut or no crv hit; False if mintimediff < cut
             mask = ak.fill_none((mintimediff >= self.CRV_cut.get('crv_coincidence')),True)
             ApplyMaskTrk(array_cut, mask)
-            
-        print("# of trksegs after all the cuts: ", ak.count(array_cut['trksegs','time']))
+        if (verbose == 1):
+          print("# of trksegs after all the cuts: ", ak.count(array_cut['trksegs','time']))
         
         return array_cut
 
 
-    def ApplyCutMC(self, array_mc, array_trk_cut):
+    def ApplyCutMC(self, array_mc, array_trk_cut, verbose = 0):
         """ Apply the trk cut on the MC array"""
         """ Reproduce the combination of all masks applied on the trk array and apply it on the MC array """
-        print("\nApplying cuts on MC array\n")
-        print("# of events before cut: ", ak.num(array_mc, axis=0))
-        print("# of tracks before cut: ", ak.count(array_mc['trkmc','trkmc.valid']))
+        if (verbose == 1):
+          print("\nApplying cuts on MC array\n")
+          print("# of events before cut: ", ak.num(array_mc, axis=0))
+          print("# of tracks before cut: ", ak.count(array_mc['trkmc','trkmc.valid']))
         array_mc_cut = ak.copy(array_mc)
 
         # Event level cut: TODO when there is one
@@ -121,11 +124,12 @@ class CutClass:
         array_mc_cut['trksegsmc','time'].show()
 
         #print("# of events after all the cuts: ", ak.num(array_trk, axis=0)
-        print("# of tracks after all the cuts: ", ak.count(array_mc_cut['trksegsmc','time']))
+        if (verbose == 1):
+          print("# of tracks after all the cuts: ", ak.count(array_mc_cut['trksegsmc','time']))
 
-    def CategorizeTracks(self, array_mc, mismatch=False):
-
-        print('Doing track categorization')
+    def CategorizeTracks(self, array_mc, mismatch=False, verbose = 0):
+        if (verbose == 1):
+          print('Doing track categorization')
 
         array_tmp = ak.copy(array_mc)
 
