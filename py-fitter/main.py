@@ -58,10 +58,10 @@ def  main(args):
         #print('After cut:\n', count_MC(data_cut_MC))
 
     if(args.fittype == "mom1D"):
-      result = Unbinned_fit_mom(array_cut, (args.fitrange_low), (args.fitrange_hi), bool(args.cat))
+      result = Unbinned_fit_mom(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat))
       print('Fit result: ', result) # FIXME you should have these sent to a file too as an option, to allow compare to BAT
     elif(args.fittype == "time1D"):
-      result = Unbinned_fit_time(array_cut, (args.fitrange_low), (args.fitrange_hi))
+      result = Unbinned_fit_time(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]))
       print('Fit result: ', result) # FIXME you should have these sent to a file too as an option, to allow compare to BAT
     elif(args.fittype == "momtime2D"):
        result = Unbinned_2d_fit_mom_time(array_cut, [(args.fitrange_low[0]),(args.fitrange_hi[0])], [(args.fitrange_low[1]),(args.fitrange_hi[1])])
@@ -92,8 +92,8 @@ if __name__ == "__main__":
     parser.add_argument("--dirname", type=str, default="EventNtuple", help="dirname e.g. EventNtuple")
     parser.add_argument("--treename", type=str, default="ntuple", help="treename e.g. ntuple")
     parser.add_argument("--fittype", type=str, default="mom1D", help="fittype implemented opts: mom1D, time1D, momtime2D")
-    parser.add_argument("--fitrange_low", type=float, default=95, nargs='+', help="minimum to fit ordered mom, time")
-    parser.add_argument("--fitrange_hi", type=float, default=115, nargs='+',help="maximum to fit  ordered mom, time")
+    parser.add_argument("--fitrange_low", type=float, default=[95,640], nargs='+', help="minimum to fit ordered mom, time")
+    parser.add_argument("--fitrange_hi", type=float, default=[115,1650], nargs='+',help="maximum to fit  ordered mom, time")
     parser.add_argument("--cuts", type=str, default="SU2020", help="cut e.g. SU2020")
     parser.add_argument("--showMC", type=int, default=0, help="will use MC information")
     parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")

@@ -4,7 +4,7 @@
 #                              : order of components gives stacking order (bottom to top)
 # lineColor, lineStyle         : line color and style for the PDF component in the data-fit plot (see matplotlib documentation for options)
 
-components = {
+time_components = {
     'Cosmic' : {'pdf' : 'uniform',
                 'pars' : None,
                 'startCode' : [None],
@@ -13,27 +13,19 @@ components = {
                 'lineStyle' : '-.',
                 'catColor' : 'violet'},
     
-    'RPC'    : {'pdf' : 'exp',
-                'pars' : {},
+    'Pion'    : {'pdf' : 'piexp',
+                'pars' : {'decay_rate_pi'    : (-1/2100, -1/10, -1/10005)},
                 'startCode' : [178,179],
                 'genCode' : [None],
                 'lineColor' : 'darkorange',
                 'lineStyle' : (0, (3, 5, 1, 5)),
                 'catColor' : 'orange'},
     
-    'CE'     : {'pdf' : 'exp_mu',
-                'pars' : {},
-                'startCode' : [168],
+    'Muon'     : {'pdf' : 'muexp',
+                'pars' : {'decay_rate_mu'    : (-1/864, -1/10, -1/10005)},
+                'startCode' : [168,166,170],
                 'genCode' : [None],
                 'lineColor' : 'b',
                 'lineStyle' : '--',
-                'catColor' : 'lightskyblue'},
-
-    'DIO'    : {'pdf' : 'exp',
-                'pars' : {},
-                'startCode' : [166,170],
-                'genCode' : [None],
-                'lineColor' : 'g',
-                'lineStyle' : ':',
-                'catColor' : 'lightgreen'}
+                'catColor' : 'lightskyblue'}
 }

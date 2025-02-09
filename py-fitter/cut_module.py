@@ -4,7 +4,7 @@ import awkward as ak
 import numpy as np
 import matplotlib.pyplot as plt
 import math
-from mom_components import components
+from mom_components import mom_components
 
 class CutClass:
 
@@ -146,7 +146,7 @@ class CutClass:
         pGenCode = ak.fill_none(pGenCode,-1)
         
         categories = ak.zeros_like(pStartCode)
-        for icat, idict in enumerate(components.values()):
+        for icat, idict in enumerate(mom_components.values()):
             startCodes = idict['startCode']
             genCodes = idict['genCode']
             goodCode = ak.zeros_like(pStartCode,dtype=bool)

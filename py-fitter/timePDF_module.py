@@ -2,11 +2,16 @@ import numpy as np
 import tensorflow as tf
 import zfit
 
-default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 200, 'RPC' : 23}
+default_model_params = {'muexp'   : {'decay_rate_mu'     : (-1/864, -1/10, -1/10005)},
+                        'piexp'   : {'decay_rate_pi'     : (-1/2100, -1/10, -1/10005)},
+                        'uniform' : {}
+                        }
+                        
+default_norms = {'Cosmic' : 200, 'Pion' : 23, 'Muon' : 55600} #FIXME - should we make these relative?
 
 
-def TimeModel(obs_mom, params_tot, process, model, pardict, fit_range):
-  
+def TimeModel(obs_time, params_tot, process, model, pardict, fit_range):
+
     if pardict is not None and 'N' in pardict:
         N = zfit.Parameter('N_'+process, pardict['N'][0], pardict['N'][1], pardict['N'][2])
     elif process in list(default_norms.keys()):
@@ -23,14 +28,18 @@ def TimeModel(obs_mom, params_tot, process, model, pardict, fit_range):
             if par in default_model_params: params[par] = pardict[par]                
 
     zpars = {'N' : N}
-    if model == "muon_exp":
-      decay_rate = zfit.Parameter('decay_rate', -1/864, -1/10, -1/1000)
-      N_exp = zfit.Parameter('N_exp', 6000, 0, 1e5)
-      exp_t = zfit.pdf.Exponential(decay_rate, obs=obs_time, extended=N_exp)
-    if model == "pion_exp":
-      decay_rate_RPC = zfit.Parameter('decay_rate_rpc', -1/864, -1/10, -1/1000)
-      N_RPC = zfit.Parameter('N_rpc', 0, 0, 1e4)
-      exp_t_RPC = zfit.pdf.Exponential(decay_rate_RPC, obs=obs_time, extended=N_rpc)
-    if model == "uniform"
-      N_cosmic = zfit.Parameter('N_cosmic', 0, 0, 1e4)
-      cosmic_t = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_time, extended=N_cosmic)
+    for p in params.keys():
+      zpars[p] = zfit.Parameter(p+'_'+process, params[p][0], params[p][1], params[p][2])
+    if model == "muexp":
+      params_tot.append(N)
+      PDF = zfit.pdf.Exponential(zpars['decay_rate_mu'], obs=obs_time, extended=N)
+    elif model == "piexp":
+      params_tot.append(N)
+      PDF = zfit.pdf.Exponential(zpars['decay_rate_pi'], obs=obs_time, extended=N)
+    elif model == "uniform":
+      params_tot.append(N)
+      PDF = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_time, extended=N)
+    else:
+        raise Exception(f"ERROR: model {model} not defined!")
+
+    return PDF, N
