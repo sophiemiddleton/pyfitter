@@ -36,7 +36,7 @@ default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
                         'uniform' : {}
                         }
 
-default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 200, 'RPC' : 23}
+default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 200, 'RPC' : 23} #FIXME - should we make these relative?
 
 def MomModel(obs_mom, params_tot, process, model, pardict, fit_range):
 
