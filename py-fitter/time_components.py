@@ -14,7 +14,7 @@ time_components = {
                 'catColor' : 'violet'},
     
     'Pion'    : {'pdf' : 'piexp',
-                'pars' : {'decay_rate_pi'    : (-1/2100, -1/10, -1/10005)},
+                'pars' : {'decay_rate_pi'    : (-1/26, -1/10, -1/10005)},
                 'startCode' : [178,179],
                 'genCode' : [None],
                 'lineColor' : 'darkorange',
