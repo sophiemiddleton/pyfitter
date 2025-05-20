@@ -122,6 +122,5 @@ def generate_res_X_lineshape(fitpars_in, lineshape_in) -> dict:
 
 # If you want to use the same resolution with DIO, you should be able to do something like
 #mom_components['DIO']['pdf'] = 'gcb_mc_res'
-#mom_components['DIO']['nll'] = flat_res
 #mom_components['DIO']['pars'] = generate_res_X_lineshape(flat_res.params(),<DIO lineshape .pkl goes here>)
 #mom_components['DIO']['treat_params'] = 'simul'
