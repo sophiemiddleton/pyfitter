@@ -30,7 +30,7 @@ $ source myzfitenv/bin/activate
 We have implemented a venv, with version control on the al9 based mu2egpvm's. To activate it:
 
 ```
-source /exp/mu2e/app/users/sophie/pyana-tests/zfit-env-v1/bin/activate
+source /exp/mu2e/data/users/sophie/mu2e_env.v1.2.0/bin/activate 
 
 ```
 
@@ -57,7 +57,7 @@ The code is currently object orientated with a set of distinct classes:
 To run for example:
 
 ```
-python main.py --file "MDS1a.root" --dirname "EventNtuple" --treename "ntuple"
+python main.py --file "/pnfs/mu2e/tape/phy-nts/nts/mu2e/ensembleMDS1dOnSpillTriggered/MDC2020ai_perfect_v1_3/root/d3/6f/nts.mu2e.ensembleMDS1dOnSpillTriggered.MDC2020ai_perfect_v1_3.0.root" --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113.
 ```
 
 * The Main function imports the given root NTuple via the ImportClass defined in import_module.py. The code currently assumes the Mu2e/EventNtuple will be an input NTuple but the user parameters allow some flexibility.
