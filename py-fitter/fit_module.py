@@ -24,16 +24,22 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False):
         plot_cat (bool): looks at MC truth code
     '''
     fit_range = (fit_range_low, fit_range_hi)
-    obs_mom = zfit.Space('mom', limits=fit_range)
+    obs_mom = zfit.Space('x', limits=fit_range)
 
     # PDF components
     pars = []
     pdfs = {}
     norms = {}
+    constraints = []
+    nlls = []
+    
     for proc in mom_components:
         pdf = mom_components[proc]['pdf']
         pardict = mom_components[proc]['pars']
-        pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, pardict, fit_range)
+        treat_params = mom_components[proc]['treat_params']
+        pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, pardict, treat_params, fit_range, constraints)
+        if 'nll' in mom_components[proc].keys():
+            nlls.extend(mom_components[proc]['nll'].get_nll(pars))
 
     # build combined PDF
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
@@ -42,7 +48,9 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False):
     data_np = ak.to_numpy(ak.flatten(data['trksegs','mom.mag'], axis=None))
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_mom)
 
-    loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)
+    loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit, constraints=constraints)
+    for nll in nlls:
+        loss = loss+nll
     minimizer = zfit.minimize.Minuit()
 
     result = minimizer.minimize(loss, params=pars)
