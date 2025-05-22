@@ -87,7 +87,8 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False, verbose
         fit_range_hi (float): Upper limit of the fit range
         plot_cat (bool): looks at MC truth code
     '''
-
+    if verbose > 0:
+      print("[py-fitter/fit_module/Unbinned_fit_time] ✅ initializing fit")
     fit_range = (fit_range_low, fit_range_hi)
     obs_time = zfit.Space('time', limits=fit_range)
     
@@ -111,6 +112,8 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False, verbose
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)
     minimizer = zfit.minimize.Minuit()
     result = minimizer.minimize(loss, params=pars)
+    if verbose > 0:
+      print("[py-fitter/fit_module/Unbinned_fit_time] ✅ finished minimizing")
     try:
         param_errors, _ = result.errors(method='minuit_minos')
     except:
@@ -118,6 +121,8 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False, verbose
 
     # Plot after fit
     cat = ak.to_numpy(ak.flatten(data['trksegs','cat'], axis=None)) if plot_cat else None
+    if verbose > 0:
+      print("[py-fitter/fit_module/Unbinned_fit_time] ✅ plotting")
     plot_time_fit(data_np, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in time_components.keys()], cat)
 
     return result

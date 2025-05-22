@@ -52,7 +52,6 @@ class CutClass:
             if (self.verbose  > 0):
               print("[py-fitter/cut_module/ApplyCut] ✅ evaluating track cuts ", eval(key))
             if type(value) == int:
-                print(array_trk)
                 mask = array_trk[eval(key)] == value
             elif len(value) == 2:
                 mask = (array_trk[eval(key)] >= value[0]) & (array_trk[eval(key)] <= value[1])
@@ -166,7 +165,6 @@ class CutClass:
                     goodCode = goodCode | (goodStartCode & goodGenCode)
             
             categories = categories + (icat+1) * (goodCode)
-            print(categories)
         return categories
     
     

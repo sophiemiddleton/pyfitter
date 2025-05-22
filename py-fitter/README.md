@@ -1,4 +1,4 @@
-# $mu^{-} \rightarrow e^{-}$ Analysis
+# $\mu^{-} \rightarrow e^{-}$ Analysis
 
 Python based analysis tool for analysis of reconstructed Mu2e data or MC.
 
@@ -120,14 +120,14 @@ The signal and backgrounds considered in the fit are specified in a dictionary w
   
 ### The Momentum PDF Parameterizations
 
-* Signal (detailed below):
+Signal (detailed below):
 
 * **dscb** -- Double Sided Crystal Ball distribution;
 * **gcb** -- generalized crystal ball
 * **kde** -- kernal density estimation
 * **gcb_gen_res** or **gcb_mc_res** -- use lineshape assumptions
 
-* Backgrounds
+Backgrounds
 
 * **poly58** -- Decay in orbit (DIO) is currently parameterized using the work of Czernecki et al and the polynomial functional form derived in [Phys. Rev. D 94, 051301];
 * **uniform** -- Cosmic induced background is currently parameterized as a uniform distribution;
@@ -176,8 +176,8 @@ default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
 ```
 Where:
 
-* gcb = "Fully asymmetric Crystalball function" --> default (implicitly assumes resolution)
-* dscb = "double sided crystal ball" (implicitly assumes resolution)
+* **gcb** = "Fully asymmetric Crystalball function" --> default (implicitly assumes resolution)
+* **dscb** = "double sided crystal ball" (implicitly assumes resolution)
 
 Parameters can be floated by setting the following in the components:
 
@@ -190,22 +190,13 @@ other ways to treat the parameters are:
 
 In addition there is the option to use kernal density estimation:
 
-* kde = "kernal density estimator" derived from fits to primary CeMLL sample
+* **kde** = "kernal density estimator" derived from fits to primary CeMLL sample
 
 The latter two use the lineshape * momentum concept, indepdently fitting to extract the resolution.
 
-* gcb_gen_res
-* gcb_mc_res
+* **gcb_gen_res**
+* **gcb_mc_res**
 
-### Resoluton and Efficiency parameterizations
-
-* Resolution is included for signal only currently. We are working to include it for other components.
-
-# Development
-
-When changing the code-base we need to ensure that we do not adversely effect the physics results. A few simple cross checks can be ran to validate new code:
-
-TODO
 
 # Characterizing Uncertainties
 
@@ -215,4 +206,4 @@ TODO
 
 # Results
 
-The Results module store the final fit results in terms of expected yield from each of the sources of events. This should be adapted to interface with our Bayesian tools eventually.
+The Results module store the final fit results in terms of expected yield from each of the sources of events. The results module can also print out the list of momenta or times used in the fit (passing all cuts). This can be in put into BAT.jl for Bayesian studies.

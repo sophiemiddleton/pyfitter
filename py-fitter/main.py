@@ -9,6 +9,7 @@ import argparse
 from cut_module import CutClass
 from fit_module import *
 from mc_module import *
+from results_module import ResultsClass
 from recoplot_module import PlotRecoMomEnt
 
 import sys 
@@ -84,13 +85,17 @@ def  main(args):
 
     if(args.fittype == "mom1D"):
       result = Unbinned_fit_mom(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat),args.verbose)
-      print('[py-fitter/main] ✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit') # FIXME you should have these sent to a file too as an option, to allow compare to BAT
+      if (int(args.writeoutput) == 1):
+        result_output = ResultsClass(array_cut, result,  args.verbose)
+        result_output.WriteFittedData()
+        result_output.WriteResult()
+      print('[py-fitter/main] ✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit')
     elif(args.fittype == "time1D"):
       result = Unbinned_fit_time(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]),bool(args.cat), args.verbose)
-      print('[py-fitter/main] ✅ Fit result: ', result,'\n', 'for ',args.fittype,' fit') # FIXME you should have these sent to a file too as an option, to allow compare to BAT
+      print('[py-fitter/main] ✅ Fit result: ', result,'\n', 'for ',args.fittype,' fit')
     elif(args.fittype == "momtime2D"):
        result = Unbinned_2d_fit_mom_time(array_cut, [(args.fitrange_low[0]),(args.fitrange_hi[0])], [(args.fitrange_low[1]),(args.fitrange_hi[1])],bool(args.cat), args.verbose)
-       print('[py-fitter/main]✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit') # FIXME you should have these sent to a file too as an option, to allow compare to BAT
+       print('[py-fitter/main]✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit')
     else:
       raise Exception("[py-fitter/main] ❌ ERROR: choice of fit type does not exist, please choose: mom1D, time1D or momtime2D")
       
@@ -121,6 +126,7 @@ if __name__ == "__main__":
     parser.add_argument("--fitrange_low", type=float, default=[95,640], nargs='+', help="minimum to fit ordered mom, time")
     parser.add_argument("--fitrange_hi", type=float, default=[115,1650], nargs='+',help="maximum to fit  ordered mom, time")
     parser.add_argument("--cuts", type=str, default="SU2020", help="cut e.g. SU2020")
+    parser.add_argument("--writeoutput", type=int, default=1, help="writes data and fit results to csv")
     parser.add_argument("--showMC", type=int, default=0, help="will use MC information")
     parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")
     parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")
