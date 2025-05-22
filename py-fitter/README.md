@@ -1,4 +1,4 @@
-# Mu2e Analysis
+# $mu^{-} \rightarrow e^{-}$ Analysis
 
 Python based analysis tool for analysis of reconstructed Mu2e data or MC.
 
@@ -66,7 +66,7 @@ for a single file.
 With a file list, pass the files (with full paths) to a text file and run as:
 
 ```
-python main.py --file filelist.txt --dirname "EventNtuple" '\n' --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113. --singlefile 0
+python main.py --file filelist.txt --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113. --singlefile 0
 
 ```
 
@@ -86,7 +86,7 @@ Here is a list of the current arguments and what they represent:
 * categorize - uses MC process code to find true nature of the particles making the tracks
 * verbose - has the usual meaning, prints debug statements as desired, off by default
 
-If the verbose option is set then arguments are printed out before running the main.
+If the verbose option is set then arguments are printed out before running the main. The verbose arg is sent to sub-functions, and allows the user to track any failure modes. We suggest a verbose > 0 for  development users.
 
 # Fitting:
 
@@ -120,10 +120,18 @@ The signal and backgrounds considered in the fit are specified in a dictionary w
   
 ### The Momentum PDF Parameterizations
 
-* **dscb** -- The conversion e- signal is expected to follow a Double Sided Crystal Ball distribution, assuming there has been multiple scattering, energy losses and detector distortions;
+* Signal (detailed below):
+
+* **dscb** -- Double Sided Crystal Ball distribution;
+* **gcb** -- generalized crystal ball
+* **kde** -- kernal density estimation
+* **gcb_gen_res** or **gcb_mc_res** -- use lineshape assumptions
+
+* Backgrounds
+
 * **poly58** -- Decay in orbit (DIO) is currently parameterized using the work of Czernecki et al and the polynomial functional form derived in [Phys. Rev. D 94, 051301];
 * **uniform** -- Cosmic induced background is currently parameterized as a uniform distribution;
-* **Gauss** -- RPC is characterized as a Gaussian, centered on 100MeV/c following studies outline in mu2e-doc-db: 36503.
+* **Gauss** -- RPC is characterized as a Gaussian, centered on 100MeV/c following studies outline in mu2e-doc-db: 36503. Could also use uniform for the signal region we are looking at.
 
 These distributions are all defined inside of momPDF_module.py. While the different distributions were developed to describe specific processes, this is not hardcoded in the script.
 
@@ -168,9 +176,24 @@ default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
 ```
 Where:
 
-* dscb = "double sided crystal ball"
-* gcb = "Fully asymmetric Crystalball function"
+* gcb = "Fully asymmetric Crystalball function" --> default (implicitly assumes resolution)
+* dscb = "double sided crystal ball" (implicitly assumes resolution)
+
+Parameters can be floated by setting the following in the components:
+
+```
+'treat_params' : 'float'
+```
+other ways to treat the parameters are:
+* ```'fix'``` (fixed)
+* ```'simul' ```(simultaneous fits)
+
+In addition there is the option to use kernal density estimation:
+
 * kde = "kernal density estimator" derived from fits to primary CeMLL sample
+
+The latter two use the lineshape * momentum concept, indepdently fitting to extract the resolution.
+
 * gcb_gen_res
 * gcb_mc_res
 
