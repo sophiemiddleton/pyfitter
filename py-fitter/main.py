@@ -10,7 +10,6 @@ from cut_module import CutClass
 from fit_module import *
 from mc_module import *
 from results_module import ResultsClass
-from recoplot_module import PlotRecoMomEnt
 
 import sys 
 sys.path.append("../../EventNtuple/utils/pyutils") #FIXME, we will be adding pyutils to the env and this will then change

@@ -7,29 +7,6 @@ import matplotlib.ticker as ticker
 from mom_components import mom_components
 from time_components import time_components
 
-def PlotRecoMomEnt(branches, low, hi):
-    """ make basic reco mom plot, requirement for tracker entrance """
-    branches['demfit_mom'] = np.sqrt((branches['demfit']['mom']['fCoordinates']['fX'])**2 + (branches['demfit']['mom']['fCoordinates']['fY'])**2 + (branches['demfit']['mom']['fCoordinates']['fZ'])**2) #FIXME - use util
-    trk_ent_mask = (branches['demfit']['sid']==0)
-
-    fig, ax = plt.subplots(1,1)
-    nEnt, binsEnt, patchesEnt = ax.hist(ak.flatten(branches[(trk_ent_mask)]['demfit_mom'], axis=None), bins=100, range=(int(low), int(hi)), label='ent fits', histtype='step',color='g')
-
-    bin_centersEnt = 0.5 * (binsEnt[:-1] + binsEnt[1:])
-    yerrsEnt = []
-    for i, j in enumerate(nEnt):
-      yerrsEnt.append(math.sqrt(j))
-    plt.errorbar(bin_centersEnt, nEnt, yerr=np.sqrt(nEnt), fmt='g.')
-
-    # add in style features:
-    ax.set_yscale('log')
-    ax.set_xlabel('Reconstructed Momentum (at ent) [MeV/c]')
-    ax.set_ylabel('# events per bin')
-    ax.grid(True)
-    ax.legend()
-    plt.savefig("mom.pdf")
-    plt.show()
-
 def plotmom_fit(data, fit_range, list_pdfs, cat=None):
     """ plot the final plot with fit and data overlay, plus a residual plot """
     n_bins = 50
@@ -60,8 +37,8 @@ def plotmom_fit(data, fit_range, list_pdfs, cat=None):
     ax1.plot(mom_plot, combine_plot, '-r', label='Total')
     ax1.grid(True)
     ax1.set_yscale('log')
-    ax1.set_xlim(fit_range) #FIXME change range to variables
-    ax1.set_ylim([1e-1, max(data_hist)]) #FIXME should allow for more events
+    ax1.set_xlim(fit_range)
+    ax1.set_ylim([1e-1, max(data_hist)])
     ax1.set_xlabel('Reconstructed Momentum [MeV/c]')
     ax1.set_ylabel('# of events per bin')
     ax1.legend()
@@ -105,8 +82,8 @@ def plot_time_fit(data, fit_range, list_pdfs, cat=None):
     ax1.plot(time_plot, combine_plot, '-r', label='Total')
     ax1.grid(True)
     ax1.set_yscale('log')
-    ax1.set_xlim(fit_range) #FIXME change range to variables
-    ax1.set_ylim([10, max(data_hist)]) #FIXME should allow for more events
+    ax1.set_xlim(fit_range)
+    ax1.set_ylim([10, max(data_hist)])
     ax1.set_xlabel('Reconstructed Time [ns]')
     ax1.set_ylabel('# of events per bin')
     ax1.legend()
