@@ -48,8 +48,8 @@ The code is currently object orientated with a set of distinct classes:
 * cut_module.py - takes in an opt to a list of cuts, applies cuts
 * fit_module.py - runs unbinned ML fits to input data
 * recoplot_module.py - plots reconstructed information
-* *PDF_module.py - sets of PDFs to be input into the fit module (* = mom, time)
-* *component.py - user input list of chosen PDF names, parameters and draw options (* = mom, time)
+* XPDF_module.py - sets of PDFs to be input into the fit module (X = mom, time)
+* Xcomponent.py - user input list of chosen PDF names, parameters and draw options (X = mom, time)
 * results_module.py - TODO
 
 The latest version of the code >= v2_00_00 requires Mu2e's pyutils be within the users working directory.
@@ -66,13 +66,13 @@ for a single file.
 With a file list, pass the files (with full paths) to a text file and run as:
 
 ```
-python main.py --file filelist.txt --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113. --singlefile 0
+python main.py --file filelist.txt --dirname "EventNtuple" '\n' --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113. --singlefile 0
 
 ```
 
 the singlefile args should be switched off for this. Eventually this will probably become default.
 
-* The Main function imports the given root NTuple via the ImportClass defined in import_module.py. The code currently assumes the Mu2e/EventNtuple will be an input NTuple but the user parameters allow some flexibility.
+* The Main function imports the given root NTuple (s) via the use of Mu2e's pyutils (maintained by the Mu2e Analysis tools group). This therefore assumes input is an up-to-date EventNtuple file or list of files.
 
 Here is a list of the current arguments and what they represent:
 
@@ -169,14 +169,14 @@ default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
 Where:
 
 * dscb = "double sided crystal ball"
-* gcb = "generalised crystal bassl"
+* gcb = "Fully asymmetric Crystalball function"
 * kde = "kernal density estimator" derived from fits to primary CeMLL sample
 * gcb_gen_res
 * gcb_mc_res
 
 ### Resoluton and Efficiency parameterizations
 
-* Further study is required to help us parameterize the momentum resolution and tracker acceptance.
+* Resolution is included for signal only currently. We are working to include it for other components.
 
 # Development
 
