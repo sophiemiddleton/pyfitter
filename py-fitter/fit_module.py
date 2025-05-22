@@ -13,7 +13,7 @@ from mom_components import mom_components
 from time_components import time_components
 
 
-def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False):
+def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
     '''
     Fit the time data to a exponential distribution
 
@@ -23,14 +23,18 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False):
         fit_range_hi (float): Upper limit of the fit range
         plot_cat (bool): looks at MC truth code
     '''
+    if verbose > 0:
+      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ initializing fit")
     fit_range = (fit_range_low, fit_range_hi)
     obs_mom = zfit.Space('mom', limits=fit_range)
-
+    
     # PDF components
     pars = []
     pdfs = {}
     norms = {}
     for proc in mom_components:
+        if verbose > 0:
+          print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ components", mom_components)
         pdf = mom_components[proc]['pdf']
         pardict = mom_components[proc]['pars']
         pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, pardict, fit_range)
@@ -41,23 +45,28 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False):
     # Convert data to zfit Data
     data_np = ak.to_numpy(ak.flatten(data['trksegs','mom.mag'], axis=None))
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_mom)
-
+    if verbose > 0:
+      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ running minimizer")
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)
     minimizer = zfit.minimize.Minuit()
 
     result = minimizer.minimize(loss, params=pars)
+    if verbose > 0:
+      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ finished minimizing")
     try:
         param_errors, _ = result.errors(method='minuit_minos')
     except:
-        print('WARNING! Invalid fit, postfit parameters may not be optimal')
+        print('[py-fitter/fit_module] ❌ WARNING! Invalid fit, postfit parameters may not be optimal')
 
     # Plot after fit
     cat = ak.to_numpy(ak.flatten(data['trksegs','cat'], axis=None)) if plot_cat else None
+    if verbose > 0:
+      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ plotting")
     plotmom_fit(data_np, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], cat)
 
     return result
 
-def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False):
+def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
     '''
     Fit the time data to a exponential distribution
 
@@ -94,7 +103,7 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False):
     try:
         param_errors, _ = result.errors(method='minuit_minos')
     except:
-        print('WARNING! Invalid fit, postfit parameters may not be optimal')
+        print('[py-fitter/fit_module] ❌ WARNING! Invalid fit, postfit parameters may not be optimal')
 
     # Plot after fit
     cat = ak.to_numpy(ak.flatten(data['trksegs','cat'], axis=None)) if plot_cat else None
@@ -102,7 +111,7 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False):
 
     return result
 
-def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, plot_cat=False):
+def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, plot_cat=False, verbose=0):
     '''
     Fit the 2D data to a product of 1D PDFs
 

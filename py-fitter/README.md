@@ -129,9 +129,48 @@ The time fit currently parameterizes things as follows:
 
 * The 2D fit combines the momentum and time 1D fits to provide a combined momentum time fit. The individual components are parameterized in the same way as the 1D fits.
 
+### Signal (CE) Fit Options
+
+Susan Dittmer has carried out detailed work to parameterize the signal shape, taking into account resolution (i.e. reconstructed shape). Her work can be found in our meeting slides archive: https://drive.google.com/drive/u/0/folders/1o6gYW_gWHGtaAmZ7zZDWhDj8GhhTWddb
+
+A number of possible signal shapes can be considered:
+
+```
+default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
+                                    'sigma'  : (0.5,           0.08,  2.0),
+                                    'alphaL' : (0.422,         0,     10),
+                                    'nL'     : (25.1,          0,     100),
+                                    'alphaR' : (2.227,         0,     100),
+                                    'nR'     : (5.954,         0,     100)},
+                        'gcb'    : {'mu'     : (104,           103,   107),
+                                    'sigmaL' : (0.5,           0.08,  2.0),
+                                    'sigmaR' : (0.5,           0.08,  2.0),
+                                    'alphaL' : (0.422,         0,     10),
+                                    'nL'     : (25.1,          0,     100),
+                                    'alphaR' : (2.227,         0,     100),
+                                    'nR'     : (5.954,         0,     100)},
+                        'kde' : None,
+                        'gcb_gen_res' : None,
+                        'gcb_mc_res' : None,
+                        }
+```
+Where:
+
+* dscb = "double sided crystal ball"
+* gcb = "generalised crystal bassl"
+* kde = "kernal density estimator" derived from fits to primary CeMLL sample
+* gcb_gen_res
+* gcb_mc_res
+
 ### Resoluton and Efficiency parameterizations
 
 * Further study is required to help us parameterize the momentum resolution and tracker acceptance.
+
+# Development
+
+When changing the code-base we need to ensure that we do not adversely effect the physics results. A few simple cross checks can be ran to validate new code:
+
+TODO
 
 # Characterizing Uncertainties
 
