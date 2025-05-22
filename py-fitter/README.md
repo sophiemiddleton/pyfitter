@@ -48,9 +48,11 @@ The code is currently object orientated with a set of distinct classes:
 * cut_module.py - takes in an opt to a list of cuts, applies cuts
 * fit_module.py - runs unbinned ML fits to input data
 * recoplot_module.py - plots reconstructed information
-* *PDF_module.py - sets of PDFs to be input into the fit module
-* *component.py - user input list of chosen PDF names, parameters and draw options
+* *PDF_module.py - sets of PDFs to be input into the fit module (* = mom, time)
+* *component.py - user input list of chosen PDF names, parameters and draw options (* = mom, time)
 * results_module.py - TODO
+
+The latest version of the code >= v2_00_00 requires Mu2e's pyutils be within the users working directory.
 
 # Running:
 
@@ -59,6 +61,16 @@ To run for example:
 ```
 python main.py --file "/pnfs/mu2e/tape/phy-nts/nts/mu2e/ensembleMDS1dOnSpillTriggered/MDC2020ai_perfect_v1_3/root/d3/6f/nts.mu2e.ensembleMDS1dOnSpillTriggered.MDC2020ai_perfect_v1_3.0.root" --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113.
 ```
+for a single file.
+
+With a file list, pass the files (with full paths) to a text file and run as:
+
+```
+python main.py --file filelist.txt --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113. --singlefile 0
+
+```
+
+the singlefile args should be switched off for this. Eventually this will probably become default.
 
 * The Main function imports the given root NTuple via the ImportClass defined in import_module.py. The code currently assumes the Mu2e/EventNtuple will be an input NTuple but the user parameters allow some flexibility.
 

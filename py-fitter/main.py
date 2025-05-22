@@ -12,7 +12,7 @@ from mc_module import *
 from recoplot_module import PlotRecoMomEnt
 
 import sys 
-sys.path.append("../../EventNtuple/utils/pyutils") 
+sys.path.append("../../EventNtuple/utils/pyutils") #FIXME, we will be adding pyutils to the env and this will then change
 
 # pyutils classes
 from pyimport import Importer 
@@ -30,23 +30,33 @@ def  main(args):
 
     list_branch_trk = ["trksegs","trksegpars_lh","trk.nactive","trk.status","trk.pdg","trkqual.result"]
     list_branch_crv = ["crvsummary.","crvcoincs.time"]
+    if (int(args.singlefile) == 1):
+      array_trk = mds.import_file(
+          file_name=args.file,
+          branches=list_branch_trk
+      )
+    else:
+      array_trk = mds.import_dataset(
+          file_list_path = args.file,
+           branches=list_branch_trk
+      )
 
-    array_trk = mds.import_file(
-        file_name=args.file,
-        branches=list_branch_trk
-    )
-    print(array_trk)
     # use vector package to include magnitude:
     vector = Vector()
     mom_mag = vector.get_mag(array_trk["trksegs"],'mom')
     array_trk['trksegs', 'mom.mag'] = mom_mag
     
     # import crv branches
-    array_crv = mds.import_file(
-        file_name=args.file,
-        branches=list_branch_crv
-    )
-    
+    if (int(args.singlefile) == 1):
+      array_crv = mds.import_file(
+          file_name=args.file,
+          branches=list_branch_crv
+      )
+    else:
+      array_crv = mds.import_dataset(
+          file_list_path =args.file,
+          branches = list_branch_crv
+      )
     # use our custom cut class
     cuts = CutClass(str(args.cuts), True, args.verbose)
     
@@ -59,10 +69,16 @@ def  main(args):
         if args.verbose > 0:
           print("[py-fitter/main] ✅ cat option set, looking at MC info")
         list_branch_mc  = ["trkmcsim"]
-        array_mc  = mds.import_file(
-          file_name=args.file,
-          branches=list_branch_mc
-        )
+        if (int(args.singlefile) == 1):
+          array_mc = mds.import_file(
+              file_name=args.file,
+              branches=list_branch_mc
+          )
+        else:
+          array_mc = mds.import_dataset(
+              file_list_path =args.file,
+               branches=list_branch_mc
+          )
         track_cat = cuts.CategorizeTracks(array_mc,args.mismatch)
         array_cut['trksegs','cat'] = ak.broadcast_arrays(array_cut['trksegs','time'],track_cat)[1]
 
@@ -98,6 +114,7 @@ if __name__ == "__main__":
     # list of input arguments, defaults should be overridden
     parser = argparse.ArgumentParser(description='command arguments', formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("--file", type=str, required=True, help="filename or file list name (text file list,fullpaths)")
+    parser.add_argument("--singlefile", type=int, required=False, default=1,help="use if just one root file input")
     parser.add_argument("--dirname", type=str, default="EventNtuple", help="dirname e.g. EventNtuple")
     parser.add_argument("--treename", type=str, default="ntuple", help="treename e.g. ntuple")
     parser.add_argument("--fittype", type=str, default="mom1D", help="fittype implemented opts: mom1D, time1D, momtime2D")
