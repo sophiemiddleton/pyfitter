@@ -7,11 +7,19 @@ import tensorflow as tf
 import zfit
 
 from momPDF_module import MomModel
+from momPDF_module import poly58
 from timePDF_module import TimeModel
 from recoplot_module import plotmom_fit, plot_time_fit
 from mom_components import mom_components
 from time_components import time_components
 
+from hepstats.hypotests.parameters import POI
+from hepstats.hypotests.calculators import AsymptoticCalculator
+from hepstats.hypotests.calculators import FrequentistCalculator
+from hepstats.hypotests import Discovery
+from hepstats.hypotests import UpperLimit
+from hepstats.hypotests.parameters import POIarray
+#from utils import plotlimit
 
 def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
     '''
@@ -34,10 +42,9 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=
     norms = {}
     constraints = []
     nlls = []
-    
-    for proc in mom_components:
-        if verbose > 0:
+    if verbose > 0:
           print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ components", mom_components)
+    for proc in mom_components:
         pdf = mom_components[proc]['pdf']
         pardict = mom_components[proc]['pars']
         treat_params = mom_components[proc]['treat_params']
@@ -60,22 +67,28 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=
         loss = loss+nll
 
     minimizer = zfit.minimize.Minuit()
-
     result = minimizer.minimize(loss, params=pars)
+    
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ finished minimizing")
     try:
         param_errors, _ = result.errors(method='minuit_minos')
     except:
-        print('[py-fitter/fit_module] ❌ WARNING! Invalid fit, postfit parameters may not be optimal')
+        print('[py-fitter/fit_module/Unbinned_fit_mom] ❌ ERROR! Invalid fit, postfit parameters may not be optimal')
 
+    if result.valid == True:
+      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ fit is valid")
+    else:
+      print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
     # Plot after fit
     cat = ak.to_numpy(ak.flatten(data['trksegs','cat'], axis=None)) if plot_cat else None
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ plotting")
     plotmom_fit(data_np, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], cat)
+    
 
-    return result
+
+    return result, pars[1], loss, nlls, combine_pdf, constraints
 
 def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
     '''
@@ -118,7 +131,10 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False, verbose
         param_errors, _ = result.errors(method='minuit_minos')
     except:
         print('[py-fitter/fit_module] ❌ WARNING! Invalid fit, postfit parameters may not be optimal')
-
+    if result.valid == True:
+      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ fit is valid")
+    else:
+      print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
     # Plot after fit
     cat = ak.to_numpy(ak.flatten(data['trksegs','cat'], axis=None)) if plot_cat else None
     if verbose > 0:
@@ -127,7 +143,7 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False, verbose
 
     return result
 
-def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, plot_cat=False, verbose=0):
+def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, plot_cat=False, verbose=0): #FIXME - the following code is not optimal, needs upgrading to new interface
     '''
     Fit the 2D data to a product of 1D PDFs
 
@@ -203,6 +219,8 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, plot_cat=False
     minimizer = zfit.minimize.Minuit()
 
     result = minimizer.minimize(loss, params=[mu, sigma, alphal, nl, alphar, nr, N_CE, N_DIO, decay_rate, N_cosmic, mu_RPC, sigma_RPC, N_RPC])
+    # the null hypothesis
+
     #FIXME - can we add some plotting functionality here?
 
     param_errors, _ = result.errors(method='minuit_minos')

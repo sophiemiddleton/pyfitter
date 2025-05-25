@@ -83,18 +83,25 @@ def  main(args):
         array_cut['trksegs','cat'] = ak.broadcast_arrays(array_cut['trksegs','time'],track_cat)[1]
 
     if(args.fittype == "mom1D"):
-      result = Unbinned_fit_mom(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat),args.verbose)
+      result, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat),args.verbose)
+      print('[py-fitter/main] ✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit')
+      
+      result_output = ResultsClass(array_cut, result,  args.verbose)
+      result_output.GetSignifcance(par, loss, 'asym')
+      result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),550,90,'asym') #FIXME, need to extract signal yield 550 is an example
+
       if (int(args.writeoutput) == 1):
-        result_output = ResultsClass(array_cut, result,  args.verbose)
         result_output.WriteFittedData()
         result_output.WriteResult()
-      print('[py-fitter/main] ✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit')
+
     elif(args.fittype == "time1D"):
       result = Unbinned_fit_time(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]),bool(args.cat), args.verbose)
       print('[py-fitter/main] ✅ Fit result: ', result,'\n', 'for ',args.fittype,' fit')
+      
     elif(args.fittype == "momtime2D"):
        result = Unbinned_2d_fit_mom_time(array_cut, [(args.fitrange_low[0]),(args.fitrange_hi[0])], [(args.fitrange_low[1]),(args.fitrange_hi[1])],bool(args.cat), args.verbose)
        print('[py-fitter/main]✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit')
+       
     else:
       raise Exception("[py-fitter/main] ❌ ERROR: choice of fit type does not exist, please choose: mom1D, time1D or momtime2D")
       
