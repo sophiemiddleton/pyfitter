@@ -42,7 +42,7 @@ default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
                         'poly58' : {'a5'     : (8.6434e-17,    0,     1e-16),
                                     'a6'     : (1.16874e-17,   0,     1e-16),
                                     'a7'     : (-1.87828e-19, -1e-18, 0),
-                                    'a8'     : (9.16327e-20,   0,     1e-18)},
+                                    'a8'     : (9.16327e-20,   0,     1e-19)},
                         'Gauss'  : {'mu'     : (100,           95,    115),
                                     'sigma'  : (0.5,           1e-3,  1e3)},
                         'uniform' : {}
@@ -88,7 +88,7 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
                 params_tot.append(zpars[p])
                 constraints.append(zfit.constraint.GaussianConstraint(zpars[p],observation=params[p][0],uncertainty=max(abs(params[p][1]),abs(params[p][2]))))
             elif treat_params == 'fix':
-                zpars[p] = zfit.Parameter(p+'_'+process, params[p][0], params[p][0]-0.005, params[p][0]+0.005)
+                zpars[p] = zfit.Parameter(p+'_'+process, params[p][0], params[p][0]-0.005, params[p][0]+0.005, floating=False)
             elif treat_params == 'simul':
                 zpars[p] = zfit.ComposedParameter(p+'_'+process, lambda x : 1*x, params=params[p])
             else:

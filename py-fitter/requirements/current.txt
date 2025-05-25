@@ -5,6 +5,9 @@ anyio==4.6.2.post1
 argon2-cffi==23.1.0
 argon2-cffi-bindings==21.2.0
 arrow==1.3.0
+asdf==4.1.0
+asdf_standard==1.2.0
+asdf_transform_schemas==0.5.0
 asttokens==2.4.1
 astunparse==1.6.3
 async-lru==2.0.4
@@ -12,7 +15,7 @@ attrs==24.2.0
 awkward==2.6.8
 awkward_cpp==38
 Babel==2.14.0
-beautifulsoup4==4.12.3
+beautifulsoup==44.12.3
 bleach==6.1.0
 blinker==1.9.0
 boost-histogram==1.5.2
@@ -25,7 +28,7 @@ click==8.1.8
 cloudpickle==3.1.1
 colorama==0.4.6
 colored==2.3.0
-colorlog==6.9.0
+colorlog 6.9.0
 comm==0.2.2
 conda-pack==0.8.0
 contourpy==1.3.0
@@ -52,12 +55,14 @@ frozendict==2.4.6
 fsspec==2024.9.0
 fsspec_xrootd==0.4.0
 gast==0.5.5
-gmpy2==2.1.5
-google-pasta== 0.2.0
+gmpy==22.1.5
+google-pasta==0.2.0
 grpcio==1.65.5
 h11==0.14.0
 h2==4.1.0
 h5py==3.12.1
+hepstats==0.9.2
+hepunits==2.3.6
 hist==2.8.1
 histoprint==2.6.0
 hpack==4.0.0
@@ -71,12 +76,13 @@ importlib_resources==6.4.5
 ipykernel==6.29.5
 ipython==8.28.0
 isoduration==20.11.0
-itsdangerous== 2.2.0
+itsdangerous==2.2.0
 jacobi==0.9.2
 jedi==0.19.1
 Jinja2==3.1.4
+jmespath==1.0.1
 joblib==1.4.2
-json5==0.9.25
+json==50.9.25
 jsonpointer==3.0.0
 jsonschema==4.23.0
 jsonschema-specifications==2024.10.1
@@ -88,7 +94,7 @@ jupyter_server==2.14.2
 jupyter_server_terminals==0.5.3
 jupyterlab==4.3.4
 jupyterlab_pygments==0.3.0
-jupyterlab_server== 2.27.3
+jupyterlab_server==2.27.3
 keras==3.6.0
 kiwisolver==1.4.7
 libclang==18.1.1
@@ -96,21 +102,23 @@ Markdown==3.6
 markdown-it-py==3.0.0
 MarkupSafe==3.0.1
 matplotlib==3.9.2
-matplotlib-inline== 0.1.7
+matplotlib-inline==0.1.7
 mdurl==0.1.2
 mistune==3.0.2
 ml_dtypes==0.5.1
+mplhep==0.3.59
+mplhep_data==0.0.4
 mpmath==1.3.0
 munkres==1.1.4
 namex==0.0.8
 nbclient==0.10.0
 nbconvert==7.16.4
 nbformat==5.10.4
-nest_asyncio== 1.6.0
+nest_asyncio==1.6.0
 networkx==3.4.1
 notebook==7.3.2
 notebook_shim==0.2.4
-numdifftools== 0.9.41
+numdifftools==0.9.41
 numpy==1.26.4
 opt_einsum==3.4.0
 optree==0.13.0
@@ -118,7 +126,7 @@ ordered-set==4.1.0
 overrides==7.7.0
 packaging==24.1
 pandas==2.2.3
-pandocfilters==1.5.0
+pandocfilters===1.5.0
 parso==0.8.4
 patsy==0.5.6
 pexpect==4.9.0
@@ -126,9 +134,10 @@ pickleshare==0.7.5
 pillow==11.0.0
 pip==24.2
 pkgutil_resolve_name==1.3.10
-platformdirs== 4.3.6
+platformdirs==4.3.6
+plot-utils==0.6.14
 plotly==5.24.1
-prometheus_client== 0.21.0
+prometheus_client==0.21.0
 prompt_toolkit==3.0.48
 protobuf==5.27.5
 psutil==6.0.0
@@ -138,7 +147,7 @@ pycparser==2.22
 pydantic==2.11.4
 pydantic_core==2.33.2
 Pygments==2.18.0
-pyparsing==3.2.0
+pyparsing3.2.0
 PySide6==6.8.0
 PySocks==1.7.1
 python-dateutil==2.9.0
@@ -149,15 +158,16 @@ pyzmq==26.2.0
 referencing==0.35.1
 requests==2.32.3
 retrying==1.3.3
-rfc3339-validator== 0.1.4
-rfc3986-validator== 0.1.1
-rich==13.9.2
+rfc3339-validator==0.1.4
+rfc3986-validator==0.1.1
+rich1==3.9.2
 rpds-py==0.20.0
-scikit-learn== 1.5.2
+scikit-learn==1.5.2
 scipy==1.14.1
+semantic-version==2.10.0
 Send2Trash==1.8.3
 setuptools==75.1.0
-shiboken6==6.8.0
+shiboken==66.8.0
 six==1.16.0
 sniffio==1.3.1
 soupsieve==2.5
@@ -176,10 +186,11 @@ terminado==0.18.1
 texttable==1.7.0
 tf_keras==2.19.0
 threadpoolctl==3.5.0
-tinycss2==1.3.0
+tinycss==2 1.3.0
 tomli==2.0.2
 torch==2.4.1.post102
 tornado==6.4.1
+tqdm==4.67.1
 traitlets==5.14.3
 types-python-dateutil==2.9.0.20241003
 typing_extensions==4.12.2
@@ -190,6 +201,7 @@ uhi==0.5.0
 uproot==5.4.1
 uri-template==1.3.0
 urllib3==1.26.16
+utils==1.0.2
 vector==1.5.2
 wcwidth==0.2.13
 webcolors==24.8.0
@@ -202,4 +214,5 @@ xrootd==5.7.1
 xxhash==3.5.0
 zfit==0.25.0
 zfit-interface==0.0.3
+zfit_physics==0.8.0
 zipp==3.20.2

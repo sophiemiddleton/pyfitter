@@ -85,10 +85,10 @@ def  main(args):
     if(args.fittype == "mom1D"):
       result, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat),args.verbose)
       print('[py-fitter/main] ✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit')
-      
+
       result_output = ResultsClass(array_cut, result,  args.verbose)
-      result_output.GetSignifcance(par, loss, 'asym')
-      result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),550,90,'asym') #FIXME, need to extract signal yield 550 is an example
+      #result_output.GetSignifcance(par, loss, 'freq')
+      result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),result.params['N_CE']['value'],0.90,'asym')
 
       if (int(args.writeoutput) == 1):
         result_output.WriteFittedData()

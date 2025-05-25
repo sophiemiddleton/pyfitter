@@ -200,10 +200,19 @@ The latter two use the lineshape * momentum concept, indepdently fitting to extr
 
 # Characterizing Uncertainties
 
-## Systematics and Nusiance Parameters
+Uncertainties can appear in two forms:
+
+* normalization/yield uncertainties effect the overal derived number of events (e.g. luminosity uncertainties)
+* shape uncertainties move events around within the distribution, with the total yield staying the same e.g. uncertainty in a given theoretical description.
+
+## Normalization uncertainties
 
 ## Shape uncertainties
 
 # Results
 
 The Results module store the final fit results in terms of expected yield from each of the sources of events. The results module can also print out the list of momenta or times used in the fit (passing all cuts). This can be in put into BAT.jl for Bayesian studies.
+
+Another important goal of the "results" module is to have various statistical tests here e.g. for understanding the significance or pvalue of a result or deriving a frequentist limit in the event of low or no signal yields.
+
+The current version of this code is underdevelopment, but the concept is taking shape.

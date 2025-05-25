@@ -18,7 +18,7 @@ class ResultsClass:
         self.rmue = 0
         
   def CalculateRmue(self):#FIXME requires work
-    """ we need to understand how to normalize our signal """
+    """ we need to understand how to normalize our signal note: use asym option for quick fit"""
     # as an estimate, use true values for POT
     return 1e-13
     
@@ -55,8 +55,8 @@ class ResultsClass:
       print('[py-fitter/results_module/GetSignificance] ✅  result signal significance', significance)
     return significance
     
-  def GetUL(self, par, loss, nlls, combine_pdf, constraints, fitlow, fithigh, sig_yeild=0, CL= 90, opt='freq'): #FIXME - concept, not fully tested
-    """ compute an upper limit in case where no significant signal yield """
+  def GetUL(self, par, loss, nlls, combine_pdf, constraints, fitlow, fithigh, sig_yield=0, CL= 0.90, opt='freq'): #FIXME - concept, not fully tested
+    """ compute an upper limit in case where no significant signal yield note: use asym option for quick fit"""
     sig_yield_poi = POI(par, 0)
     minimizer = zfit.minimize.Minuit()
     # Sets the values of the parameters to the self.result of the simultaneous fit
@@ -81,18 +81,20 @@ class ResultsClass:
 
     if self.verbose > 0:
       print("[py-fitter/results_module/GetUL] ✅ resampling")
-    sampler.resample({par: sig_yeild})
+    sampler.resample({par: sig_yield})
 
     if opt == 'asym':
       calculator_low_sig = AsymptoticCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer)
     elif opt == 'freq':
-      calculator_low_sig = FrequentistCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer)
+      calculator_low_sig = FrequentistCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer, ntoysnull=10,ntoysalt=10)
+      # see https://github.com/scikit-hep/hepstats/blob/main/src/hepstats/hypotests/calculators/frequentist_calculator.py for details
     else:
       print('[py-fitter/results_module/GetUL] ❌ ERROR! Invalid limit calculator chosen')
       return
       
     if self.verbose > 0:
       print('[py-fitter/results_module/GetUL] ✅  calculating significance')
+      print('[py-fitter/results_module/GetUL] ❌ CHECK: if signficance is inf this means that the numerical precision is not high enough or that the number of toys is not large enough. For example if all toys are rejected, the result is (0.0, inf)')
     discovery_low_sig = Discovery(calculator=calculator_low_sig, poinull=sig_yield_poi)
     discovery_low_sig.result()
     if self.verbose > 0:
@@ -102,12 +104,13 @@ class ResultsClass:
     #Background only hypothesis.
     bkg_only = POI(par, 0)
     # Range of Nsig values to scan.
-    sig_yield_scan = POIarray(par, np.linspace(0, sig_yield+sig_yield*0.1, sig_yield-sig_yield*0.1))
+    sig_yield_scan = POIarray(par, np.linspace(0,600,550))#FIXME - hardcoded
 
     ul = UpperLimit(calculator=calculator_low_sig, poinull=sig_yield_scan, poialt=bkg_only)
-    ul.upperlimit(alpha=1-CL/100);
+    ul.upperlimit(alpha=1-CL);
     if self.verbose > 0:
-      print('[py-fitter/results_module/GetUL] ✅  result upper limit at {CL} % CL',ul)
+      print(ul)
+      print(f'[py-fitter/results_module/GetUL] ✅  result upper limit at {CL} % CL {ul}')
     #plotlimit(ul, CLs=False)
     
     return ul
@@ -123,7 +126,7 @@ class ResultsClass:
             csv_writer.writerow([item])
 
     if self.verbose > 0:
-      print("[py-fitter/results_module/WriteFittedData] ✅ Data written to {file_path}")
+      print(f"[py-fitter/results_module/WriteFittedData] ✅ Data written to {file_path}")
     
   def WriteResult(self):
     """ Write result to csv file for safe keeping """
@@ -133,5 +136,5 @@ class ResultsClass:
         csvfile.write(str(self.result))
 
     if self.verbose > 0:
-      print("[py-fitter/results_module/WriteFittedData] ✅ Result written to {file_path}")
+      print(f"[py-fitter/results_module/WriteFittedData] ✅ Result written to {file_path}")
 

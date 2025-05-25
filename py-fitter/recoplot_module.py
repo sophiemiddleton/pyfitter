@@ -17,10 +17,12 @@ def plotmom_fit(data, fit_range, list_pdfs, cat=None):
     data_bincenter = 0.5 * (data_binedge[1:] + data_binedge[:-1])
 
     fig, (ax1, ax2) = plt.subplots(2,1, height_ratios=[3,1])
-
+    if cat is None:
+      print("[py-fitter/recoplot_module/plotmom_fit] ❌ cat option is {cat}, will not include MC truth")
     if cat is not None:
         colors = ['lightgrey']+[idict['catColor'] for idict in mom_components.values()]
         hists,_,_ = ax1.hist([data[cat==icat] for icat in range(len(mom_components)+1)], color=colors, bins=n_bins, range=fit_range, histtype='bar',stacked=True)
+        print('[py-fitter/recoplot_module/plotmom_fit] ✅ Printing MC Truth ')
         print('Other  :',np.sum(hists[0]))
         for iproc, proc in enumerate(mom_components.keys()):
             print(proc.ljust(10)+':',np.sum(hists[iproc+1])-np.sum(hists[iproc]))
@@ -52,7 +54,7 @@ def plotmom_fit(data, fit_range, list_pdfs, cat=None):
         err.append(0)
         dev.append(0)
     if len(data_hist) == 0:
-       print('[py-fitter/recoplot_module/plotmom_fit] ❌ WARNING! histogram empty')
+       print('[py-fitter/recoplot_module/plotmom_fit] ⚠️ WARNING! histogram empty')
 
     ax2.errorbar(mom_plot, dev , yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3)
     ax2.grid(True)
@@ -72,9 +74,13 @@ def plot_time_fit(data, fit_range, list_pdfs, cat=None):
     data_bincenter = 0.5 * (data_binedge[1:] + data_binedge[:-1])
 
     fig, (ax1, ax2) = plt.subplots(2,1, height_ratios=[3,1])
+    if verbose > 0:
+      if cat == None:
+        print("[py-fitter/recoplot_module/plotmom_fit] ❌ cat option is {cat}, will not include MC truth")
     if cat is not None:
         colors = ['lightgrey']+[idict['catColor'] for idict in components.values()]
         hists,_,_ = ax1.hist([data[cat==icat] for icat in range(len(components)+1)], color=colors, bins=n_bins, range=fit_range, histtype='bar',stacked=True)
+        print('[py-fitter/recoplot_module/plotmom_fit] ✅ Printing MC Truth')
         print('Other  :',np.sum(hists[0]))
         for iproc, proc in enumerate(components.keys()):
             print(proc.ljust(10)+':',np.sum(hists[iproc+1])-np.sum(hists[iproc]))
@@ -107,7 +113,7 @@ def plot_time_fit(data, fit_range, list_pdfs, cat=None):
         err.append(0)
         dev.append(0)
     if len(data_hist) == 0:
-       print('[py-fitter/recoplot_module/plotmom_time] ❌ WARNING! histogram empty')
+       print('[py-fitter/recoplot_module/plotmom_time] ⚠️ WARNING! histogram empty')
     ax2.grid(True)
     ax2.yaxis.set_ticks(np.arange(-5, 5,2))
     ax2.yaxis.set_minor_formatter(ticker.FormatStrFormatter('%0.1f'))
