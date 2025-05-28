@@ -15,14 +15,29 @@ As the code base has been applied to several mock data sets over the years we ha
 
 # Building the python environment:
 
+## Prerequisites
+
+In v2 onwards the user must have an EventNtuple install in their working directory. This is purely for use of pyutils (in EventNtuple/utils).
+
+To create this:
+
+```
+mkdir working
+cd working
+git clone git@github.com:Mu2e/EventNtuple.git
+git clone git@github.com:HighEeM0/LikelihoodAnalysis.git
+```
+
 ## On your own device:
 
-If you do want to do this you can simple pull the "requirements.txt":
+In order to ensure reproducibility, we have a standard set of python packages which should be used with each intall. This is stored in the requirements/current.txt
+
+On your own device you can use pip (or other means) to produce a virtual environment for your work:
 
 ```
 $ virtualenv myzfitenv
 $ source myzfitenv/bin/activate
-(myzfitenv)$ pip install -r path/to/requirements.txt
+(myzfitenv)$ pip install -r requirements/current.txt
 ```
 
 ## On the Mu2e gpvm's:
@@ -151,7 +166,7 @@ The time fit currently parameterizes things as follows:
 
 ### Signal (CE) Fit Options
 
-Susan Dittmer has carried out detailed work to parameterize the signal shape, taking into account resolution (i.e. reconstructed shape). Her work can be found in our meeting slides archive: https://drive.google.com/drive/u/0/folders/1o6gYW_gWHGtaAmZ7zZDWhDj8GhhTWddb
+Susan Dittmer has carried out detailed work to parameterize the signal shape, taking into account resolution (i.e. reconstructed shape). Her work can be found in our meeting slides archive: https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB
 
 A number of possible signal shapes can be considered:
 
@@ -192,11 +207,12 @@ In addition there is the option to use kernal density estimation:
 
 * **kde** = "kernal density estimator" derived from fits to primary CeMLL sample
 
-The latter two use the lineshape * momentum concept, indepdently fitting to extract the resolution.
+The latter two use the lineshape convoluted with momentum concept, indepdently fitting to extract the resolution:
 
 * **gcb_gen_res**
 * **gcb_mc_res**
 
+Full definitions are provided in https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB.
 
 # Characterizing Uncertainties
 
@@ -205,9 +221,9 @@ Uncertainties can appear in two forms:
 * normalization/yield uncertainties effect the overal derived number of events (e.g. luminosity uncertainties)
 * shape uncertainties move events around within the distribution, with the total yield staying the same e.g. uncertainty in a given theoretical description.
 
-## Normalization uncertainties
+## Normalization uncertainties (underdevelopment)
 
-## Shape uncertainties
+## Shape uncertainties (underdevelopment)
 
 # Results
 
