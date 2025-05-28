@@ -32,7 +32,6 @@ class ResultsClass:
       # construction of the calculator instance
       calculator = FrequentistCalculator(input=loss, minimizer=minimizer)
       calculator.bestfit = self.result
-      # equivalent to above
       calculator = FrequentistCalculator(input=self.result, minimizer=minimizer)
     elif opt == 'asym':
       # construction of the calculator instance
@@ -67,7 +66,7 @@ class ResultsClass:
       print("[py-fitter/fit_module/GetUL] ✅ creating sampler")
     sampler = combine_pdf.create_sampler()
 
-    # Creates new simultaneous loss
+    # Creates new loss
     data_np = ak.to_numpy(ak.flatten(self.data['trksegs','mom.mag'], axis=None))
     fit_range = (fitlow, fithigh)
     obs_mom = zfit.Space('x', limits=fit_range)
@@ -76,17 +75,15 @@ class ResultsClass:
     for nll in nlls:
         nll_simultaneous_low_sig = loss+nll
 
-    # Samples with sig_yield = 10. Since the model is extended the number of
-    # signal generated is drawn from a poisson distribution with lambda = 10.
-
+    # Samples with sig_yield. Since the model is extended the number of signal generated is drawn from a poisson distribution with lambda = sig_yield.
     if self.verbose > 0:
-      print("[py-fitter/results_module/GetUL] ✅ resampling")
+      print(f'[py-fitter/results_module/GetUL] ✅ resampling with N_CE = {sig_yield} as mean')
     sampler.resample({par: sig_yield})
 
     if opt == 'asym':
       calculator_low_sig = AsymptoticCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer)
     elif opt == 'freq':
-      calculator_low_sig = FrequentistCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer, ntoysnull=10,ntoysalt=10)
+      calculator_low_sig = FrequentistCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer, ntoysnull=1000,ntoysalt=1000)
       # see https://github.com/scikit-hep/hepstats/blob/main/src/hepstats/hypotests/calculators/frequentist_calculator.py for details
     else:
       print('[py-fitter/results_module/GetUL] ❌ ERROR! Invalid limit calculator chosen')
@@ -99,12 +96,12 @@ class ResultsClass:
     discovery_low_sig.result()
     if self.verbose > 0:
       print("[py-fitter/fit_module/GetUL] ✅ discovery result",discovery_low_sig.result())
-      print("[py-fitter/results_module/GetUL] ✅ best fit params {calculator_low_sig.bestfit.params}")
+      print(f'[py-fitter/results_module/GetUL] ✅ best fit params {calculator_low_sig.bestfit.params}')
     
     #Background only hypothesis.
     bkg_only = POI(par, 0)
     # Range of Nsig values to scan.
-    sig_yield_scan = POIarray(par, np.linspace(0,600,550))#FIXME - hardcoded
+    sig_yield_scan = POIarray(par, np.linspace(0,570,550))#FIXME - hardcoded
 
     ul = UpperLimit(calculator=calculator_low_sig, poinull=sig_yield_scan, poialt=bkg_only)
     ul.upperlimit(alpha=1-CL);

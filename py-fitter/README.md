@@ -215,4 +215,12 @@ The Results module store the final fit results in terms of expected yield from e
 
 Another important goal of the "results" module is to have various statistical tests here e.g. for understanding the significance or pvalue of a result or deriving a frequentist limit in the event of low or no signal yields.
 
-The current version of this code is underdevelopment, but the concept is taking shape.
+The current version of this code is underdevelopment, but the concept is taking shape. The functions work, but have not been used to produce viable results due to missing external infrastructure.
+
+## GetSignificance (underdevelopment)
+
+The aim of this function is to take the output of a fit and understand the p-value on the derived signal yield and the significance (in n*sigma). It will be useful for understanding if we have a discovery.
+
+## GetUL (underdevelopment)
+
+This function will be used to derive frequentist UL at a chosen CL. It should be used with smaller yields. There is much work to do to understand how to run with large number of toys.

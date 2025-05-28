@@ -88,7 +88,7 @@ def  main(args):
 
       result_output = ResultsClass(array_cut, result,  args.verbose)
       #result_output.GetSignifcance(par, loss, 'freq')
-      result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),result.params['N_CE']['value'],0.90,'asym')
+      result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),result.params['N_CE']['value'],0.90,'freq')
 
       if (int(args.writeoutput) == 1):
         result_output.WriteFittedData()
