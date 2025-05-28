@@ -1,4 +1,4 @@
-# Mu2e Analysis
+# $\mu^{-} \rightarrow e^{-}$ Analysis
 
 Python based analysis tool for analysis of reconstructed Mu2e data or MC.
 
@@ -15,14 +15,29 @@ As the code base has been applied to several mock data sets over the years we ha
 
 # Building the python environment:
 
+## Prerequisites
+
+In v2 onwards the user must have an EventNtuple install in their working directory. This is purely for use of pyutils (in EventNtuple/utils).
+
+To create this:
+
+```
+mkdir working
+cd working
+git clone git@github.com:Mu2e/EventNtuple.git
+git clone git@github.com:HighEeM0/LikelihoodAnalysis.git
+```
+
 ## On your own device:
 
-If you do want to do this you can simple pull the "requirements.txt":
+In order to ensure reproducibility, we have a standard set of python packages which should be used with each intall. This is stored in the requirements/current.txt
+
+On your own device you can use pip (or other means) to produce a virtual environment for your work:
 
 ```
 $ virtualenv myzfitenv
 $ source myzfitenv/bin/activate
-(myzfitenv)$ pip install -r path/to/requirements.txt
+(myzfitenv)$ pip install -r requirements/current.txt
 ```
 
 ## On the Mu2e gpvm's:
@@ -48,9 +63,11 @@ The code is currently object orientated with a set of distinct classes:
 * cut_module.py - takes in an opt to a list of cuts, applies cuts
 * fit_module.py - runs unbinned ML fits to input data
 * recoplot_module.py - plots reconstructed information
-* *PDF_module.py - sets of PDFs to be input into the fit module
-* *component.py - user input list of chosen PDF names, parameters and draw options
+* XPDF_module.py - sets of PDFs to be input into the fit module (X = mom, time)
+* Xcomponent.py - user input list of chosen PDF names, parameters and draw options (X = mom, time)
 * results_module.py - TODO
+
+The latest version of the code >= v2_00_00 requires Mu2e's pyutils be within the users working directory.
 
 # Running:
 
@@ -59,8 +76,18 @@ To run for example:
 ```
 python main.py --file "/pnfs/mu2e/tape/phy-nts/nts/mu2e/ensembleMDS1dOnSpillTriggered/MDC2020ai_perfect_v1_3/root/d3/6f/nts.mu2e.ensembleMDS1dOnSpillTriggered.MDC2020ai_perfect_v1_3.0.root" --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113.
 ```
+for a single file.
 
-* The Main function imports the given root NTuple via the ImportClass defined in import_module.py. The code currently assumes the Mu2e/EventNtuple will be an input NTuple but the user parameters allow some flexibility.
+With a file list, pass the files (with full paths) to a text file and run as:
+
+```
+python main.py --file filelist.txt --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113. --singlefile 0
+
+```
+
+the singlefile args should be switched off for this. Eventually this will probably become default.
+
+* The Main function imports the given root NTuple (s) via the use of Mu2e's pyutils (maintained by the Mu2e Analysis tools group). This therefore assumes input is an up-to-date EventNtuple file or list of files.
 
 Here is a list of the current arguments and what they represent:
 
@@ -74,7 +101,7 @@ Here is a list of the current arguments and what they represent:
 * categorize - uses MC process code to find true nature of the particles making the tracks
 * verbose - has the usual meaning, prints debug statements as desired, off by default
 
-If the verbose option is set then arguments are printed out before running the main.
+If the verbose option is set then arguments are printed out before running the main. The verbose arg is sent to sub-functions, and allows the user to track any failure modes. We suggest a verbose > 0 for  development users.
 
 # Fitting:
 
@@ -108,10 +135,18 @@ The signal and backgrounds considered in the fit are specified in a dictionary w
   
 ### The Momentum PDF Parameterizations
 
-* **dscb** -- The conversion e- signal is expected to follow a Double Sided Crystal Ball distribution, assuming there has been multiple scattering, energy losses and detector distortions;
+Signal (detailed below):
+
+* **dscb** -- Double Sided Crystal Ball distribution;
+* **gcb** -- generalized crystal ball
+* **kde** -- kernal density estimation
+* **gcb_gen_res** or **gcb_mc_res** -- use lineshape assumptions
+
+Backgrounds
+
 * **poly58** -- Decay in orbit (DIO) is currently parameterized using the work of Czernecki et al and the polynomial functional form derived in [Phys. Rev. D 94, 051301];
 * **uniform** -- Cosmic induced background is currently parameterized as a uniform distribution;
-* **Gauss** -- RPC is characterized as a Gaussian, centered on 100MeV/c following studies outline in mu2e-doc-db: 36503.
+* **Gauss** -- RPC is characterized as a Gaussian, centered on 100MeV/c following studies outline in mu2e-doc-db: 36503. Could also use uniform for the signal region we are looking at.
 
 These distributions are all defined inside of momPDF_module.py. While the different distributions were developed to describe specific processes, this is not hardcoded in the script.
 
@@ -129,16 +164,79 @@ The time fit currently parameterizes things as follows:
 
 * The 2D fit combines the momentum and time 1D fits to provide a combined momentum time fit. The individual components are parameterized in the same way as the 1D fits.
 
-### Resoluton and Efficiency parameterizations
+### Signal (CE) Fit Options
 
-* Further study is required to help us parameterize the momentum resolution and tracker acceptance.
+Susan Dittmer has carried out detailed work to parameterize the signal shape, taking into account resolution (i.e. reconstructed shape). Her work can be found in our meeting slides archive: https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB
+
+A number of possible signal shapes can be considered:
+
+```
+default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
+                                    'sigma'  : (0.5,           0.08,  2.0),
+                                    'alphaL' : (0.422,         0,     10),
+                                    'nL'     : (25.1,          0,     100),
+                                    'alphaR' : (2.227,         0,     100),
+                                    'nR'     : (5.954,         0,     100)},
+                        'gcb'    : {'mu'     : (104,           103,   107),
+                                    'sigmaL' : (0.5,           0.08,  2.0),
+                                    'sigmaR' : (0.5,           0.08,  2.0),
+                                    'alphaL' : (0.422,         0,     10),
+                                    'nL'     : (25.1,          0,     100),
+                                    'alphaR' : (2.227,         0,     100),
+                                    'nR'     : (5.954,         0,     100)},
+                        'kde' : None,
+                        'gcb_gen_res' : None,
+                        'gcb_mc_res' : None,
+                        }
+```
+Where:
+
+* **gcb** = "Fully asymmetric Crystalball function" --> default (implicitly assumes resolution)
+* **dscb** = "double sided crystal ball" (implicitly assumes resolution)
+
+Parameters can be floated by setting the following in the components:
+
+```
+'treat_params' : 'float'
+```
+other ways to treat the parameters are:
+* ```'fix'``` (fixed)
+* ```'simul' ```(simultaneous fits)
+
+In addition there is the option to use kernal density estimation:
+
+* **kde** = "kernal density estimator" derived from fits to primary CeMLL sample
+
+The latter two use the lineshape convoluted with momentum concept, indepdently fitting to extract the resolution:
+
+* **gcb_gen_res**
+* **gcb_mc_res**
+
+Full definitions are provided in https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB.
 
 # Characterizing Uncertainties
 
-## Systematics and Nusiance Parameters
+Uncertainties can appear in two forms:
 
-## Shape uncertainties
+* normalization/yield uncertainties effect the overal derived number of events (e.g. luminosity uncertainties)
+* shape uncertainties move events around within the distribution, with the total yield staying the same e.g. uncertainty in a given theoretical description.
+
+## Normalization uncertainties (underdevelopment)
+
+## Shape uncertainties (underdevelopment)
 
 # Results
 
-The Results module store the final fit results in terms of expected yield from each of the sources of events. This should be adapted to interface with our Bayesian tools eventually.
+The Results module store the final fit results in terms of expected yield from each of the sources of events. The results module can also print out the list of momenta or times used in the fit (passing all cuts). This can be in put into BAT.jl for Bayesian studies.
+
+Another important goal of the "results" module is to have various statistical tests here e.g. for understanding the significance or pvalue of a result or deriving a frequentist limit in the event of low or no signal yields.
+
+The current version of this code is underdevelopment, but the concept is taking shape. The functions work, but have not been used to produce viable results due to missing external infrastructure.
+
+## GetSignificance (underdevelopment)
+
+The aim of this function is to take the output of a fit and understand the p-value on the derived signal yield and the significance (in n*sigma). It will be useful for understanding if we have a discovery.
+
+## GetUL (underdevelopment)
+
+This function will be used to derive frequentist UL at a chosen CL. It should be used with smaller yields. There is much work to do to understand how to run with large number of toys.

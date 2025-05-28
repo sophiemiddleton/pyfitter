@@ -7,43 +7,22 @@ import matplotlib.ticker as ticker
 from mom_components import mom_components
 from time_components import time_components
 
-def PlotRecoMomEnt(branches, low, hi):
-    """ make basic reco mom plot, requirement for tracker entrance """
-    branches['demfit_mom'] = np.sqrt((branches['demfit']['mom']['fCoordinates']['fX'])**2 + (branches['demfit']['mom']['fCoordinates']['fY'])**2 + (branches['demfit']['mom']['fCoordinates']['fZ'])**2) #FIXME - use util
-    trk_ent_mask = (branches['demfit']['sid']==0)
-
-    fig, ax = plt.subplots(1,1)
-    nEnt, binsEnt, patchesEnt = ax.hist(ak.flatten(branches[(trk_ent_mask)]['demfit_mom'], axis=None), bins=100, range=(int(low), int(hi)), label='ent fits', histtype='step',color='g')
-
-    bin_centersEnt = 0.5 * (binsEnt[:-1] + binsEnt[1:])
-    yerrsEnt = []
-    for i, j in enumerate(nEnt):
-      yerrsEnt.append(math.sqrt(j))
-    plt.errorbar(bin_centersEnt, nEnt, yerr=np.sqrt(nEnt), fmt='g.')
-
-    # add in style features:
-    ax.set_yscale('log')
-    ax.set_xlabel('Reconstructed Momentum (at ent) [MeV/c]')
-    ax.set_ylabel('# events per bin')
-    ax.grid(True)
-    ax.legend()
-    plt.savefig("mom.pdf")
-    plt.show()
-
 def plotmom_fit(data, fit_range, list_pdfs, cat=None):
     """ plot the final plot with fit and data overlay, plus a residual plot """
     n_bins = 50
     mom_plot = np.linspace(fit_range[0], fit_range[1], n_bins)
     scale = 1 / n_bins * (fit_range[1] - fit_range[0])
-
+    data = data[~np.isnan(data)] 
     data_hist, data_binedge = np.histogram(data, bins=n_bins, range=fit_range)
     data_bincenter = 0.5 * (data_binedge[1:] + data_binedge[:-1])
 
     fig, (ax1, ax2) = plt.subplots(2,1, height_ratios=[3,1])
-
+    if cat is None:
+      print("[py-fitter/recoplot_module/plotmom_fit] ❌ cat option is {cat}, will not include MC truth")
     if cat is not None:
         colors = ['lightgrey']+[idict['catColor'] for idict in mom_components.values()]
         hists,_,_ = ax1.hist([data[cat==icat] for icat in range(len(mom_components)+1)], color=colors, bins=n_bins, range=fit_range, histtype='bar',stacked=True)
+        print('[py-fitter/recoplot_module/plotmom_fit] ✅ Printing MC Truth ')
         print('Other  :',np.sum(hists[0]))
         for iproc, proc in enumerate(mom_components.keys()):
             print(proc.ljust(10)+':',np.sum(hists[iproc+1])-np.sum(hists[iproc]))
@@ -60,14 +39,24 @@ def plotmom_fit(data, fit_range, list_pdfs, cat=None):
     ax1.plot(mom_plot, combine_plot, '-r', label='Total')
     ax1.grid(True)
     ax1.set_yscale('log')
-    ax1.set_xlim(fit_range) #FIXME change range to variables
-    ax1.set_ylim([1e-1, max(data_hist)]) #FIXME should allow for more events
+    ax1.set_xlim(fit_range)
+    ax1.set_ylim([1e-1, max(data_hist)])
     ax1.set_xlabel('Reconstructed Momentum [MeV/c]')
     ax1.set_ylabel('# of events per bin')
     ax1.legend()
-    err = np.sqrt((np.sqrt(data_hist))*(np.sqrt(data_hist)) + (np.sqrt(combine_plot))* (np.sqrt(combine_plot)))/np.sqrt(data_hist) #FIXME - throws error if /0
-    ax2.errorbar(mom_plot, np.abs(combine_plot - data_hist)/np.sqrt(data_hist), yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3) #FIXME error if data_hist empty
+    err = []
+    dev = []
+    for i, ent in enumerate(data_hist):
+      if ent != 0:
+        err.append(np.sqrt((np.sqrt(data_hist[i]))*(np.sqrt(data_hist[i])) + (np.sqrt(combine_plot[i]))* (np.sqrt(combine_plot[i])))/np.sqrt(data_hist[i]))
+        dev.append(np.abs(combine_plot[i] - data_hist[i])/np.sqrt(data_hist[i]))
+      else:
+        err.append(0)
+        dev.append(0)
+    if len(data_hist) == 0:
+       print('[py-fitter/recoplot_module/plotmom_fit] ⚠️ WARNING! histogram empty')
 
+    ax2.errorbar(mom_plot, dev , yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3)
     ax2.grid(True)
     ax2.yaxis.set_ticks(np.arange(-5, 5,2))
     ax2.yaxis.set_minor_formatter(ticker.FormatStrFormatter('%0.1f'))
@@ -80,14 +69,18 @@ def plot_time_fit(data, fit_range, list_pdfs, cat=None):
     n_bins = 50
     time_plot = np.linspace(fit_range[0], fit_range[1], n_bins)
     scale = 1 / n_bins * (fit_range[1] - fit_range[0])
-
+    data = data[~np.isnan(data)] 
     data_hist, data_binedge = np.histogram(data, bins=n_bins, range=fit_range)
     data_bincenter = 0.5 * (data_binedge[1:] + data_binedge[:-1])
 
     fig, (ax1, ax2) = plt.subplots(2,1, height_ratios=[3,1])
+    if verbose > 0:
+      if cat == None:
+        print("[py-fitter/recoplot_module/plotmom_fit] ❌ cat option is {cat}, will not include MC truth")
     if cat is not None:
         colors = ['lightgrey']+[idict['catColor'] for idict in components.values()]
         hists,_,_ = ax1.hist([data[cat==icat] for icat in range(len(components)+1)], color=colors, bins=n_bins, range=fit_range, histtype='bar',stacked=True)
+        print('[py-fitter/recoplot_module/plotmom_fit] ✅ Printing MC Truth')
         print('Other  :',np.sum(hists[0]))
         for iproc, proc in enumerate(components.keys()):
             print(proc.ljust(10)+':',np.sum(hists[iproc+1])-np.sum(hists[iproc]))
@@ -105,14 +98,22 @@ def plot_time_fit(data, fit_range, list_pdfs, cat=None):
     ax1.plot(time_plot, combine_plot, '-r', label='Total')
     ax1.grid(True)
     ax1.set_yscale('log')
-    ax1.set_xlim(fit_range) #FIXME change range to variables
-    ax1.set_ylim([10, max(data_hist)]) #FIXME should allow for more events
+    ax1.set_xlim(fit_range)
+    ax1.set_ylim([10, max(data_hist)])
     ax1.set_xlabel('Reconstructed Time [ns]')
     ax1.set_ylabel('# of events per bin')
     ax1.legend()
-    err = np.sqrt((np.sqrt(data_hist))*(np.sqrt(data_hist)) + (np.sqrt(combine_plot))* (np.sqrt(combine_plot)))/np.sqrt(data_hist) #FIXME - throws error if /0
-    ax2.errorbar(time_plot, np.abs(combine_plot - data_hist)/np.sqrt(data_hist), yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3) #FIXME error if data_hist empty
-
+    err = []
+    dev = []
+    for i, ent in enumerate(data_hist):
+      if ent != 0:
+        err.append(np.sqrt((np.sqrt(data_hist[i]))*(np.sqrt(data_hist[i])) + (np.sqrt(combine_plot[i]))* (np.sqrt(combine_plot[i])))/np.sqrt(data_hist[i]))
+        dev.append(np.abs(combine_plot[i] - data_hist[i])/np.sqrt(data_hist[i]))
+      else:
+        err.append(0)
+        dev.append(0)
+    if len(data_hist) == 0:
+       print('[py-fitter/recoplot_module/plotmom_time] ⚠️ WARNING! histogram empty')
     ax2.grid(True)
     ax2.yaxis.set_ticks(np.arange(-5, 5,2))
     ax2.yaxis.set_minor_formatter(ticker.FormatStrFormatter('%0.1f'))

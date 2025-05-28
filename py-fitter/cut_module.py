@@ -8,8 +8,9 @@ from mom_components import mom_components
 
 class CutClass:
 
-    def __init__(self,  opt = 'SU2020', use_CRV = True):
+    def __init__(self,  opt = 'SU2020', use_CRV = True, verbose = 0):
         self.use_CRV = use_CRV
+        self.verbose = verbose
         self.Event_cut = {} # Cut applied at the event level
         self.Track_cut = {} # Cut applied at the track level
         self.Trksegs_cut = {}# Cut applied at the trksegs level
@@ -19,12 +20,12 @@ class CutClass:
             self.Event_cut = {
             }
             self.Track_cut = {
-                "'trk','trk.pdg'": 11,   # trk uses e- hypothesis for Kalman fit
-                "'trk','trk.nactive'": [20, float('inf')], # active hits in the tracker
-                "'trkqual','trkqual.result'": [0.2, float('inf')]
+                "'trk.pdg'": 11,   # trk uses e- hypothesis for Kalman fit
+                "'trk.nactive'": [20, float('inf')], # active hits in the tracker
+                "'trkqual.result'": [0.2, float('inf')]
             }
             self.Trksegs_cut = {
-                "'trksegs','sid'": 0,   # Look at the track at the entrance of the tracker
+                "'trksegs','sid'": 1,   # Track fit locatoin 0 = ent, 1=mid, 2=exit
                 "'trksegs','mom','fCoordinates','fZ'": [0, float('inf')],   # Look at downstream tracks
                 "'trksegs','time'": [640., 1650], #inTimeWindow
                 "'trksegpars_lh','t0err'": [0, 0.9], #intimeErr
@@ -33,13 +34,14 @@ class CutClass:
             self.CRV_cut = {
                 "crv_coincidence" : 150. # cut anything with a track - crv time difference less than this
             }
+        print("[py-fitter/cut_module] ✅ initialized cuts",opt)
 
-    def ApplyCut(self, array_trk, array_crv, verbose =0):
+    def ApplyCut(self, array_trk, array_crv):
         """ function applies cuts to MDS1 """
-        if (verbose == 1):
-          print("\nApplying cuts\n")
+        if (self.verbose   > 0):
+          print("\n[py-fitter/cut_module] ✅ Applying cuts\n")
           print("# of events before cut: ", ak.num(array_trk, axis=0))
-          print("# of tracks before cut: ", ak.count(array_trk['trk','trk.status']))
+          print("# of tracks before cut: ", ak.count(array_trk['trk.status']))
 
         array_cut = ak.copy(array_trk)  # Use copy to keep the initial array untouched
 
@@ -47,9 +49,8 @@ class CutClass:
         
         # Track level cut
         for key, value in self.Track_cut.items():
-            if (verbose == 1):
-              print(eval(key))
-
+            if (self.verbose  > 0):
+              print("[py-fitter/cut_module/ApplyCut] ✅ evaluating track cuts ", eval(key))
             if type(value) == int:
                 mask = array_trk[eval(key)] == value
             elif len(value) == 2:
@@ -58,13 +59,13 @@ class CutClass:
             ApplyMaskTrk(array_cut, mask)
             #array_trk[eval(key)].show()
             #array_cut[eval(key)].show()
-            if (verbose == 1):
-              print("# of tracks passing this cut: ", ak.count(array_cut['trk','trk.status']))
+            if (self.verbose   > 0):
+              print("[py-fitter/cut_module] ✅ # of tracks passing this cut: ", ak.count(array_cut['trk.status']))
             
         # Track segments level cut
         for key, value in self.Trksegs_cut.items():
-            if (verbose == 1):
-              print(eval(key))
+            if (self.verbose   > 0):
+              print("[py-fitter/cut_module/ApplyCut] ✅ evaluating track seg cuts", eval(key))
 
             if type(value) == int:
                 mask = array_trk[eval(key)] == value
@@ -76,35 +77,37 @@ class CutClass:
             #array_trk[eval(key)].show()
             #array_cut[eval(key)].show()
 
-            if (verbose == 1):
-              print("# of trksegs passing this cut: ", ak.count(array_cut['trksegs','time']))
+            if (self.verbose   > 0):
+              print("[py-fitter/cut_module/ApplyCut] ✅ # of trksegs passing this cut: ", ak.count(array_cut['trksegs','time']))
 
         # CRV cuts
         if self.use_CRV:
+            if (self.verbose   > 0):
+              print("[py-fitter/cut_module/ApplyCut] ✅ evaluating CRV cut")
             # TODO to decide
             # - Look only at first trkseg (current implementation), all trksegs, trkseg for specific sid?
             # - Look at trkseg before or after applying selection? (This doesn't matter for current implementation, might matter if we changed trkseg choice)
 
             # Get array where for each event, for each track, we have all combinations of leading trkseg time and crv time
-            combinations = ak.cartesian([ak.firsts(array_trk['trksegs','time'],axis=-1),array_crv['crvcoincs','crvcoincs.time']],axis=1,nested=True)
+            combinations = ak.cartesian([ak.firsts(array_trk['trksegs','time'],axis=-1),array_crv['crvcoincs.time']],axis=1,nested=True)
             trksegtime, crvtime = ak.unzip(combinations)
             mintimediff = ak.min(abs(trksegtime-crvtime),axis=-1)
             # True if mintimediff >= cut or no crv hit; False if mintimediff < cut
             mask = ak.fill_none((mintimediff >= self.CRV_cut.get('crv_coincidence')),True)
             ApplyMaskTrk(array_cut, mask)
-        if (verbose == 1):
-          print("# of trksegs after all the cuts: ", ak.count(array_cut['trksegs','time']))
+        if (self.verbose   > 0):
+          print("[py-fitter/cut_module] ✅ # of trksegs after all the cuts: ", ak.count(array_cut['trksegs','time']))
         
         return array_cut
 
 
-    def ApplyCutMC(self, array_mc, array_trk_cut, verbose = 0):
+    def ApplyCutMC(self, array_mc, array_trk_cut):
         """ Apply the trk cut on the MC array"""
         """ Reproduce the combination of all masks applied on the trk array and apply it on the MC array """
-        if (verbose == 1):
-          print("\nApplying cuts on MC array\n")
-          print("# of events before cut: ", ak.num(array_mc, axis=0))
-          print("# of tracks before cut: ", ak.count(array_mc['trkmc','trkmc.valid']))
+        if (self.verbose   > 0):
+          print("[py-fitter/cut_module/ApplyCutMC] ✅ \nApplying cuts on MC array\n")
+          print("[py-fitter/cut_module/ApplyCutMC] ✅ # of events before cut: ", ak.num(array_mc, axis=0))
+          print("[py-fitter/cut_module/ApplyCutMC] ✅ # of tracks before cut: ", ak.count(array_mc['trkmc','trkmc.valid']))
         array_mc_cut = ak.copy(array_mc)
 
         # Event level cut: TODO when there is one
@@ -124,12 +127,12 @@ class CutClass:
         array_mc_cut['trksegsmc','time'].show()
 
         #print("# of events after all the cuts: ", ak.num(array_trk, axis=0)
-        if (verbose == 1):
-          print("# of tracks after all the cuts: ", ak.count(array_mc_cut['trksegsmc','time']))
+        if (self.verbose   > 0):
+          print("[py-fitter/cut_module/ApplyCutMC] ✅ # of tracks after all the cuts: ", ak.count(array_mc_cut['trksegsmc','time']))
 
-    def CategorizeTracks(self, array_mc, mismatch=False, verbose = 0):
-        if (verbose == 1):
-          print('Doing track categorization')
+    def CategorizeTracks(self, array_mc, mismatch=False):
+        if (self.verbose   > 0):
+          print('[py-fitter/cut_module/ApplyCutMC] ✅ Doing track categorization based on MC truth codes')
 
         array_tmp = ak.copy(array_mc)
 
@@ -137,9 +140,14 @@ class CutClass:
         ApplyMaskTrkVec(array_tmp, mask)
 
         if mismatch:
+            if (self.verbose   > 0):
+              print('[py-fitter/cut_module] ✅ running with mismatch on')
             pStartCode = ak.max(ak.flatten(array_tmp['trkmcsim']['startCode'],axis=2),axis=1,mask_identity=True)
             pGenCode = ak.max(ak.flatten(array_tmp['trkmcsim']['gen'],axis=2),axis=1,mask_identity=True)
+
         else:
+            if (self.verbose   > 0):
+              print('[py-fitter/cut_module/CategorizeTracks] ✅ running without mismatch on')
             pStartCode = ak.flatten(ak.drop_none(array_tmp['trkmcsim']['startCode']),axis=2,mask_identity=True)
             pGenCode = ak.flatten(ak.drop_none(array_tmp['trkmcsim']['gen']),axis=2,mask_identity=True)
         pStartCode = ak.fill_none(pStartCode,-1)
@@ -155,8 +163,8 @@ class CutClass:
                     goodStartCode = ak.ones_like(pStartCode,dtype=bool) if startCode is None else (pStartCode == startCode)
                     goodGenCode = ak.ones_like(pGenCode,dtype=bool) if genCode is None else (pGenCode == genCode)
                     goodCode = goodCode | (goodStartCode & goodGenCode)
+            
             categories = categories + (icat+1) * (goodCode)
-
         return categories
     
     
