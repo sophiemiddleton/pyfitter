@@ -88,7 +88,7 @@ def  main(args):
 
       result_output = ResultsClass(array_cut, result,  args.verbose)
       #result_output.GetSignifcance(par, loss, 'freq')
-      result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),result.params['N_CE']['value'],0.90,'freq')
+      #result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),result.params['N_CE']['value'],0.90,'freq')
 
       if (int(args.writeoutput) == 1):
         result_output.WriteFittedData()
@@ -132,7 +132,7 @@ if __name__ == "__main__":
     parser.add_argument("--fitrange_low", type=float, default=[95,640], nargs='+', help="minimum to fit ordered mom, time")
     parser.add_argument("--fitrange_hi", type=float, default=[115,1650], nargs='+',help="maximum to fit  ordered mom, time")
     parser.add_argument("--cuts", type=str, default="SU2020", help="cut e.g. SU2020")
-    parser.add_argument("--writeoutput", type=int, default=1, help="writes data and fit results to csv")
+    parser.add_argument("--writeoutput", type=int, default=0, help="writes data and fit results to csv")
     parser.add_argument("--showMC", type=int, default=0, help="will use MC information")
     parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")
     parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")
