@@ -12,7 +12,7 @@ from mc_module import *
 from results_module import ResultsClass
 
 import sys 
-sys.path.append("../../EventNtuple/utils/pyutils") #FIXME, we will be adding pyutils to the env and this will then change
+sys.path.append("../../pyutils/pyutils") # import pyutils
 
 # pyutils classes
 from pyimport import Importer 
