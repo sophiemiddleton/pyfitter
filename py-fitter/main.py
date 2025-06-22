@@ -26,16 +26,13 @@ def  main(args):
     if args.verbose > 0:
       print("[py-fitter/main] ✅ beginning analysis of ",args.file," with ", args.dirname, args.treename, "verbosity set to", args.verbose)
     # Import the data from the ntuple convert it into an Awkward array
-    mds = Importer(verbosity=args.verbose)
-
     list_branch_trk = ["trksegs","trksegpars_lh","trk.nactive","trk.status","trk.pdg","trkqual.result"]
     list_branch_crv = ["crvsummary.","crvcoincs.time"]
+
     if (int(args.singlefile) == 1):
-      array_trk = mds.import_file(
-          file_name=args.file,
-          branches=list_branch_trk
-      )
-    else:
+      mds_trk = Importer(file_name=args.file,branches=list_branch_trk,verbosity=args.verbose)
+      array_trk = mds_trk.import_branches()
+    else:   #FIXME change syntax for pyutils using pyprocess
       array_trk = mds.import_dataset(
           file_list_path = args.file,
            branches=list_branch_trk
@@ -48,11 +45,9 @@ def  main(args):
     
     # import crv branches
     if (int(args.singlefile) == 1):
-      array_crv = mds.import_file(
-          file_name=args.file,
-          branches=list_branch_crv
-      )
-    else:
+      mds_crv = Importer(file_name=args.file,branches=list_branch_crv,verbosity=args.verbose)
+      array_crv = mds_crv.import_branches()
+    else:   #FIXME change syntax for pyutils using pyprocess
       array_crv = mds.import_dataset(
           file_list_path =args.file,
           branches = list_branch_crv
