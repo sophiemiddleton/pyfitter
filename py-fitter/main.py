@@ -12,10 +12,10 @@ from mc_module import *
 from results_module import ResultsClass
 
 import sys 
-sys.path.append("../../EventNtuple/utils/pyutils") #FIXME, we will be adding pyutils to the env and this will then change
+sys.path.append("../../pyutils/pyutils") # import pyutils
 
 # pyutils classes
-from pyimport import Importer 
+from pyprocess import Processor 
 from pyvector import Vector
 
 # Define the path to our example file
@@ -26,17 +26,17 @@ def  main(args):
     if args.verbose > 0:
       print("[py-fitter/main] ✅ beginning analysis of ",args.file," with ", args.dirname, args.treename, "verbosity set to", args.verbose)
     # Import the data from the ntuple convert it into an Awkward array
-    mds = Importer(verbosity=args.verbose)
+    mds = Processor(verbosity=args.verbose)
 
     list_branch_trk = ["trksegs","trksegpars_lh","trk.nactive","trk.status","trk.pdg","trkqual.result"]
     list_branch_crv = ["crvsummary.","crvcoincs.time"]
     if (int(args.singlefile) == 1):
-      array_trk = mds.import_file(
+      array_trk = mds.process_data(
           file_name=args.file,
           branches=list_branch_trk
       )
     else:
-      array_trk = mds.import_dataset(
+      array_trk = mds.process_data(
           file_list_path = args.file,
            branches=list_branch_trk
       )
@@ -48,12 +48,12 @@ def  main(args):
     
     # import crv branches
     if (int(args.singlefile) == 1):
-      array_crv = mds.import_file(
+      array_crv = mds.process_data(
           file_name=args.file,
           branches=list_branch_crv
       )
     else:
-      array_crv = mds.import_dataset(
+      array_crv = mds.process_data(
           file_list_path =args.file,
           branches = list_branch_crv
       )
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     parser.add_argument("--showMC", type=int, default=0, help="will use MC information")
     parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")
     parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")
-    parser.add_argument("--verbose", default=1, help="verbose")
+    parser.add_argument("--verbose", type=int, default=1, help="verbose")
     args = parser.parse_args()
     (args) = parser.parse_args()
 
