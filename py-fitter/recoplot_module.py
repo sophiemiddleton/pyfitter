@@ -8,7 +8,14 @@ from mom_components import mom_components
 from time_components import time_components
 
 def plotmom_fit(data, fit_range, list_pdfs, cat=None):
-    """ plot the final plot with fit and data overlay, plus a residual plot """
+    """ 
+    plot the final plot with fit and data overlay, plus a residual plot 
+      data = the cut-on array
+      fite_range = min, max mom
+      list_pdfs = the pdfs fit to this data
+      cat= allows for MC truth assignments to be shown
+    
+    """
     n_bins = 50
     mom_plot = np.linspace(fit_range[0], fit_range[1], n_bins)
     scale = 1 / n_bins * (fit_range[1] - fit_range[0])
@@ -65,7 +72,14 @@ def plotmom_fit(data, fit_range, list_pdfs, cat=None):
     ax2.set_ylabel('Normalized Residual')
 
 def plot_time_fit(data, fit_range, list_pdfs, cat=None):
-    """ plot the final plot with fit and data overlay, plus a residual plot """
+    """ 
+    plot the final plot with fit and data overlay, plus a residual plot 
+      data = the cut-on array
+      fite_range = min, max mom
+      list_pdfs = the pdfs fit to this data
+      cat= allows for MC truth assignments to be shown
+    """
+    
     n_bins = 50
     time_plot = np.linspace(fit_range[0], fit_range[1], n_bins)
     scale = 1 / n_bins * (fit_range[1] - fit_range[0])

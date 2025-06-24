@@ -48,9 +48,20 @@ default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
                         'uniform' : {}
                         }
 
-default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 200, 'RPC' : 1} #FIXME - should we make these relative?
+default_norms = {'CE' : 60, 'DIO' : 5500, 'Cosmic' : 20, 'RPC' : 1} #FIXME - should we make these relative?
 
 def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_range, constraints):
+    """ 
+    Build momentum fit model
+      obs_mom = zfit parameter for reco momentum
+      params_tot = list of fit parameters
+      process = type of physics process
+      model = fit model
+      pardict = dictionary of parameters
+      trat_params = fixed or float, defined in componets script
+      fit_range = min, max to fit over
+      constraints= parameter specific constraints
+    """
     if isinstance(pardict,dict) and 'N' in pardict:
         N = zfit.Parameter('N_'+process, pardict['N'][0], pardict['N'][1], pardict['N'][2])
     elif process in list(default_norms.keys()):

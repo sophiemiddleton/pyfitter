@@ -8,7 +8,7 @@ from mom_components import mom_components
 
 class CutClass:
 
-    def __init__(self,  opt = 'SU2020', use_CRV = True, verbose = 0):
+    def __init__(self,  opt = 'SU2020', mom_lo = 95., mom_hi = 115., time_lo = 640., time_hi = 1650, use_CRV = True, verbose = 1):
         self.use_CRV = use_CRV
         self.verbose = verbose
         self.Event_cut = {} # Cut applied at the event level
@@ -21,29 +21,31 @@ class CutClass:
             }
             self.Track_cut = {
                 "'trk.pdg'": 11,   # trk uses e- hypothesis for Kalman fit
-                "'trk.nactive'": [20, float('inf')], # active hits in the tracker
+                #"'trk.nactive'": [20, float('inf')], # active hits in the tracker
                 "'trkqual.result'": [0.2, float('inf')]
             }
             self.Trksegs_cut = {
                 "'trksegs','sid'": 1,   # Track fit locatoin 0 = ent, 1=mid, 2=exit
                 "'trksegs','mom','fCoordinates','fZ'": [0, float('inf')],   # Look at downstream tracks
-                "'trksegs','time'": [640., 1650], #inTimeWindow
+                "'trksegs','time'": [time_lo, time_hi], #inTimeWindow
+                #"'trksegs','mom.mag'": [mom_lo, mom_hi], #inMomWindow
                 "'trksegpars_lh','t0err'": [0, 0.9], #intimeErr
                 "'trksegpars_lh','maxr'": [450., 680.], #inMaxRCut
+                #"'trksegpars_lh','d0'": [-100,100], #ind0Cut
             }
             self.CRV_cut = {
                 "crv_coincidence" : 150. # cut anything with a track - crv time difference less than this
             }
         print("[py-fitter/cut_module] ✅ initialized cuts",opt)
 
-    def ApplyCut(self, array_trk, array_crv):
-        """ function applies cuts to MDS1 """
+    def ApplyCut(self, array_data):
+        """ function applies cuts to MDS """
         if (self.verbose   > 0):
           print("\n[py-fitter/cut_module] ✅ Applying cuts\n")
-          print("# of events before cut: ", ak.num(array_trk, axis=0))
-          print("# of tracks before cut: ", ak.count(array_trk['trk.status']))
+          print("# of events before cut: ", ak.num(array_data, axis=0))
+          print("# of tracks before cut: ", ak.count(array_data['trk']['trk.status']))
 
-        array_cut = ak.copy(array_trk)  # Use copy to keep the initial array untouched
+        array_cut = ak.copy(array_data)  # Use copy to keep the initial array untouched
 
         # Event level cut: TODO when there is one
         
@@ -51,16 +53,17 @@ class CutClass:
         for key, value in self.Track_cut.items():
             if (self.verbose  > 0):
               print("[py-fitter/cut_module/ApplyCut] ✅ evaluating track cuts ", eval(key))
+              print(array_data['trk'][eval(key)])
             if type(value) == int:
-                mask = array_trk[eval(key)] == value
+                mask = array_data['trk'][eval(key)] == value
             elif len(value) == 2:
-                mask = (array_trk[eval(key)] >= value[0]) & (array_trk[eval(key)] <= value[1])
+                mask = (array_data['trk'][eval(key)] >= value[0]) & (array_data['trk'][eval(key)] <= value[1])
 
             ApplyMaskTrk(array_cut, mask)
-            #array_trk[eval(key)].show()
+            #array_data[eval(key)].show()
             #array_cut[eval(key)].show()
             if (self.verbose   > 0):
-              print("[py-fitter/cut_module] ✅ # of tracks passing this cut: ", ak.count(array_cut['trk.status']))
+              print("[py-fitter/cut_module] ✅ # of tracks passing this cut: ", ak.count(array_cut['trk']['trk.status']))
             
         # Track segments level cut
         for key, value in self.Trksegs_cut.items():
@@ -68,17 +71,17 @@ class CutClass:
               print("[py-fitter/cut_module/ApplyCut] ✅ evaluating track seg cuts", eval(key))
 
             if type(value) == int:
-                mask = array_trk[eval(key)] == value
+                mask = array_data['trkfit'][eval(key)] == value
             elif len(value) == 2:
-                mask = (array_trk[eval(key)] >= value[0]) & (array_trk[eval(key)] <= value[1])
+                mask = (array_data['trkfit'][eval(key)] >= value[0]) & (array_data['trkfit'][eval(key)] <= value[1])
 
             ApplyMaskTrkVec(array_cut, mask)
             #mask.show()
-            #array_trk[eval(key)].show()
+            #array_data[eval(key)].show()
             #array_cut[eval(key)].show()
 
             if (self.verbose   > 0):
-              print("[py-fitter/cut_module/ApplyCut] ✅ # of trksegs passing this cut: ", ak.count(array_cut['trksegs','time']))
+              print("[py-fitter/cut_module/ApplyCut] ✅ # of trksegs passing this cut: ", ak.count(array_cut['trkfit','trksegs','time']))
 
         # CRV cuts
         if self.use_CRV:
@@ -89,7 +92,7 @@ class CutClass:
             # - Look at trkseg before or after applying selection? (This doesn't matter for current implementation, might matter if we changed trkseg choice)
 
             # Get array where for each event, for each track, we have all combinations of leading trkseg time and crv time
-            combinations = ak.cartesian([ak.firsts(array_trk['trksegs','time'],axis=-1),array_crv['crvcoincs.time']],axis=1,nested=True)
+            combinations = ak.cartesian([ak.firsts(array_data['trkfit']['trksegs','time'],axis=-1),array_data['crv']['crvcoincs.time']],axis=1,nested=True)
             trksegtime, crvtime = ak.unzip(combinations)
             mintimediff = ak.min(abs(trksegtime-crvtime),axis=-1)
             # True if mintimediff >= cut or no crv hit; False if mintimediff < cut
@@ -101,7 +104,7 @@ class CutClass:
         return array_cut
 
 
-    def ApplyCutMC(self, array_mc, array_trk_cut):
+    def ApplyCutMC(self, array_mc, array_data_cut):
         """ Apply the trk cut on the MC array"""
         """ Reproduce the combination of all masks applied on the trk array and apply it on the MC array """
         if (self.verbose   > 0):
@@ -113,20 +116,20 @@ class CutClass:
         # Event level cut: TODO when there is one
 
         # Track level cut
-        mask = ~(ak.is_none(array_trk_cut['trk','trk.nactive'], axis=1))
+        mask = ~(ak.is_none(array_data_cut['trk','trk.nactive'], axis=1))
         ApplyMaskTrk(array_mc_cut, mask)
         mask.show()
         array_mc['trkmc','trkmc.nactive'].show()
         array_mc_cut['trkmc','trkmc.nactive'].show()
 
         # Track segments level cut
-        mask = ~(ak.is_none(array_trk_cut['trksegs','time'], axis=2))
+        mask = ~(ak.is_none(array_data_cut['trksegs','time'], axis=2))
         ApplyMaskTrkVec(array_mc_cut, mask)
         mask.show()
         array_mc['trksegsmc','time'].show()
         array_mc_cut['trksegsmc','time'].show()
 
-        #print("# of events after all the cuts: ", ak.num(array_trk, axis=0)
+        #print("# of events after all the cuts: ", ak.num(array_data, axis=0)
         if (self.verbose   > 0):
           print("[py-fitter/cut_module/ApplyCutMC] ✅ # of tracks after all the cuts: ", ak.count(array_mc_cut['trksegsmc','time']))
 
