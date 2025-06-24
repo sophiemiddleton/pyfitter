@@ -21,7 +21,8 @@ from hepstats.hypotests import UpperLimit
 from hepstats.hypotests.parameters import POIarray
 #from utils import plotlimit
 
-def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
+def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, dio_efficiency = None,
+    dio_resolution = None):
     '''
     Fit the time data to a exponential distribution
 
@@ -48,7 +49,7 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=
         pdf = mom_components[proc]['pdf']
         pardict = mom_components[proc]['pars']
         treat_params = mom_components[proc]['treat_params']
-        pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, pardict, treat_params, fit_range, constraints)
+        pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, pardict, treat_params, fit_range, constraints, dio_efficiency, dio_resolution)
         if 'nll' in mom_components[proc].keys():
             nlls.extend(mom_components[proc]['nll'].get_nll(pars))
 
