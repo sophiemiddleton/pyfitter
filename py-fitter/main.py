@@ -83,7 +83,7 @@ def  main(args):
         array_cut['trksegs','cat'] = ak.broadcast_arrays(array_cut['trksegs','time'],track_cat)[1]
 
     if(args.fittype == "mom1D"):
-      result, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat),args.verbose)
+      result, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat),args.verbose, args.DIO_efficiency_file, args.DIO_resolution_file)
       print('[py-fitter/main] ✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit')
 
       result_output = ResultsClass(array_cut, result,  args.verbose)
@@ -137,6 +137,8 @@ if __name__ == "__main__":
     parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")
     parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")
     parser.add_argument("--verbose", type=int, default=1, help="verbose")
+    parser.add_argument("--DIO_efficiency_file", type=str, default=None, help="DIO efficiency file path")
+    parser.add_argument("--DIO_resolution_file", type=str, default=None, help="DIO resolution file path")
     args = parser.parse_args()
     (args) = parser.parse_args()
 

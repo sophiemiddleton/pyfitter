@@ -5,6 +5,7 @@ import tensorflow as tf
 import zfit
 import math
 import hist as hist
+import dill as pickle
 
 class poly58(zfit.pdf.ZPDF):
     """ for DIO parameterization """
@@ -50,7 +51,8 @@ default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
 
 default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 200, 'RPC' : 1} #FIXME - should we make these relative?
 
-def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_range, constraints):
+def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_range, constraints, dio_efficiency = None,
+    dio_resolution = None):
     if isinstance(pardict,dict) and 'N' in pardict:
         N = zfit.Parameter('N_'+process, pardict['N'][0], pardict['N'][1], pardict['N'][2])
     elif process in list(default_norms.keys()):
@@ -161,8 +163,35 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
         PDF = zfit.pdf.SumPDF(pdfs, fracs=[f/sum(fracs) for f in fracs[:-1]], obs=obs_mom, norm=obs_full, extended=N)
 
     elif model == 'poly58':
-        PDF = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'], extended=N)
+        if dio_resolution is not None:
+            if dio_efficiency is None:
+                raise Exception("ERROR: dio_resolution can only be used if dio_efficiency is also defined")
+            else: # Both efficiency and resolution are defined
+                # Load the PDFs
+                efficiency_pdf = _load_pdf(dio_efficiency)
+                resolution_pdf = _load_pdf(dio_resolution)
 
+                # Adjust the PDFs
+                efficiency_pdf = efficiency_pdf.to_truncated(obs=obs_mom)
+                resolution_pdf = resolution_pdf.copy(obs=zfit.Space('mom', limits=(-8, 1)))
+
+                # Multiply the efficiency PDF with the poly58 PDF and convolve with the resolution PDF
+                poly58_pdf = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'])
+                poly58_efficiency_product = zfit.pdf.ProductPDF([poly58_pdf, efficiency_pdf])
+                PDF = zfit.pdf.FFTConvPDFV1(poly58_efficiency_product, resolution_pdf, obs=obs_mom, extended=N, n=1000)
+        else: 
+            if dio_efficiency is not None: # just efficiency, no resolution
+                # Load the efficiency PDF
+                efficiency_pdf = _load_pdf(dio_efficiency)
+
+                # Adjust the efficiency PDF to the observation space
+                efficiency_pdf = efficiency_pdf.to_truncated(obs=obs_mom)
+
+                # Multiply the efficiency PDF with the poly58 PDF
+                poly58_pdf = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'])
+                PDF = zfit.pdf.ProductPDF([poly58_pdf, efficiency_pdf], extended=N)
+            else: # no resolution or efficiency, just poly58 PDF
+                PDF = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'], extended=N)
     elif model == 'uniform':
         PDF = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_mom, extended=N)
 
@@ -174,3 +203,9 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
 
     return PDF, N
   
+def _load_pdf(file_path_or_pdf):
+    if isinstance(file_path_or_pdf, zfit.pdf.ZPDF):
+        return file_path_or_pdf  
+    else:
+        with open(file_path_or_pdf, "rb") as f:
+            return pickle.load(f)
