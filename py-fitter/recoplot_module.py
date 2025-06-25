@@ -38,6 +38,7 @@ def plotmom_fit(data, fit_range, list_pdfs, cat=None):
     ax1.errorbar(data_bincenter, data_hist, yerr=np.sqrt(data_hist), color='None', ecolor='black', capsize=3)
 
     combine_plot = np.zeros(len(mom_plot))
+    print("mom plot",len(data))
     for name, pdfs, N_pdfs in list_pdfs:
         pdf_plot = (pdfs.pdf(mom_plot) * N_pdfs * scale).numpy()
         combine_plot += pdf_plot

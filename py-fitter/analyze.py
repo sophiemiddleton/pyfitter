@@ -1,15 +1,9 @@
 import awkward as ak
-# import matplotlib.pyplot as plt
-# import numpy as np
-# import hist
-# import gc
-# from pyutils.pyselect import Select
-#from cut_module import CutClass
 from pyutils.pyselect import Select
 from pyutils.pyvector import Vector
 from pyutils.pylogger import Logger
 from cut_manager import CutManager
-
+import matplotlib.pyplot as plt
 class Analyze:
     """Class to handle analysis functions
     """
@@ -58,10 +52,10 @@ class Analyze:
         # Track segments cuts
         try:
             
-            at_trk_mid = selector.select_surface(data["trkfit"], sid=1)
+            at_trk_front = selector.select_surface(data["trkfit"], sid=0)
            
             # Append: this is useful for plotting and debugging
-            data["at_trk_mid"] = at_trk_mid
+            data["at_trk_front"] = at_trk_front
 
             # 1. Electron tracks 
             # Reco track fit is electron 
@@ -117,7 +111,7 @@ class Analyze:
                          (data["trkfit"]["trksegs"]["time"] < 1650))
         
             # trk-level definition (the actual cut)
-            within_t0 = ak.all(~at_trk_mid | within_t0, axis=-1)
+            within_t0 = ak.all(~at_trk_front | within_t0, axis=-1)
             cut_manager.add_cut( 
                 name="within_t0",
                 description="t0 at tracker mid (640 < t_0 < 1650 ns)",
@@ -129,7 +123,7 @@ class Analyze:
                               (data["trkfit"]["trksegpars_lh"]["maxr"] < 680)) # changed from 650
         
             # trk-level definition (the actual cut)
-            within_lhr_max = ak.all(~at_trk_mid | within_lhr_max, axis=-1)
+            within_lhr_max = ak.all(~at_trk_front | within_lhr_max, axis=-1)
             cut_manager.add_cut(
                 name="within_lhr_max",
                 description="Loop helix maximum radius (450 < R_max < 680 mm)",
@@ -140,7 +134,7 @@ class Analyze:
             within_d0 = (data["trkfit"]["trksegpars_lh"]["d0"] < 100)
         
             # trk-level definition (the actual cut)
-            within_d0 = ak.all(~at_trk_mid | within_d0, axis=-1) 
+            within_d0 = ak.all(~at_trk_front | within_d0, axis=-1) 
             cut_manager.add_cut(
                 name="within_d0",
                 description="Distance of closest approach (d_0 < 100 mm)",
@@ -153,7 +147,7 @@ class Analyze:
                                   (data["trkfit"]["trksegpars_lh"]["tanDip"] < 1.0))
         
             # trk-level definition (the actual cut) 
-            within_pitch_angle = ak.all(~at_trk_mid | within_pitch_angle, axis=-1)
+            within_pitch_angle = ak.all(~at_trk_front | within_pitch_angle, axis=-1)
             cut_manager.add_cut(
                 name="within_pitch_angle",
                 description="Extrapolated pitch angle (0.5577350 < tan(theta_Dip) < 1.0)",
@@ -164,7 +158,7 @@ class Analyze:
             within_t0err = ((data["trkfit"]["trksegpars_lh"]["t0err"])  < 0.9)
         
             # trk-level definition (the actual cut)
-            within_t0err = ak.all(~at_trk_mid | within_t0err, axis=-1)
+            within_t0err = ak.all(~at_trk_front | within_t0err, axis=-1)
             cut_manager.add_cut(
                 name="within_t0err",
                 description="t0err < 0.9",
@@ -174,11 +168,11 @@ class Analyze:
 
             # 10. CRV veto: |dt| < 150 ns (dt = coinc time - track t0) 
             # Check if EACH track is within 150 ns of ANY coincidence 
-            
-            dt_threshold = 150
+
+            dt_threshold = 200
             
             # Get track and coincidence times
-            trk_times = data["trkfit"]["trksegs"]["time"][at_trk_mid]  # events × tracks × segments
+            trk_times = data["trkfit"]["trksegs"]["time"][at_trk_front]  # events × tracks × segments
             coinc_times = data["crv"]["crvcoincs.time"]                  # events × coincidences
             
             # Broadcast CRV times to match track structure, so that we can compare element-wise
@@ -191,6 +185,10 @@ class Analyze:
             
             # Check if within threshold
             within_threshold = dt < dt_threshold
+            
+            n,bins,patch = plt.hist(ak.flatten(dt, axis=None), color='black', bins=50, histtype='step')
+            plt.yscale('log')
+            plt.show()
 
             any_coinc = ak.any(within_threshold, axis=3)
             
@@ -204,7 +202,7 @@ class Analyze:
                 description="No crv-trk veto: |dt| >= 150 ns",
                 mask=~veto
             )
-
+            
             self.logger.log("All cuts defined", "success")
             
         except Exception as e:
@@ -241,6 +239,7 @@ class Analyze:
             self.logger.log("Selecting tracks", "max")
             data_cut["trk"] = data_cut["trk"][trk_mask]
             data_cut["trkfit"] = data_cut["trkfit"][trk_mask]
+            #data_cut["trkfitmc"] = data_cut["trkfit"][trk_mask]
             data_cut["trkmc"] = data_cut["trkmc"][trk_mask]
 
             # Then clean up events with no tracks after cuts
@@ -266,7 +265,44 @@ class Analyze:
           stats.append(results["cut_stats"])
       return stats
 
-   
+    
+    def categorize_tracks(self, data, mismatch=False):
+        if (self.verbose   > 0):
+          print('[py-fitter/categorize_tracks] ✅ Doing track categorization based on MC truth codes')
+
+        array_tmp = ak.copy(data)
+
+        mask = (array_tmp['trkmc']['trkmcsim']['rank'] == 0) & (array_tmp['trkmcsim']['nhits'] > 0)
+
+        if mismatch:
+            if (self.verbose   > 0):
+              print('[py-fitter/cut_module] ✅ running with mismatch on')
+            pStartCode = ak.max(ak.flatten(array_tmp['trkmc']['trkmcsim']['startCode'],axis=2),axis=1,mask_identity=True)
+            pGenCode = ak.max(ak.flatten(array_tmp['trkmc']['trkmcsim']['gen'],axis=2),axis=1,mask_identity=True)
+
+        else:
+            if (self.verbose   > 0):
+              print('[py-fitter/cut_module/CategorizeTracks] ✅ running without mismatch on')
+            pStartCode = ak.flatten(ak.drop_none(array_tmp['trkmc']['trkmcsim']['startCode']),axis=2,mask_identity=True)
+            pGenCode = ak.flatten(ak.drop_none(array_tmp['trkmc']['trkmcsim']['gen']),axis=2,mask_identity=True)
+        pStartCode = ak.fill_none(pStartCode,-1)
+        pGenCode = ak.fill_none(pGenCode,-1)
+        
+        categories = ak.zeros_like(pStartCode)
+        for icat, idict in enumerate(mom_components.values()):
+            startCodes = idict['startCode']
+            genCodes = idict['genCode']
+            goodCode = ak.zeros_like(pStartCode,dtype=bool)
+            for startCode in startCodes:
+                for genCode in genCodes:
+                    goodStartCode = ak.ones_like(pStartCode,dtype=bool) if startCode is None else (pStartCode == startCode)
+                    goodGenCode = ak.ones_like(pGenCode,dtype=bool) if genCode is None else (pGenCode == genCode)
+                    goodCode = goodCode | (goodStartCode & goodGenCode)
+            
+            categories = categories + (icat+1) * (goodCode)
+        return categories
+    
+    
     def execute(self, data, file_id, inactive_cuts=None):
         """Perform complete analysis on an array
         Args:
@@ -282,8 +318,8 @@ class Analyze:
 
             # Create a unique cut manager for this file
             cut_manager = CutManager(verbosity=self.verbosity)
-            mom_mag = self.vector.get_mag(data["trkfit"]["trksegs"],'mom')
-            data["trkfit"]["trksegs"]['mom.mag'] = mom_mag
+            #mom_mag = self.vector.get_mag(data["trkfit"]["trksegs"],'mom')
+            #data["trkfit"]["trksegs"]['mom.mag'] = mom_mag
             #self.apply_cuts(data)
             self.logger.log("Defining cuts", "max")
             # Define cuts
@@ -305,7 +341,6 @@ class Analyze:
             # Compile all results
             self.logger.log("Analysis completed", "success")
 
-            
 
             result = {
                 "cut_stats": cut_stats,
@@ -318,12 +353,11 @@ class Analyze:
             cut_manager.print_cut_stats(stats=combined_stats, active_only=True, csv_name="cut_stats.csv")
 
 
-
-            mom_mag = self.vector.get_mag(data_CE["trkfit"]["trksegs"],'mom')
-            return ak.flatten(mom_mag, axis=None)
-
+            track_cat = categorize_tracks(data_CE, mismatch = False)
+            print(track_cat)
+            #data_CE['trksegs','cat'] = ak.broadcast_arrays(array_cut['trksegs','time'],track_cat)[1]
             
-            return mom_mag
+            return data_CE
             
         except Exception as e:
             self.logger.log(f"Error during analysis execution: {e}", "error")  

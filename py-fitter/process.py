@@ -9,7 +9,7 @@ import awkward as ak
 import argparse
 
 #from cut_module import CutClass
-#from fit_module import *
+from fit_module import *
 #from mc_module import *
 #from results_module import ResultsClass
 from analyze import Analyze
@@ -55,10 +55,13 @@ class AnaProcessor(Skeleton):
             ],
             "trkfit" : [
                 "trksegs",
+                "trksegsmc",
                 "trksegpars_lh"
             ],
             "trkmc" : [
-                "trkmcsim"
+                "trkmcsim",
+                "trkmc",
+                "trkmc.valid"
             ]
         }
         #self.filelist = "filelist.txt"          # text file containing list of files
@@ -149,21 +152,23 @@ def combine_arrays(results):
 def  main(args):
   ana_processor = AnaProcessor()
   results = ana_processor.execute()
+  
   # Create an instance of our custom processor
- 
-  ana_processor = AnaProcessor()
-  results = ana_processor.execute()
-
   pre_fit = combine_arrays(results)
- 
-  """
-  n,bins,patch = plt.hist(pre_fit, color='black', bins=50, range=((98.,113.)), histtype='step')
-  plt.yscale('log')
-  plt.show()
-  """
-
-  result, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(pre_fit, 98., 113., 1,1)
-  print('[py-fitter/main] ✅  Fit result: ', result,'\n', 'for  fit')
+  
+  # select only track front to fit to
+  selector = Select()
+  trk_front = selector.select_surface(pre_fit["trkfit"], sid=0) 
+  mytrksegs = pre_fit["trkfit"]["trksegs"].mask[(trk_front)]
+  
+  # make vector mag branch
+  vector = Vector()
+  mom_mag = vector.get_mag(mytrksegs ,'mom')
+  pre_fit["trkfit"]['trksegs', 'mom.mag'] = mom_mag
+  mom_mag = ak.nan_to_none(mom_mag)
+  mom_mag = ak.drop_none(mom_mag)
+  fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(mom_mag, 95., 110., 1,1)
+  print('[py-fitter/main] ✅  Fit result: ', fitresult,'\n', 'for  fit')
   
 def PrintArgs(args):
   """

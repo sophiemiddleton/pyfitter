@@ -13,16 +13,8 @@ from recoplot_module import plotmom_fit, plot_time_fit
 from mom_components import mom_components
 from time_components import time_components
 
-#from hepstats.hypotests.parameters import POI
-#from hepstats.hypotests.calculators import AsymptoticCalculator
-#from hepstats.hypotests.calculators import FrequentistCalculator
-#from hepstats.hypotests import Discovery
-#from hepstats.hypotests import UpperLimit
-#from hepstats.hypotests.parameters import POIarray
-#from utils import plotlimit
-
 def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
-    '''
+    """
     Fit the time data to a exponential distribution
 
     Parameters:
@@ -30,7 +22,7 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=
         fit_range_low (float): Lower limit of the fit range
         fit_range_hi (float): Upper limit of the fit range
         plot_cat (bool): looks at MC truth code
-    '''
+    """
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ initializing fit")
     fit_range = (fit_range_low, fit_range_hi)
@@ -56,6 +48,7 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # Convert data to zfit Data
+    print(data)
     data_np = ak.to_numpy(ak.flatten(data, axis=None))
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_mom)
 
@@ -71,10 +64,10 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=
     
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ finished minimizing")
-    #try:
-    #    param_errors, _ = result.errors(method='minuit_minos')
-    #except:
-    #    print('[py-fitter/fit_module/Unbinned_fit_mom] ❌ ERROR! Invalid fit, postfit parameters may not be optimal')
+    try:
+        param_errors, _ = result.errors(method='minuit_minos')
+    except:
+        print('[py-fitter/fit_module/Unbinned_fit_mom] ❌ ERROR! Invalid fit, postfit parameters may not be optimal')
 
     if result.valid == True:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ fit is valid")

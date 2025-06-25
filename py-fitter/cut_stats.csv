@@ -1,12 +1,12 @@
 Cut,Active,Events Passing,Absolute Frac. [%],Relative Frac. [%],Description
-No cuts,N/A,201679,100.00,100.00,No selection applied
-is_reco_electron,True,196090,97.23,97.23,Tracks are assumed to be electrons (trk)
-good_trkqual,True,106176,52.65,54.15,Track quality (quality > 0.2)
-downstream,True,86471,42.88,81.44,Downstream tracks (p_z > 0 through tracker)
-has_hits,True,85609,42.45,99.00,Minimum of 20 active hits in the tracker
-within_t0,True,68020,33.73,79.45,t0 at tracker mid (640 < t_0 < 1650 ns)
-within_lhr_max,True,49380,24.48,72.60,Loop helix maximum radius (450 < R_max < 680 mm)
-within_d0,True,24592,12.19,49.80,Distance of closest approach (d_0 < 100 mm)
-within_pitch_angle,True,12863,6.38,52.31,Extrapolated pitch angle (0.5577350 < tan(theta_Dip) < 1.0)
-within_t0err,True,11142,5.52,86.62,t0err < 0.9
-no_crv_veto,True,5740,2.85,51.52,No crv-trk veto: |dt| >= 150 ns
+No cuts,N/A,24920,100.00,100.00,No selection applied
+is_reco_electron,True,21111,84.72,84.72,Tracks are assumed to be electrons (trk)
+good_trkqual,True,15676,62.91,74.26,Track quality (quality > 0.2)
+downstream,True,15676,62.91,100.00,Downstream tracks (p_z > 0 through tracker)
+has_hits,True,15303,61.41,97.62,Minimum of 20 active hits in the tracker
+within_t0,True,11621,46.63,75.94,t0 at tracker mid (640 < t_0 < 1650 ns)
+within_lhr_max,True,10845,43.52,93.32,Loop helix maximum radius (450 < R_max < 680 mm)
+within_d0,True,8376,33.61,77.23,Distance of closest approach (d_0 < 100 mm)
+within_pitch_angle,True,7234,29.03,86.37,Extrapolated pitch angle (0.5577350 < tan(theta_Dip) < 1.0)
+within_t0err,True,6844,27.46,94.61,t0err < 0.9
+no_crv_veto,True,5112,20.51,74.69,No crv-trk veto: |dt| >= 150 ns

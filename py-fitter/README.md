@@ -91,15 +91,45 @@ the singlefile args should be switched off for this. Eventually this will probab
 
 Here is a list of the current arguments and what they represent:
 
-* file - filename (include path if not local), required
-* dirname - defaults to "EventNtuple"
-* treename - defaults to "ntuple"
-* fittype - implented opts: "mom1D", "time1D", "momtime2D"
-* fit range (low, hi) - range to fit over
-* showMC - set to 1 if "MC infor is present and I want to use it to help my analysis"
-* cuts - cut list to use, default is SU2020 cuts
-* categorize - uses MC process code to find true nature of the particles making the tracks
-* verbose - has the usual meaning, prints debug statements as desired, off by default
+<details>
+<summary><strong>Click for details<strong></summary>
+    
+```
+NAME
+    process
+
+CLASSES
+    builtins.object
+        process.py
+
+
+     |      Args:
+     |          * file - filename (include path if not local), required
+               * dirname - defaults to "EventNtuple"
+                * treename - defaults to "ntuple"
+                * fittype - implented opts: "mom1D", "time1D", "momtime2D"
+                * fit range (low, hi) - range to fit over
+                * showMC - set to 1 if "MC infor is present and I want to use it to help my analysis"
+                * cuts - cut list to use, default is SU2020 cuts
+                * categorize - uses MC process code to find true nature of the particles making the tracks
+                * verbose - has the usual meaning, prints debug statements as desired, off by default
+     |
+     |  read_file(self, file_path)
+     |      Read a file using the appropriate method
+     |
+     |      Args:
+     |          file_path: Path to the file
+     |
+     |      Returns:
+     |          Uproot file object
+     |
+     |  ----------------------------------------------------------------------
+
+```
+</details>
+
+---
+
 
 If the verbose option is set then arguments are printed out before running the main. The verbose arg is sent to sub-functions, and allows the user to track any failure modes. We suggest a verbose > 0 for  development users.
 
