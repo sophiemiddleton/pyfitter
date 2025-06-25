@@ -21,7 +21,7 @@ def stream_mc(args):
     branches_mc  = ["trkmcsim", "trksegsmc"]
 
     cuts   = CutClass(args.cuts, True)
-    all_mc = []
+    reco_all, mc_all = [], []
 
     for fp in files:
         mds    = ImportClass(fp, args.dirname, args.treename)
@@ -33,12 +33,16 @@ def stream_mc(args):
         arr_mc  = mds.AddVectorMag(arr_mc, "trksegsmc", "mom")
 
         arr_cut = cuts.ApplyCut(arr_trk, arr_crv)
-        _, mc_np = extract_with_loops(arr_cut, arr_mc)
-        all_mc.append(mc_np)
+        reco_np, mc_np = extract_with_loops(arr_cut, arr_mc)
+        reco_all.append(reco_np)
+        mc_all.append(mc_np)
 
         del arr_trk, arr_crv, arr_mc, arr_cut
 
-    return np.concatenate(all_mc) if all_mc else np.empty(0)
+    data_np    = np.concatenate(reco_all) if reco_all else np.empty(0)
+    data_mc_np = np.concatenate(mc_all)  if mc_all  else np.empty(0)
+
+    return data_np, data_mc_np
 
 def extract_with_loops(array_cut, array_mc):
     """Flatten out reconstructed vs MC momenta and return (reco, mc) arrays."""
@@ -62,16 +66,16 @@ def extract_with_loops(array_cut, array_mc):
 
 def main(args):
     # 1) stream only MC momenta
-    data_mc = stream_mc(args)
+    data_np, data_mc_np = stream_mc(args)
 
     # 2) fit efficiency PDF
-    result, pdf, N = fit_module.Unbinned_fit_efficiency(
-        data_mc, (95, 104.97), degree=4)
+    result, pdf, N = fit_module.Unbinned_fit_resolution_function(
+        data_np - data_mc_np, (-15, 1))
 
     # 3) freeze parameters & pickle
     for p in pdf.get_params(floating=True):
         p.float = False
-    with open("efficiency_PDF.pkl", "wb") as f:
+    with open("resolution_PDF.pkl", "wb") as f:
         pickle.dump(pdf, f)
 
     # 4) print summary
@@ -79,12 +83,13 @@ def main(args):
     print("Message:  ", result.message)
     print("Parameters:\n", result)
 
-    with open("efficiency_fit_result.txt", "w") as f:
+    with open("resolution_fit_result.txt", "w") as f:
         f.write(str(result))
 
     # 5) plot & save
-    fit_module.plot_fit_result(data_mc, (95, 104.97), pdf, N)
-    plt.savefig("efficiency_fit_result.png")
+    fit_module.plot_fit_result(
+        data_np - data_mc_np, (-15, 1), pdf, N)
+    plt.savefig("resolution_fit_result.png")
     plt.show()
 
 if __name__ == "__main__":

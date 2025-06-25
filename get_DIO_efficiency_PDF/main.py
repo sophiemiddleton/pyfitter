@@ -25,6 +25,7 @@ def stream_files(args):
     mc_all = []
 
     for fp in files:
+        print(f"Processing file: {fp}")
         mds    = ImportClass(fp, args.dirname, args.treename)
         arr_trk = mds.Import(branches_trk)
         arr_trk = mds.AddVectorMag(arr_trk, "trksegs", "mom")

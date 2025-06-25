@@ -99,9 +99,6 @@ def plot_fit_result(data_np, fit_range, PDF, N, log_scale=False):
 
     ax1.plot(data_bincenter, (PDF.pdf(data_bincenter, norm_range=fit_range) * N* scale).numpy(), '-r')
 
-    for bincenter in data_bincenter:
-        print(f"Bin center: {bincenter}, PDF value: {PDF.pdf(bincenter, norm_range=fit_range).numpy() * N * scale}, Data value: {data_hist[np.digitize(bincenter, data_binedge) - 1]}")
-
     # plot the residuals
     residuals = (data_hist - PDF.pdf(data_bincenter, norm_range=fit_range).numpy() * N * scale) / np.sqrt(data_hist)
     ax2.errorbar(data_bincenter, residuals, yerr=np.ones_like(residuals), fmt='o', color='black', markersize=3, capsize=3)
