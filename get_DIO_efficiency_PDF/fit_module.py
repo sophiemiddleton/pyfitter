@@ -54,5 +54,3 @@ def plot_fit_result(data_np, fit_range, PDF, N, log_scale=False):
 
     if log_scale:
         ax1.set_yscale('log')
-    
-    return data_bincenter, residuals
