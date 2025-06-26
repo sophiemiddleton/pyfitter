@@ -90,7 +90,7 @@ this is already installed in the standard python env mentioned above.
 
 # Main Code Documentation
 
-## `process`
+## `process.py`
 
 The user runs the analysis through the process python code. There are a number of input arguments that the user uses to control the analysis.
 
@@ -168,7 +168,7 @@ CLASSES
 
 ```
 </details>
-
+----
 # Fitting:
 
 ## zfit
