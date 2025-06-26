@@ -104,44 +104,36 @@ The process module contains a class AnaProcessor which inherits from the Skeleto
 ```
 NAME
     process.py
-
 MODULE
       process.py
-      
      |      User input args to module:
      |          * file - filename (include path if not local), required
-                * dirname - defaults to "EventNtuple"
-                * treename - defaults to "ntuple"
-                * fittype - implented opts: "mom1D", "time1D", "momtime2D"
-                * fit range (low, hi) - range to fit over
-                * categorize - uses MC process code to find true nature of the particles making the tracks
-                * verbose - has the usual meaning, prints debug statements as desired, off by default
+     |           * dirname - defaults to "EventNtuple"
+     |           * treename - defaults to "ntuple"
+     |           * fittype - implented opts: "mom1D", "time1D", "momtime2D"
+     |           * fit range (low, hi) - range to fit over
+     |           * categorize - uses MC process code to find true nature of the particles making the tracks
+     |          * verbose - has the usual meaning, prints debug statements as desired, off by default
 CLASSES
     builtins.object
-
         AnaProcessor inherits from pyprocess Skeleton class
-
      |
      |  process_file(): 
-          Process a single ROOT file
-          
-          This method will be called for each file in our list.
-          It extracts data, processes it, and returns a result.
-          
-          Args:
-              file_name: Path to the ROOT file to process
-              
-          Returns:
-              A tuple containing the histogram (counts and bin edges)
-        
+     |     Process a single ROOT file
+     |     This method will be called for each file in our list.
+     |    It extracts data, processes it, and returns a result.
+     |     Args:
+     |         file_name: Path to the ROOT file to process   
+     |     Returns:
+     |         A tuple containing the histogram (counts and bin edges)
+     |  
      | combine_arrays():
-        Combine filtered arrays from multiple files
-        Args:
-          results: list of returned filtered data
-        Returns:
-          concatanted results array
+     |  Combine filtered arrays from multiple files
+     |  Args:
+     |    results: list of returned filtered data
+     |  Returns:
+     |    concatanted results array
      |  ----------------------------------------------------------------------
-
 ```
 
 </details>
@@ -158,17 +150,12 @@ The user interacts with the analyze via the processor class. The analyze module 
 ```
 NAME
     analyse.py
-
 CLASSES
     builtins.object
         analyse.
-
-
      |      Class to handle analysis functions
      |        Args:
      |          * verbosity = verbosity level
-
-
 ```
 
 </details>
