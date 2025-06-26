@@ -205,7 +205,7 @@ class Analyze:
             )
             
             self.logger.log("All cuts defined", "success")
-            
+
         except Exception as e:
             self.logger.log(f"Error defining cuts: {e}", "error") 
             return None  
@@ -264,38 +264,6 @@ class Analyze:
       else: 
           stats.append(results["cut_stats"])
       return stats
-      
-    def categorize_tracks(self, data, mismatch=False):
-        array_tmp = ak.copy(data)
-
-        #i_mask = (array_tmp['trkmc']['trkmcsim']['rank'] == 0) & (array_tmp['trkmc']['trkmcsim']['nhits'] > 0)
-
-        if mismatch:
-            
-            pStartCode = ak.max(ak.flatten(array_tmp['trkmc']['trkmcsim']['startCode'],axis=2),axis=1,mask_identity=True)
-            pGenCode = ak.max(ak.flatten(array_tmp['trkmc']['trkmcsim']['gen'],axis=2),axis=1,mask_identity=True)
-
-        else:
-            pStartCode = ak.flatten(ak.drop_none(array_tmp['trkmc']['trkmcsim']['startCode']),axis=2,mask_identity=True)
-            pGenCode = ak.flatten(ak.drop_none(array_tmp['trkmc']['trkmcsim']['gen']),axis=2,mask_identity=True)
-        pStartCode = ak.fill_none(pStartCode,-1)
-        pGenCode = ak.fill_none(pGenCode,-1)
-
-        categories = ak.zeros_like(pStartCode)
-        for icat, idict in enumerate(mom_components.values()):
-            startCodes = idict['startCode']
-            genCodes = idict['genCode']
-            goodCode = ak.zeros_like(pStartCode,dtype=bool)
-            for startCode in startCodes:
-                for genCode in genCodes:
-                    goodStartCode = ak.ones_like(pStartCode,dtype=bool) if startCode is None else (pStartCode == startCode)
-                    goodGenCode = ak.ones_like(pGenCode,dtype=bool) if genCode is None else (pGenCode == genCode)
-                    goodCode = goodCode | (goodStartCode & goodGenCode)
-            
-            categories = categories + (icat+1) * (goodCode)
-        return categories
-    
-    
 
     def execute(self, data, file_id, inactive_cuts=None):
         """Perform complete analysis on an array
@@ -346,10 +314,6 @@ class Analyze:
             combined_stats = cut_manager.combine_cut_stats(stats)
             cut_manager.print_cut_stats(stats=combined_stats, active_only=True, csv_name="cut_stats.csv")
             
-            #track_cat = self.categorize_tracks(data_CE, mismatch = True)
-
-            #data_CE['trkfit']['trksegs','cat'] = ak.broadcast_arrays(data_CE['trkfit']['trksegs','time'][at_trk_front],track_cat)[1]
-
             return data_CE
             
         except Exception as e:

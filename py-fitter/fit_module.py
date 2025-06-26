@@ -84,7 +84,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=F
     #cat = ak.to_numpy(ak.flatten(track_cat, axis=None)) if plot_cat else None
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ plotting")
-    plotmom_fit(mom_np, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], track_cat) 
+    plotmom_fit(mom_np,track_cat, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat) 
     plt.show()
 
 

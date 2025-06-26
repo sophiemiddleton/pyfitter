@@ -74,18 +74,10 @@ The latest version of the code >= v2_00_00 requires Mu2e's pyutils be within the
 To run for example:
 
 ```
-python main.py --file "/pnfs/mu2e/tape/phy-nts/nts/mu2e/ensembleMDS1dOnSpillTriggered/MDC2020ai_perfect_v1_3/root/d3/6f/nts.mu2e.ensembleMDS1dOnSpillTriggered.MDC2020ai_perfect_v1_3.0.root" --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113.
-```
-for a single file.
-
-With a file list, pass the files (with full paths) to a text file and run as:
-
-```
-python main.py --file filelist.txt --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113. --singlefile 0
-
+python process.py --file /exp/mu2e/app/users/sophie/analysis/LikelihoodAnalysis/py-fitter/filelist.txt --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1
 ```
 
-the singlefile args should be switched off for this. Eventually this will probably become default.
+With a file list stored in the mentioned .txt file.
 
 * The Main function imports the given root NTuple (s) via the use of Mu2e's pyutils (maintained by the Mu2e Analysis tools group). This therefore assumes input is an up-to-date EventNtuple file or list of files.
 

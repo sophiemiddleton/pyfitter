@@ -146,18 +146,25 @@ def combine_arrays(results):
     return ak.concatenate(arrays_to_combine)
 
 def categorize_tracks( data, mismatch=False):
-    array_tmp = ak.copy(data)
+    array_tmp = ak.copy(data['trkmc'])
 
-    #i_mask = (array_tmp['trkmc']['trkmcsim']['rank'] == 0) & (array_tmp['trkmc']['trkmcsim']['nhits'] > 0)
+    i_mask = (array_tmp['trkmcsim']['rank'] == 0) & (array_tmp['trkmcsim']['nhits'] > 0)
+    for branch in ak.fields(array_tmp):
+        for leaf in ak.fields(array_tmp[branch]):
+            if array_tmp[branch].layout.minmax_depth[1] > 2:
+                mask_vec = ak.broadcast_arrays(array_tmp[branch],i_mask,depth_limit=3)[1]
+                array_tmp[branch,leaf] = array_tmp[branch,leaf].mask[mask_vec]
+            else:
+                array_tmp[branch,leaf] = array_tmp[branch,leaf].mask[i_mask]
 
     if mismatch:
-        
-        pStartCode = ak.max(ak.flatten(array_tmp['trkmc']['trkmcsim']['startCode'],axis=2),axis=1,mask_identity=True)
-        pGenCode = ak.max(ak.flatten(array_tmp['trkmc']['trkmcsim']['gen'],axis=2),axis=1,mask_identity=True)
+        pStartCode = ak.max(ak.flatten(array_tmp['trkmcsim']['startCode'],axis=2),axis=1,mask_identity=True)
+        pGenCode = ak.max(ak.flatten(array_tmp['trkmcsim']['gen'],axis=2),axis=1,mask_identity=True)
+        # check : works here, not all DIO
 
     else:
-        pStartCode = ak.flatten(ak.drop_none(array_tmp['trkmc']['trkmcsim']['startCode']),axis=2,mask_identity=True)
-        pGenCode = ak.flatten(ak.drop_none(array_tmp['trkmc']['trkmcsim']['gen']),axis=2,mask_identity=True)
+        pStartCode = ak.flatten(ak.drop_none(array_tmp['trkmcsim']['startCode']),axis=2,mask_identity=True)
+        pGenCode = ak.flatten(ak.drop_none(array_tmp['trkmcsim']['gen']),axis=2,mask_identity=True)
     pStartCode = ak.fill_none(pStartCode,-1)
     pGenCode = ak.fill_none(pGenCode,-1)
   
@@ -173,6 +180,7 @@ def categorize_tracks( data, mismatch=False):
                 goodCode = goodCode | (goodStartCode & goodGenCode)
         
         categories = categories + (icat+1) * (goodCode)
+    # checked cats returned here are not all DIO
     return categories
     
     
@@ -181,21 +189,20 @@ def  main(args):
   ana_processor = AnaProcessor(args.file)
   results = ana_processor.execute()
 
-  
-  #print(ak.broadcast_arrays(data_CE['trkfit']['trksegs','time'],track_cat)[1])
-  
   # Create an instance of our custom processor
   pre_fit = combine_arrays(results)
-  #cats_all = combine_arrays(cats)
-  
+
+  # run cat
+  track_cat = categorize_tracks(pre_fit, args.mismatch) #just pre-fit here worked but misaaligned .mask[(trk_front)]
+  track_cat = (ak.broadcast_arrays(pre_fit['trkfit']['trksegs','time'],track_cat)[1])
+
   # select only track front to fit to
   selector = Select()
   trk_front = selector.select_surface(pre_fit['trkfit'], sid=0) 
   trkfit_ent = pre_fit['trkfit']["trksegs"].mask[(trk_front)]
+  track_cat = track_cat.mask[(trk_front)]
+  track_cat = ak.flatten(track_cat, axis=None)
 
-  track_cat = categorize_tracks(pre_fit, args.mismatch)
-  
-  
   # make vector mag branch
   vector = Vector()
   mom_mag = vector.get_mag(trkfit_ent ,'mom')
