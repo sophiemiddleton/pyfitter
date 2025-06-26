@@ -88,49 +88,86 @@ pip install git+https://github.com/Mu2e/pyutils.git
 
 this is already installed in the standard python env mentioned above.
 
-Here is a list of the current arguments and what they represent:
+# Main Code Documentation
+
+## `process`
+
+The user runs the analysis through the process python code. There are a number of input arguments that the user uses to control the analysis.
+
+The process module contains a class AnaProcessor which inherits from the Skeleton ```pyutils/pyproces.py```. For more information see the pyutils documentation.
+
+
 
 <details>
-<summary><strong>Click for details<strong></summary>
+<summary><strong>For our specific instance the class is detailed here<strong></summary>
     
 ```
 NAME
-    process
+    process.py
 
-CLASSES
-    builtins.object
-        process.py
-
-
-     |      Args:
+MODULE
+      process.py
+      
+     |      User input args to module:
      |          * file - filename (include path if not local), required
-               * dirname - defaults to "EventNtuple"
+                * dirname - defaults to "EventNtuple"
                 * treename - defaults to "ntuple"
                 * fittype - implented opts: "mom1D", "time1D", "momtime2D"
                 * fit range (low, hi) - range to fit over
-                * showMC - set to 1 if "MC infor is present and I want to use it to help my analysis"
-                * cuts - cut list to use, default is SU2020 cuts
                 * categorize - uses MC process code to find true nature of the particles making the tracks
                 * verbose - has the usual meaning, prints debug statements as desired, off by default
+CLASSES
+    builtins.object
+
+        AnaProcessor inherits from pyprocess Skeleton class
+
      |
-     |  read_file(self, file_path)
-     |      Read a file using the appropriate method
-     |
-     |      Args:
-     |          file_path: Path to the file
-     |
-     |      Returns:
-     |          Uproot file object
-     |
+     |  process_file(): 
+          Process a single ROOT file
+          
+          This method will be called for each file in our list.
+          It extracts data, processes it, and returns a result.
+          
+          Args:
+              file_name: Path to the ROOT file to process
+              
+          Returns:
+              A tuple containing the histogram (counts and bin edges)
+        
+     | combine_arrays():
+        Combine filtered arrays from multiple files
+        Args:
+          results: list of returned filtered data
+        Returns:
+          concatanted results array
      |  ----------------------------------------------------------------------
 
 ```
 </details>
 
----
+## `analyse.py`
+
+The user interacts with the analyze via the processor class. The analyze module contains 
+
+<details>
+<summary><strong>For our specific instance the class is detailed here<strong></summary>
+    
+```
+NAME
+    analyse.py
+
+CLASSES
+    builtins.object
+        analyse.
 
 
-If the verbose option is set then arguments are printed out before running the main. The verbose arg is sent to sub-functions, and allows the user to track any failure modes. We suggest a verbose > 0 for  development users.
+     |      Class to handle analysis functions
+     |        Args:
+     |          * verbosity = verbosity level
+
+
+```
+</details>
 
 # Fitting:
 
@@ -242,6 +279,9 @@ The latter two use the lineshape convoluted with momentum concept, indepdently f
 * **gcb_mc_res**
 
 Full definitions are provided in https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB.
+
+### DIO Shape Characteristics
+
 
 # Characterizing Uncertainties
 
