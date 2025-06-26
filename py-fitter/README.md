@@ -168,7 +168,7 @@ CLASSES
 
 ```
 </details>
-----
+---
 # Fitting:
 
 ## zfit
