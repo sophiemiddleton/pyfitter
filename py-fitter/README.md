@@ -79,7 +79,14 @@ python process.py --file /exp/mu2e/app/users/sophie/analysis/LikelihoodAnalysis/
 
 With a file list stored in the mentioned .txt file.
 
-* The Main function imports the given root NTuple (s) via the use of Mu2e's pyutils (maintained by the Mu2e Analysis tools group). This therefore assumes input is an up-to-date EventNtuple file or list of files.
+* The Main function imports the given root NTuple (s) via the use of Mu2e's pyutils (maintained by the Mu2e Analysis tools group). This therefore assumes input is an up-to-date pyuyils. To get pyuyils in your python env:
+
+```
+pip install git+https://github.com/Mu2e/pyutils.git 
+
+```
+
+this is already installed in the standard python env mentioned above.
 
 Here is a list of the current arguments and what they represent:
 
@@ -95,16 +102,6 @@ CLASSES
         process.py
 
 
-     |      Args:
-     |          * file - filename (include path if not local), required
-               * dirname - defaults to "EventNtuple"
-                * treename - defaults to "ntuple"
-                * fittype - implented opts: "mom1D", "time1D", "momtime2D"
-                * fit range (low, hi) - range to fit over
-                * showMC - set to 1 if "MC infor is present and I want to use it to help my analysis"
-                * cuts - cut list to use, default is SU2020 cuts
-                * categorize - uses MC process code to find true nature of the particles making the tracks
-                * verbose - has the usual meaning, prints debug statements as desired, off by default
      |
      |  read_file(self, file_path)
      |      Read a file using the appropriate method
@@ -122,6 +119,16 @@ CLASSES
 
 ---
 
+     |      Args:
+     |          * file - filename (include path if not local), required
+               * dirname - defaults to "EventNtuple"
+                * treename - defaults to "ntuple"
+                * fittype - implented opts: "mom1D", "time1D", "momtime2D"
+                * fit range (low, hi) - range to fit over
+                * showMC - set to 1 if "MC infor is present and I want to use it to help my analysis"
+                * cuts - cut list to use, default is SU2020 cuts
+                * categorize - uses MC process code to find true nature of the particles making the tracks
+                * verbose - has the usual meaning, prints debug statements as desired, off by default
 
 If the verbose option is set then arguments are printed out before running the main. The verbose arg is sent to sub-functions, and allows the user to track any failure modes. We suggest a verbose > 0 for  development users.
 
