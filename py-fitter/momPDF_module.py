@@ -7,7 +7,14 @@ import math
 import hist as hist
 
 class poly58(zfit.pdf.ZPDF):
-    """ for DIO parameterization """
+    """
+    Class:
+      Czarnecki et al parameterization for DIO theory spectrum
+    
+    Methods:
+      unnormalized_pdf(self, x):
+        defines parameters and zfit PDF
+    """
     _N_OBS = 1
     _PARAMS = ['a5', 'a6', 'a7', 'a8']
 
@@ -51,8 +58,11 @@ default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
 default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 200, 'RPC' : 1} #FIXME - should we make these relative?
 
 def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_range, constraints):
-    """ 
-    Build momentum fit model
+    """
+    Builds momentum fit model
+
+    Parameters
+    ----------
       obs_mom = zfit parameter for reco momentum
       params_tot = list of fit parameters
       process = type of physics process

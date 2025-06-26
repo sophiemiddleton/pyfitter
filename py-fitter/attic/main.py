@@ -81,6 +81,7 @@ def  main(args):
                branches=list_branch_mc
           )
         track_cat = cuts.CategorizeTracks(array_mc,args.mismatch)
+        print(track_cat)
         array_cut['trksegs','cat'] = ak.broadcast_arrays(array_cut['trksegs','time'],track_cat)[1]
 
     

@@ -8,24 +8,23 @@ import uproot
 import awkward as ak
 import argparse
 
-#from cut_module import CutClass
 from fit_module import *
-#from mc_module import *
 #from results_module import ResultsClass
 from analyze import Analyze
-
+from mom_components import mom_components
 from pyutils.pyprocess import Processor, Skeleton
 from pyutils.pyplot import Plot
 from pyutils.pyprint import Print
 from pyutils.pyselect import Select
 from pyutils.pyvector import Vector
+
 class AnaProcessor(Skeleton):
     """Your custom file processor 
     
     This class inherits from the Skeleton base class, which provides the 
     basic structure and methods withing the Processor framework 
     """
-    def __init__(self):
+    def __init__(self, file_list_path ):
         """Initialise your processor with specific configuration
         
         This method sets up all the parameters needed for this specific analysis.
@@ -35,7 +34,7 @@ class AnaProcessor(Skeleton):
         super().__init__()
 
         # Now override parameters from the Skeleton with the ones we need
-        self.file_list_path = "/exp/mu2e/app/users/sophie/analysis/LikelihoodAnalysis/py-fitter/filelist.txt"
+        self.file_list_path = file_list_path#"/exp/mu2e/app/users/sophie/analysis/LikelihoodAnalysis/py-fitter/filelist.txt"
         
         self.branches = { 
             "evt" : [
@@ -60,7 +59,6 @@ class AnaProcessor(Skeleton):
             ],
             "trkmc" : [
                 "trkmcsim",
-                "trkmc",
                 "trkmc.valid"
             ]
         }
@@ -147,27 +145,66 @@ def combine_arrays(results):
         arrays_to_combine.append(result)
     return ak.concatenate(arrays_to_combine)
 
+def categorize_tracks( data, mismatch=False):
+    array_tmp = ak.copy(data)
 
+    #i_mask = (array_tmp['trkmc']['trkmcsim']['rank'] == 0) & (array_tmp['trkmc']['trkmcsim']['nhits'] > 0)
+
+    if mismatch:
+        
+        pStartCode = ak.max(ak.flatten(array_tmp['trkmc']['trkmcsim']['startCode'],axis=2),axis=1,mask_identity=True)
+        pGenCode = ak.max(ak.flatten(array_tmp['trkmc']['trkmcsim']['gen'],axis=2),axis=1,mask_identity=True)
+
+    else:
+        pStartCode = ak.flatten(ak.drop_none(array_tmp['trkmc']['trkmcsim']['startCode']),axis=2,mask_identity=True)
+        pGenCode = ak.flatten(ak.drop_none(array_tmp['trkmc']['trkmcsim']['gen']),axis=2,mask_identity=True)
+    pStartCode = ak.fill_none(pStartCode,-1)
+    pGenCode = ak.fill_none(pGenCode,-1)
+  
+    categories = ak.zeros_like(pStartCode)
+    for icat, idict in enumerate(mom_components.values()):
+        startCodes = idict['startCode']
+        genCodes = idict['genCode']
+        goodCode = ak.zeros_like(pStartCode,dtype=bool)
+        for startCode in startCodes:
+            for genCode in genCodes:
+                goodStartCode = ak.ones_like(pStartCode,dtype=bool) if startCode is None else (pStartCode == startCode)
+                goodGenCode = ak.ones_like(pGenCode,dtype=bool) if genCode is None else (pGenCode == genCode)
+                goodCode = goodCode | (goodStartCode & goodGenCode)
+        
+        categories = categories + (icat+1) * (goodCode)
+    return categories
+    
+    
 # Create an instance of our custom processor
 def  main(args):
-  ana_processor = AnaProcessor()
+  ana_processor = AnaProcessor(args.file)
   results = ana_processor.execute()
+
+  
+  #print(ak.broadcast_arrays(data_CE['trkfit']['trksegs','time'],track_cat)[1])
   
   # Create an instance of our custom processor
   pre_fit = combine_arrays(results)
+  #cats_all = combine_arrays(cats)
   
   # select only track front to fit to
   selector = Select()
-  trk_front = selector.select_surface(pre_fit["trkfit"], sid=0) 
-  mytrksegs = pre_fit["trkfit"]["trksegs"].mask[(trk_front)]
+  trk_front = selector.select_surface(pre_fit['trkfit'], sid=0) 
+  trkfit_ent = pre_fit['trkfit']["trksegs"].mask[(trk_front)]
+
+  track_cat = categorize_tracks(pre_fit, args.mismatch)
+  
   
   # make vector mag branch
   vector = Vector()
-  mom_mag = vector.get_mag(mytrksegs ,'mom')
-  pre_fit["trkfit"]['trksegs', 'mom.mag'] = mom_mag
+  mom_mag = vector.get_mag(trkfit_ent ,'mom')
+  #pre_fit['trkfit']['trksegs', 'mom.mag'] = mom_mag
   mom_mag = ak.nan_to_none(mom_mag)
   mom_mag = ak.drop_none(mom_mag)
-  fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(mom_mag, 95., 110., 1,1)
+
+  #call the fitter
+  fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(mom_mag, track_cat,  (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat), args.verbose)
   print('[py-fitter/main] ✅  Fit result: ', fitresult,'\n', 'for  fit')
   
 def PrintArgs(args):
@@ -193,7 +230,7 @@ if __name__ == "__main__":
     parser.add_argument("--treename", type=str, default="ntuple", help="treename e.g. ntuple")
     parser.add_argument("--fittype", type=str, default="mom1D", help="fittype implemented opts: mom1D, time1D, momtime2D")
     parser.add_argument("--fitrange_low", type=float, default=[95,640], nargs='+', help="minimum to fit ordered mom, time")
-    parser.add_argument("--fitrange_hi", type=float, default=[113,1650], nargs='+',help="maximum to fit  ordered mom, time")
+    parser.add_argument("--fitrange_hi", type=float, default=[110,1650], nargs='+',help="maximum to fit  ordered mom, time")
     parser.add_argument("--cuts", type=str, default="SU2020", help="cut e.g. SU2020")
     parser.add_argument("--writeoutput", type=int, default=0, help="writes data and fit results to csv")
     parser.add_argument("--showMC", type=int, default=0, help="will use MC information")

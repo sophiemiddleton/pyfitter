@@ -8,13 +8,21 @@ from mom_components import mom_components
 from time_components import time_components
 
 def plotmom_fit(data, fit_range, list_pdfs, cat=None):
-    """ 
-    plot the final plot with fit and data overlay, plus a residual plot 
-      data = the cut-on array
-      fite_range = min, max mom
-      list_pdfs = the pdfs fit to this data
-      cat= allows for MC truth assignments to be shown
-    
+    """
+    Configures and draws the 1D histogram of momentum, with the combined fit and residuals plot underneath
+
+
+    Parameters
+    ----------
+    data : numpy array (with cuts applied)
+        your data array post-processing
+    fit_range : [float, float]
+        min and max of fit ranges for each dimension (args in the main function)
+    list_pdfs: (proc,pdfs[proc],norms[proc])
+        process, pdf and normalization associated with that process (one per physics process)
+    cat: bool
+        show the MC truth processes on the histogram
+
     """
     n_bins = 50
     mom_plot = np.linspace(fit_range[0], fit_range[1], n_bins)
@@ -24,11 +32,27 @@ def plotmom_fit(data, fit_range, list_pdfs, cat=None):
     data_bincenter = 0.5 * (data_binedge[1:] + data_binedge[:-1])
 
     fig, (ax1, ax2) = plt.subplots(2,1, height_ratios=[3,1])
+    
+    # run catagorizing
+    print(cat)
     if cat is None:
       print("[py-fitter/recoplot_module/plotmom_fit] ❌ cat option is {cat}, will not include MC truth")
     if cat is not None:
         colors = ['lightgrey']+[idict['catColor'] for idict in mom_components.values()]
-        hists,_,_ = ax1.hist([data[cat==icat] for icat in range(len(mom_components)+1)], color=colors, bins=n_bins, range=fit_range, histtype='bar',stacked=True)
+        cat_list = []
+        data_list = []
+        for i in range(len(mom_components)+1):
+          cat_list.append([])
+          data_list.append([])
+        for i in range(len(mom_components)+1):
+          for j in range(len(cat)):
+            if data[j] > 103:
+              print(i,j,len(data),len(cat))
+            
+            data_list[i].append(data[j])
+            cat_list[i].append(cat[j])
+        for i in range(len(data_list)):
+          hists,_,_ = ax1.hist(data_list[i], color=colors[i], bins=n_bins, range=fit_range, histtype='bar',stacked=True)
         print('[py-fitter/recoplot_module/plotmom_fit] ✅ Printing MC Truth ')
         print('Other  :',np.sum(hists[0]))
         for iproc, proc in enumerate(mom_components.keys()):
@@ -37,8 +61,8 @@ def plotmom_fit(data, fit_range, list_pdfs, cat=None):
         ax1.hist(data, color='black', bins=n_bins, range=fit_range, histtype='step')
     ax1.errorbar(data_bincenter, data_hist, yerr=np.sqrt(data_hist), color='None', ecolor='black', capsize=3)
 
+    # make plot
     combine_plot = np.zeros(len(mom_plot))
-    print("mom plot",len(data))
     for name, pdfs, N_pdfs in list_pdfs:
         pdf_plot = (pdfs.pdf(mom_plot) * N_pdfs * scale).numpy()
         combine_plot += pdf_plot
@@ -54,6 +78,8 @@ def plotmom_fit(data, fit_range, list_pdfs, cat=None):
     ax1.legend()
     err = []
     dev = []
+    
+    # add error bars to residual plot
     for i, ent in enumerate(data_hist):
       if ent != 0:
         err.append(np.sqrt((np.sqrt(data_hist[i]))*(np.sqrt(data_hist[i])) + (np.sqrt(combine_plot[i]))* (np.sqrt(combine_plot[i])))/np.sqrt(data_hist[i]))
@@ -73,12 +99,20 @@ def plotmom_fit(data, fit_range, list_pdfs, cat=None):
     ax2.set_ylabel('Normalized Residual')
 
 def plot_time_fit(data, fit_range, list_pdfs, cat=None):
-    """ 
-    plot the final plot with fit and data overlay, plus a residual plot 
-      data = the cut-on array
-      fite_range = min, max mom
-      list_pdfs = the pdfs fit to this data
-      cat= allows for MC truth assignments to be shown
+    """
+    Configures and draws the 1D histogram of time, with the combined fit and residuals plot underneath
+
+    Parameters
+    ----------
+    data : numpy array (with cuts applied)
+        your data array post-processing
+    fit_range : [float, float]
+        min and max of fit ranges for each dimension (args in the main function)
+    list_pdfs: (proc,pdfs[proc],norms[proc])
+        process, pdf and normalization associated with that process (one per physics process)
+    cat: bool
+        show the MC truth processes on the histogram
+
     """
     
     n_bins = 50

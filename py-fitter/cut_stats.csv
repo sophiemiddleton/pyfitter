@@ -9,4 +9,4 @@ within_lhr_max,True,10845,43.52,93.32,Loop helix maximum radius (450 < R_max < 6
 within_d0,True,8376,33.61,77.23,Distance of closest approach (d_0 < 100 mm)
 within_pitch_angle,True,7234,29.03,86.37,Extrapolated pitch angle (0.5577350 < tan(theta_Dip) < 1.0)
 within_t0err,True,6844,27.46,94.61,t0err < 0.9
-no_crv_veto,True,5112,20.51,74.69,No crv-trk veto: |dt| >= 150 ns
+no_crv_veto,True,5112,20.51,74.69,No crv-trk veto: |dt| >= 200 ns
