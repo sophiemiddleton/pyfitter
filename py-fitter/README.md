@@ -162,7 +162,7 @@ CLASSES
 
 ---
 
-# Fitting:
+# `fit_module.py':
 
 ## zfit
 
@@ -184,7 +184,7 @@ There are three functions in the fit module:
 
 The user can specify the fit functions using the *components.py files, below is discussion of the parameters defined in these files and how to use them:
 
-### Components specification
+### `_components.py`
 
 The signal and backgrounds considered in the fit are specified in a dictionary within components.py . This dictionary specifies the following:
 * **pdf** -- PDF which describes the component; this will be one of the options described below
@@ -223,7 +223,7 @@ The time fit currently parameterizes things as follows:
 
 * The 2D fit combines the momentum and time 1D fits to provide a combined momentum time fit. The individual components are parameterized in the same way as the 1D fits.
 
-### Signal (CE) Fit Options
+### Signal Momentum (CE) Shape Characteristics
 
 Susan Dittmer has carried out detailed work to parameterize the signal shape, taking into account resolution (i.e. reconstructed shape). Her work can be found in our meeting slides archive: https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB
 
@@ -273,7 +273,7 @@ The latter two use the lineshape convoluted with momentum concept, indepdently f
 
 Full definitions are provided in https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB.
 
-### DIO Shape Characteristics
+### DIO Momentum Shape Characteristics
 
 The DIO shape is a convolution of the theoretical DIO spectrum taken from https://arxiv.org/abs/1505.05237 and doc-db 6309 with an efficiency and resolution parameterization derived from flat spectra.
 
@@ -333,7 +333,7 @@ Uncertainties can appear in two forms:
 
 ## Shape uncertainties (underdevelopment)
 
-# Results
+# `results_module.py`
 
 The Results module store the final fit results in terms of expected yield from each of the sources of events. The results module can also print out the list of momenta or times used in the fit (passing all cuts). This can be in put into BAT.jl for Bayesian studies.
 
@@ -344,6 +344,43 @@ The current version of this code is underdevelopment, but the concept is taking 
 ## GetSignificance (underdevelopment)
 
 The aim of this function is to take the output of a fit and understand the p-value on the derived signal yield and the significance (in n*sigma). It will be useful for understanding if we have a discovery.
+
+The code uses the hepstats package ```hepstats.hypotests```
+
+First it computes a null hypothesis, using the fit parameters and assuming 0 signal yield:
+
+```
+    # the null hypothesis
+    sig_yield_poi = POI(par, 0)
+    minimizer = zfit.minimize.Minuit()
+```
+
+and the builds the chosen calculator from the zfit loss function where the self.result is the result of the combined fit:
+
+```  
+    if opt == 'freq':
+      calculator = FrequentistCalculator(input=loss, minimizer=minimizer)
+      calculator.bestfit = self.result
+      calculator = FrequentistCalculator(input=self.result, minimizer=minimizer)
+    elif opt == 'asym':
+      calculator = AsymptoticCalculator(input=loss, minimizer=minimizer)
+      calculator.bestfit = self.result
+      calculator = AsymptoticCalculator(input=self.result, minimizer=minimizer)
+```
+
+The 'freq' option uses a full frequentist procedure for sampling the test statistic distribution whereas the 'asym' generates the Asimov histogram using a model and dictionary of parameters (uses  Eur. Phys. J., C71:1–19, 2011).
+
+The asympotic formula is significantly faster than the Frequentist calculator, as it does not require the calculation of the frequentist p-value, which involves the calculation of toys 
+
+
+The significance is calculated using the Discovery class:
+
+```
+  discovery = Discovery(calculator=calculator, poinull=sig_yield_poi)
+  significance = discovery.result()
+```
+The output is in units of sigma.
+
 
 ## GetUL (underdevelopment)
 
