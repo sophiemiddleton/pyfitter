@@ -59,13 +59,13 @@ It has been tested with the latest MDC2024 mock data samples, listed here: https
 
 The code is currently object orientated with a set of distinct classes:
 
-* main.py - the driver function. The user can define several input parameters, check the default settings (at the bottom of the Main.py script).
-* cut_module.py - takes in an opt to a list of cuts, applies cuts
-* fit_module.py - runs unbinned ML fits to input data
-* recoplot_module.py - plots reconstructed information
-* XPDF_module.py - sets of PDFs to be input into the fit module (X = mom, time)
-* Xcomponent.py - user input list of chosen PDF names, parameters and draw options (X = mom, time)
-* results_module.py - TODO
+* `process.py` - the driver function. The user can define several input parameters, check the default settings (at the bottom of the Main.py script).
+* `cut_module.py` - takes in an opt to a list of cuts, applies cuts
+* `fit_module.py` - runs unbinned ML fits to input data
+* `recoplot_module.py` - plots reconstructed information
+* `_PDF_module.py` - sets of PDFs to be input into the fit module ( mom, time)
+* `_component.py` - user input list of chosen PDF names, parameters and draw options (mom, time)
+* `results_module.py`- runs functions to interpret the result (e.g. significance tests and limit setting)
 
 The latest version of the code >= v2_00_00 requires Mu2e's pyutils be within the users working directory.
 
@@ -74,12 +74,12 @@ The latest version of the code >= v2_00_00 requires Mu2e's pyutils be within the
 To run for example:
 
 ```
-python process.py --file /exp/mu2e/app/users/sophie/analysis/LikelihoodAnalysis/py-fitter/filelist.txt --cat 1 --mismatch 1
+python process.py --file /exp/mu2e/app/users/sophie/analysis/LikelihoodAnalysis/py-fitter/filelist.txt --cat 1 --mismatch 1 --interpret 1
 ```
 
 With a file list stored in the mentioned .txt file.
 
-* The Main function imports the given root NTuple (s) via the use of Mu2e's pyutils (maintained by the Mu2e Analysis tools group). This therefore assumes input is an up-to-date pyuyils. To get pyuyils in your python env:
+* The process function imports the given root NTuple (s) via the use of Mu2e's pyutils (maintained by the Mu2e Analysis tools group). This therefore assumes input is an up-to-date pyuyils. To get pyuyils in your python env:
 
 ```
 pip install git+https://github.com/Mu2e/pyutils.git 
@@ -162,7 +162,7 @@ CLASSES
 
 ---
 
-# `fit_module.py':
+# `fit_module.py`:
 
 ## zfit
 
@@ -341,7 +341,7 @@ Another important goal of the "results" module is to have various statistical te
 
 The current version of this code is underdevelopment, but the concept is taking shape. The functions work, but have not been used to produce viable results due to missing external infrastructure.
 
-## GetSignificance (underdevelopment)
+## GetSignificance
 
 The aim of this function is to take the output of a fit and understand the p-value on the derived signal yield and the significance (in n*sigma). It will be useful for understanding if we have a discovery.
 
@@ -382,6 +382,12 @@ The significance is calculated using the Discovery class:
 The output is in units of sigma.
 
 
-## GetUL (underdevelopment)
+## GetUL
 
-This function will be used to derive frequentist UL at a chosen CL. It should be used with smaller yields. There is much work to do to understand how to run with large number of toys.
+In the event that we have small/no signal we may want to derive an upper limit on the signal yield. The GetUL function performs this task using the hepstats hypotests package.
+
+
+## Passing to BAT.jl
+
+The ```WriteOuput``` function results in a text file format of the post-cut momentum and can be input into BAT.jl. We also write out the fit parameters using the ```WriteResult``` function.
+

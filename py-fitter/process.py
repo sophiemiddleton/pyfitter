@@ -9,7 +9,7 @@ import awkward as ak
 import argparse
 
 from fit_module import *
-#from results_module import ResultsClass
+from results_module import ResultsClass
 from analyze import Analyze
 from mom_components import mom_components
 from pyutils.pyprocess import Processor, Skeleton
@@ -35,7 +35,7 @@ class AnaProcessor(Skeleton):
 
         # Now override parameters from the Skeleton with the ones we need
         self.file_list_path = file_list_path#"/exp/mu2e/app/users/sophie/analysis/LikelihoodAnalysis/py-fitter/filelist.txt"
-        self.dir_name = None
+
         self.branches = { 
             "evt" : [
                 "run",
@@ -138,7 +138,6 @@ def combine_arrays(results):
         return None
     # Loop through all files
     for result in results: #
-        # array = ak.Array(result["filtered_data"])
         if len(result) == 0:
             continue
         # Concatenate arrays
@@ -160,7 +159,6 @@ def categorize_tracks( data, mismatch=False):
     if mismatch:
         pStartCode = ak.max(ak.flatten(array_tmp['trkmcsim']['startCode'],axis=2),axis=1,mask_identity=True)
         pGenCode = ak.max(ak.flatten(array_tmp['trkmcsim']['gen'],axis=2),axis=1,mask_identity=True)
-        # check : works here, not all DIO
 
     else:
         pStartCode = ak.flatten(ak.drop_none(array_tmp['trkmcsim']['startCode']),axis=2,mask_identity=True)
@@ -180,12 +178,13 @@ def categorize_tracks( data, mismatch=False):
                 goodCode = goodCode | (goodStartCode & goodGenCode)
         
         categories = categories + (icat+1) * (goodCode)
-    # checked cats returned here are not all DIO
     return categories
     
     
 # Create an instance of our custom processor
 def  main(args):
+  """ main driver function to run analysis
+  """
   ana_processor = AnaProcessor(args.file, args.jobs)
   results = ana_processor.execute()
 
@@ -220,12 +219,12 @@ def  main(args):
   if(args.fittype == "mom1D"):
     fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(mom_mag, track_cat,  (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat), args.verbose)
     print('[py-fitter/main] ✅  Fit result: ', fitresult,'\n', 'for  fit')
-    #if (int(args.writeoutput) == 1):
-    #  result_output = ResultsClass(array_cut, result,  args.verbose)
-    #  result_output.WriteFittedData()
-    #  result_output.WriteResult()
-    #  result_output.GetSignifcance(par, loss, 'freq')
-    #  result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),result.params['N_CE']['value'],0.90,'freq')
+    if (int(args.interpret) == 1):
+      result_output = ResultsClass(mom_mag, fitresult,  args.verbose)
+      result_output.WriteFittedData()
+      result_output.WriteResult()
+      result_output.GetSignifcance(par, loss, 'asym')
+      #result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),result.params['N_CE']['value'],0.90,'freq')
   elif(args.fittype == "time1D"):
     print("working on it")
     #FIXME
@@ -253,6 +252,7 @@ def PrintArgs(args):
   print("categorize: ", args.cat)
   print("mismatch: ", args.mismatch)
   print("verbose: ", args.verbose)
+  print("interpret: ", args.interpret)
 
 if __name__ == "__main__":
     # list of input arguments, defaults should be overridden
@@ -262,7 +262,7 @@ if __name__ == "__main__":
     parser.add_argument("--fittype", type=str, default="mom1D", help="fittype implemented opts: mom1D, time1D, momtime2D")
     parser.add_argument("--fitrange_low", type=float, default=[95,640], nargs='+', help="minimum to fit ordered mom, time")
     parser.add_argument("--fitrange_hi", type=float, default=[110,1650], nargs='+',help="maximum to fit  ordered mom, time")
-    parser.add_argument("--writeoutput", type=int, default=0, help="writes data and fit results to csv")
+    parser.add_argument("--interpret", type=int, default=0, help="writes data and fit results to csv")
     parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")
     parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")
     parser.add_argument("--verbose", default=1, help="verbose")
