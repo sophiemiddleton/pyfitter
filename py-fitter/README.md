@@ -341,7 +341,7 @@ Another important goal of the "results" module is to have various statistical te
 
 The current version of this code is underdevelopment, but the concept is taking shape. The functions work, but have not been used to produce viable results due to missing external infrastructure.
 
-## GetSignificance
+## ```GetSignificance```
 
 The aim of this function is to take the output of a fit and understand the p-value on the derived signal yield and the significance (in n*sigma). It will be useful for understanding if we have a discovery.
 
@@ -382,7 +382,7 @@ The significance is calculated using the Discovery class:
 The output is in units of sigma.
 
 
-## GetUL
+## ```GetUL```
 
 In the event that we have small/no signal we may want to derive an upper limit on the signal yield. The GetUL function performs this task using the hepstats hypotests package.
 

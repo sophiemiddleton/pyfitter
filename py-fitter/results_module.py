@@ -27,6 +27,8 @@ class ResultsClass:
         self.data = data # flattened mom mag list with cuts applied
         self.verbose = verbose
         self.rmue = 0
+        self.pvalue = 0
+        self.sigma = 0
         
   def CalculateRmue(self):#FIXME requires work
     """ we need to understand how to normalize our signal note: use asym option for quick fit"""
@@ -70,6 +72,12 @@ class ResultsClass:
 
     if self.verbose > 0:
       print('[py-fitter/results_module/GetSignificance] ✅  result signal significance', significance)
+      
+    self.pvalue = significance[0]
+    self.sigma = significance[1]
+    if self.verbose > 0:
+      print("p-value", self.pvalue)
+      print(self.sigma,"sigma")
     return significance
     
   def GetUL(self, par, loss, nlls, combine_pdf, constraints, fitlow, fithigh, sig_yield=0, CL= 0.90, opt='freq'): #FIXME - concept, not fully tested
