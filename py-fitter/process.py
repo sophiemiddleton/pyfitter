@@ -19,12 +19,12 @@ from pyutils.pyselect import Select
 from pyutils.pyvector import Vector
 
 class AnaProcessor(Skeleton):
-    """Your custom file processor 
+    """custom file processor 
     
-    This class inherits from the Skeleton base class, which provides the 
+    This class inherits from the Skeleton defined in pyutils/pyprocess base class, which provides the 
     basic structure and methods withing the Processor framework 
     """
-    def __init__(self, file_list_path ):
+    def __init__(self, file_list_path, jobs=1 ):
         """Initialise your processor with specific configuration
         
         This method sets up all the parameters needed for this specific analysis.
@@ -35,7 +35,7 @@ class AnaProcessor(Skeleton):
 
         # Now override parameters from the Skeleton with the ones we need
         self.file_list_path = file_list_path#"/exp/mu2e/app/users/sophie/analysis/LikelihoodAnalysis/py-fitter/filelist.txt"
-        
+        self.dir_name = None
         self.branches = { 
             "evt" : [
                 "run",
@@ -65,7 +65,7 @@ class AnaProcessor(Skeleton):
         #self.filelist = "filelist.txt"          # text file containing list of files
         self.use_remote = False     # Use remote file via mdh
         # self.location = "tape"     # File location
-        self.max_workers = 1      # Limit the number of workers
+        self.max_workers = jobs      # Limit the number of workers
         self.verbosity = 2         # Set verbosity 
         self.use_processes = True  # Use processes rather than threads
         
@@ -186,44 +186,70 @@ def categorize_tracks( data, mismatch=False):
     
 # Create an instance of our custom processor
 def  main(args):
-  ana_processor = AnaProcessor(args.file)
+  ana_processor = AnaProcessor(args.file, args.jobs)
   results = ana_processor.execute()
 
   # Create an instance of our custom processor
   pre_fit = combine_arrays(results)
 
   # run cat
-  track_cat = categorize_tracks(pre_fit, args.mismatch) #just pre-fit here worked but misaaligned .mask[(trk_front)]
-  track_cat = (ak.broadcast_arrays(pre_fit['trkfit']['trksegs','time'],track_cat)[1])
+  if int(args.cat) == 1:
+    track_cat = categorize_tracks(pre_fit, args.mismatch) #just pre-fit here worked but misaaligned .mask[(trk_front)]
+    track_cat = (ak.broadcast_arrays(pre_fit['trkfit']['trksegs','time'],track_cat)[1])
 
   # select only track front to fit to
   selector = Select()
-  trk_front = selector.select_surface(pre_fit['trkfit'], sid=0) 
+  trk_front = selector.select_surface(pre_fit['trkfit'], sid=0)
+   
   trkfit_ent = pre_fit['trkfit']["trksegs"].mask[(trk_front)]
-  track_cat = track_cat.mask[(trk_front)]
-  track_cat = ak.flatten(track_cat, axis=None)
 
+  if int(args.cat) == 1:
+    track_cat = track_cat.mask[(trk_front)]
+    track_cat = ak.flatten(track_cat, axis=None)
+  else:
+    track_cat = []
+    
   # make vector mag branch
   vector = Vector()
   mom_mag = vector.get_mag(trkfit_ent ,'mom')
-  #pre_fit['trkfit']['trksegs', 'mom.mag'] = mom_mag
+
   mom_mag = ak.nan_to_none(mom_mag)
   mom_mag = ak.drop_none(mom_mag)
-
+  
   #call the fitter
-  fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(mom_mag, track_cat,  (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat), args.verbose)
-  print('[py-fitter/main] ✅  Fit result: ', fitresult,'\n', 'for  fit')
+  if(args.fittype == "mom1D"):
+    fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(mom_mag, track_cat,  (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat), args.verbose)
+    print('[py-fitter/main] ✅  Fit result: ', fitresult,'\n', 'for  fit')
+    #if (int(args.writeoutput) == 1):
+    #  result_output = ResultsClass(array_cut, result,  args.verbose)
+    #  result_output.WriteFittedData()
+    #  result_output.WriteResult()
+    #  result_output.GetSignifcance(par, loss, 'freq')
+    #  result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),result.params['N_CE']['value'],0.90,'freq')
+  elif(args.fittype == "time1D"):
+    print("working on it")
+    #FIXME
+    #result = Unbinned_fit_time(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]),bool(args.cat), args.verbose)
+    #print('[py-fitter/main] ✅ Fit result: ', result,'\n', 'for ',args.fittype,' fit')
+  elif(args.fittype == "momtime2D"):
+    print("working on it")
+    #FIXME
+    #result = Unbinned_2d_fit_mom_time(array_cut, [(args.fitrange_low[0]),(args.fitrange_hi[0])], [(args.fitrange_low[1]),(args.fitrange_hi[1])],bool(args.cat), args.verbose)
+   #print('[py-fitter/main]✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit')  
+  else:
+    raise Exception("[py-fitter/main] ❌ ERROR: choice of fit type does not exist, please choose: mom1D, time1D or momtime2D")
+      
+      
   
 def PrintArgs(args):
   """
   prints users input parameters
   """
   print("========= [py-fitter/main]✅  Analyzing with user opts: ===========")
-  print("file:", args.file," with ", args.dirname, args.treename)
+  print("file:", args.file)
+  print("number of processes (njobs - optimal is 1 per file):", args.jobs)
   print("fittype: ", args.fittype)
   print("range: ", args.fitrange_low, args.fitrange_hi)
-  print("cut list: ", args.cuts)
-  print("showMC: ", args.showMC)
   print("categorize: ", args.cat)
   print("mismatch: ", args.mismatch)
   print("verbose: ", args.verbose)
@@ -232,15 +258,11 @@ if __name__ == "__main__":
     # list of input arguments, defaults should be overridden
     parser = argparse.ArgumentParser(description='command arguments', formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("--file", type=str, required=True, help="filename or file list name (text file list,fullpaths)")
-    parser.add_argument("--singlefile", type=int, required=False, default=1,help="use if just one root file input")
-    parser.add_argument("--dirname", type=str, default="EventNtuple", help="dirname e.g. EventNtuple")
-    parser.add_argument("--treename", type=str, default="ntuple", help="treename e.g. ntuple")
+    parser.add_argument("--jobs", type=int, required=False, default=1,help="use if more than one file, should be nfiles")
     parser.add_argument("--fittype", type=str, default="mom1D", help="fittype implemented opts: mom1D, time1D, momtime2D")
     parser.add_argument("--fitrange_low", type=float, default=[95,640], nargs='+', help="minimum to fit ordered mom, time")
     parser.add_argument("--fitrange_hi", type=float, default=[110,1650], nargs='+',help="maximum to fit  ordered mom, time")
-    parser.add_argument("--cuts", type=str, default="SU2020", help="cut e.g. SU2020")
     parser.add_argument("--writeoutput", type=int, default=0, help="writes data and fit results to csv")
-    parser.add_argument("--showMC", type=int, default=0, help="will use MC information")
     parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")
     parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")
     parser.add_argument("--verbose", default=1, help="verbose")

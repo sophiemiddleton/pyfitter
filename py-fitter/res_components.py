@@ -2,7 +2,6 @@ import zfit
 import pickle as pkl
 
 class res_components:
-
     """
     Class contains parameterization for the resolutions function, specifically for the CELL distribution
     
@@ -32,6 +31,9 @@ class res_components:
         return self.fitpars_res
             
     def get_nll(self,params_tot):
+        """
+        Get the nll associated with resolution
+        """
         nlls = []
         plane = 'entrance' # TODO this should be dynamic, match sid in cut_module.py. Flag when calling main.py?
         dict_flat = pkl.load(open(self.res_sample,'rb'))

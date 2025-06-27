@@ -12,7 +12,7 @@ from recoplot_module import plotmom_fit, plot_time_fit
 from mom_components import mom_components
 from time_components import time_components
 
-def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
+def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
 
@@ -28,7 +28,8 @@ def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=F
         show the MC truth processes on the histogram
     verbose : 1
         print progress statements and debug printouts
-
+    minos : bool
+        set true to evaluate minos errors
     """
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ initializing fit")
@@ -70,10 +71,11 @@ def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=F
     
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ finished minimizing")
-    try:
-        param_errors, _ = result.errors(method='minuit_minos')
-    except:
-        print('[py-fitter/fit_module/Unbinned_fit_mom] ❌ ERROR! Invalid fit, postfit parameters may not be optimal')
+    if minos == True:
+      try:
+          param_errors, _ = result.errors(method='minuit_minos')
+      except:
+          print('[py-fitter/fit_module/Unbinned_fit_mom] ❌ ERROR! Invalid fit, postfit parameters may not be optimal')
 
     if result.valid == True:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ fit is valid")
@@ -90,7 +92,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=F
 
     return result, pars[1], loss, nlls, combine_pdf, constraints
 
-def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
+def Unbinned_fit_time(data, track_cat, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
     """
     Configures and calls the unbinned maximum likelihood fit for time using zfit
 
@@ -149,7 +151,7 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False, verbose
 
     return result
 
-def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, plot_cat=False, verbose=0): #FIXME - the following code is not optimal, needs upgrading to new interface
+def Unbinned_2d_fit_mom_time(data, track_cat, fit_range_mom, fit_range_time, plot_cat=False, verbose=0): #FIXME - the following code is not optimal, needs upgrading to new interface
     """
     Configures and calls the unbinned maximum likelihood fit for momentum and time using zfit
 

@@ -11,7 +11,18 @@ from hepstats.hypotests import UpperLimit
 from hepstats.hypotests.parameters import POIarray
 from utils import *
 class ResultsClass:
+  """Class to interpret results
+  
+  Note: Development Level!!!! FIXME 
+  """
   def __init__(self, data, result, verbose=0):
+        """Initialise the results class
+        
+        Parameters:
+          result : zfit fite result
+          data : zfit array
+          verbose: verbosity
+        """
         self.result = result
         self.data = data
         self.verbose = verbose

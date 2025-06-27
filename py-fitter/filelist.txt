@@ -1,1 +1,1 @@
-/exp/mu2e/data/users/sophie/ensembles/MDS1/MDS1f.root
+/pnfs/mu2e/tape/phy-nts/nts/mu2e/MDS2ad-OnSpillTriggered/MDC2020aw_perfect_v1_3/root/f9/a4/nts.mu2e.MDS2ad-OnSpillTriggered.MDC2020aw_perfect_v1_3.0.root

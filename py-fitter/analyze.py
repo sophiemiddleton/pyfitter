@@ -1,17 +1,16 @@
 import awkward as ak
 from pyutils.pyselect import Select
-from pyutils.pyvector import Vector
 from pyutils.pylogger import Logger
 from cut_manager import CutManager
 from mom_components import mom_components
 import matplotlib.pyplot as plt
+
 class Analyze:
     """Class to handle analysis functions
     """
     def __init__(self, verbosity=1):
         """Initialise the analysis handler
         Args:
-            event_subrun (tuple of ints, optional): Select a specific event and subrun
             verbosity (int, optional): Level of output detail (0: critical errors only, 1: info, 2: debug, 3: deep debug)
         """
         # Verbosity
@@ -23,16 +22,10 @@ class Analyze:
         )
         # Initialise tools
         self.selector = Select(verbosity=self.verbosity)
-        self.vector = Vector(verbosity=self.verbosity)
         # Analysis configuration
         self.logger.log(f"Initialised", "info")
         
-    def apply_cuts(self,data):
-      # use our custom cut class
-      print("applying cuts")
-      cuts = CutClass()
-      array_cut = cuts.ApplyCut(data)
-      
+
     def define_cuts(self, data, cut_manager):
         """Define analysis cuts
 
@@ -280,9 +273,7 @@ class Analyze:
 
             # Create a unique cut manager for this file
             cut_manager = CutManager(verbosity=self.verbosity)
-            #mom_mag = self.vector.get_mag(data['trkfit']["trksegs"],'mom')
-            #data['trkfit']["trksegs"]['mom.mag'] = mom_mag
-            #self.apply_cuts(data)
+
             self.logger.log("Defining cuts", "max")
             # Define cuts
             self.define_cuts(data, cut_manager)
