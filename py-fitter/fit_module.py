@@ -12,7 +12,8 @@ from recoplot_module import plotmom_fit, plot_time_fit
 from mom_components import mom_components
 from time_components import time_components
 
-def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False):
+def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, dio_efficiency = None,
+    dio_resolution = None):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
 
@@ -31,6 +32,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=F
     minos : bool
         set true to evaluate minos errors
     """
+
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ initializing fit")
     fit_range = (fit_range_low, fit_range_hi)
@@ -48,7 +50,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=F
         pdf = mom_components[proc]['pdf']
         pardict = mom_components[proc]['pars']
         treat_params = mom_components[proc]['treat_params']
-        pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, pardict, treat_params, fit_range, constraints)
+        pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, pardict, treat_params, fit_range, constraints, dio_efficiency, dio_resolution)
         if 'nll' in mom_components[proc].keys():
             nlls.extend(mom_components[proc]['nll'].get_nll(pars))
 
