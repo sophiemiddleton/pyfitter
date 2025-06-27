@@ -11,9 +11,7 @@ from hepstats.hypotests import UpperLimit
 from hepstats.hypotests.parameters import POIarray
 from utils import *
 class ResultsClass:
-  """Class to interpret results
-  
-  Note: Development Level!!!! FIXME 
+  """Class to interpret results: provide discovery tests and limits, print to BAT.jl readable file etc.
   """
   def __init__(self, data, result, verbose=0):
         """Initialise the results class
@@ -22,6 +20,9 @@ class ResultsClass:
           result : zfit fite result
           data : zfit array
           verbose: verbosity
+          rmue : the derived rmue (need to understand how to include efficiencies)
+          pvalue : pvalue
+          sigma : number of sigma significance result
         """
         self.result = result
         self.data = data # flattened mom mag list with cuts applied
