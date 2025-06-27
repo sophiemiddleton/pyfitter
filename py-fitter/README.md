@@ -145,7 +145,7 @@ CLASSES
 The user interacts with the analyze via the processor class. The analyze module contains 
 
 <details>
-<summary><strong>For our specific instance the class is detailed here<strong></summary>
+<summary>For our specific instance the class is detailed here</summary>
     
 ```
 NAME
@@ -281,7 +281,7 @@ The DIO shape is a convolution of the theoretical DIO spectrum taken from https:
 
 
 <details>
-<summary><strong>The efficiency and resolution are included optionally in the momPDF module<strong></summary>
+<summary>The efficiency and resolution are included optionally in the momPDF module</summary>
     
 ```
 elif model == 'poly58':
