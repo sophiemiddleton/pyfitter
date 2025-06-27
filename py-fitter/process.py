@@ -224,7 +224,8 @@ def  main(args):
       result_output.WriteFittedData()
       result_output.WriteResult()
       result_output.GetSignifcance(par, loss, 'asym')
-      #result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),result.params['N_CE']['value'],0.90,'freq')
+      if(int(args.setlimit)==1):
+        result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),fitresult.params['N_CE']['value'],0.90,'asym')
   elif(args.fittype == "time1D"):
     print("working on it")
     #FIXME
@@ -253,6 +254,7 @@ def PrintArgs(args):
   print("mismatch: ", args.mismatch)
   print("verbose: ", args.verbose)
   print("interpret: ", args.interpret)
+  print("setlimit: ", args.setlimit)
 
 if __name__ == "__main__":
     # list of input arguments, defaults should be overridden
@@ -262,7 +264,8 @@ if __name__ == "__main__":
     parser.add_argument("--fittype", type=str, default="mom1D", help="fittype implemented opts: mom1D, time1D, momtime2D")
     parser.add_argument("--fitrange_low", type=float, default=[95,640], nargs='+', help="minimum to fit ordered mom, time")
     parser.add_argument("--fitrange_hi", type=float, default=[110,1650], nargs='+',help="maximum to fit  ordered mom, time")
-    parser.add_argument("--interpret", type=int, default=0, help="writes data and fit results to csv")
+    parser.add_argument("--interpret", type=int, default=0, help="allows for significance evaluation")
+    parser.add_argument("--setlimit", type=int, default=0, help="assumes low signal and will try to set limit")
     parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")
     parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")
     parser.add_argument("--verbose", default=1, help="verbose")

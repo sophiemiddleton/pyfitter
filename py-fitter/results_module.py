@@ -87,6 +87,10 @@ class ResultsClass:
     ----------
       par : zfit parameters
       loss : zfit loss function
+      combine_pdf: zfit combined pdf
+      fitlow, fithigh : fit range
+      sig_yield : observed CEs from fit
+      CL : confidence level for limit default is 90%
       opt : option for how to compute (either frequentist (freq) or asymptotic (asym)
     """
     sig_yield_poi = POI(par, 0)
@@ -100,7 +104,7 @@ class ResultsClass:
     sampler = combine_pdf.create_sampler()
 
     # Creates new loss
-    data_np = ak.to_numpy(self.data, axis=None)
+    data_np = ak.to_numpy(ak.flatten(self.data, axis=None))
     fit_range = (fitlow, fithigh)
     obs_mom = zfit.Space('x', limits=fit_range)
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_mom)

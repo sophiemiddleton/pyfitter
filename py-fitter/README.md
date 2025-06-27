@@ -112,8 +112,10 @@ MODULE
      |           * fittype - implented opts: "mom1D", "time1D", "momtime2D"
      |           * fit range (low, hi) - range to fit over
      |           * cat - uses MC process code to find true nature of the particles making the tracks
-                 * mismatch - a work around (FIXME)
+     |           * mismatch - a work around (FIXME)
      |           * verbose - has the usual meaning, prints debug statements as desired, off by default
+     |           * interpret - will look for pvalue and signficance
+     |           * setlimit  - assumes small or no signal and will try to set limit
 CLASSES
     builtins.object
         AnaProcessor inherits from pyprocess Skeleton class
@@ -385,6 +387,58 @@ The output is in units of sigma.
 ## ```GetUL```
 
 In the event that we have small/no signal we may want to derive an upper limit on the signal yield. The GetUL function performs this task using the hepstats hypotests package.
+
+The GetUL function has a number of parameters:
+
+```
+    Parameters
+    ----------
+      par : zfit parameters
+      loss : zfit loss function
+      combine_pdf: zfit combined pdf
+      fitlow, fithigh : fit range
+      sig_yield : observed CEs from fit
+      CL : confidence level for limit default is 90%
+      opt : option for how to compute (either frequentist (freq) or asymptotic (asym)
+```
+
+The function proceeds as follows.
+
+First the parameter of interest for the null hypothesis is taken from the derived signal yield (input)
+
+```
+    sig_yield_poi = POI(par, 0)
+    minimizer = zfit.minimize.Minuit()
+    # Sets the values of the parameters to the self.result of the simultaneous fit
+    zfit.param.set_values(loss.get_params(), self.result)
+```
+A sampler is created to  sample the combined pdf (input)
+```
+    # Creates a sampler that will draw events from the model
+    sampler = combine_pdf.create_sampler()
+```
+
+The loss is computed and the resampler samples with sig_yield. Since the model is extended the number of signal generated is drawn from a poisson distribution with lambda = sig_yield.
+
+```
+    sampler.resample({par: sig_yield})
+```
+
+Then calculators are called with the low signal nlls as inputs and the discovery significance calculated
+
+Then we look at the background only hypothesis:
+
+``` 
+    #Background only hypothesis.
+    bkg_only = POI(par, 0)
+    # Range of Nsig values to scan.
+    sig_yield_scan = POIarray(par, np.linspace(0,570,550))#FIXME - hardcoded
+
+    ul = UpperLimit(calculator=calculator_low_sig, poinull=sig_yield_scan, poialt=bkg_only)
+    ul.upperlimit(alpha=1-CL);
+
+```
+Further development of this limit setting interface is to be done with MDS2.
 
 
 ## Passing to BAT.jl
