@@ -74,7 +74,7 @@ The latest version of the code >= v2_00_00 requires Mu2e's pyutils be within the
 To run for example:
 
 ```
-python process.py --file /exp/mu2e/app/users/sophie/analysis/LikelihoodAnalysis/py-fitter/filelist.txt --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1
+python process.py --file /exp/mu2e/app/users/sophie/analysis/LikelihoodAnalysis/py-fitter/filelist.txt --cat 1 --mismatch 1
 ```
 
 With a file list stored in the mentioned .txt file.
@@ -99,7 +99,7 @@ The process module contains a class AnaProcessor which inherits from the Skeleto
 
 
 <details>
-<summary><strong>For our specific instance the class is detailed here<strong></summary>
+<summary>For our specific instance the class is detailed here</summary>
     
 ```
 NAME
@@ -111,8 +111,9 @@ MODULE
      |           * jobs - should be the same as number of files to be as optimal as possible (number of worker threads for import)
      |           * fittype - implented opts: "mom1D", "time1D", "momtime2D"
      |           * fit range (low, hi) - range to fit over
-     |           * categorize - uses MC process code to find true nature of the particles making the tracks
-     |          * verbose - has the usual meaning, prints debug statements as desired, off by default
+     |           * cat - uses MC process code to find true nature of the particles making the tracks
+                 * mismatch - a work around (FIXME)
+     |           * verbose - has the usual meaning, prints debug statements as desired, off by default
 CLASSES
     builtins.object
         AnaProcessor inherits from pyprocess Skeleton class
