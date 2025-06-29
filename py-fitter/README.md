@@ -15,18 +15,11 @@ As the code base has been applied to several mock data sets over the years we ha
 
 # Building the python environment:
 
-## Prerequisites
+## ```pyutils```
 
-In v2 onwards the user must have an EventNtuple install in their working directory. This is purely for use of pyutils (in EventNtuple/utils).
+In v2 onwards the code is dependent on pyutils, the python interface to EventNtuple developed by the Mu2e analysis tools group. This should be included in the python environment or you can include it on your own device using the instructions below.
 
-To create this:
-
-```
-mkdir working
-cd working
-git clone git@github.com:Mu2e/EventNtuple.git
-git clone git@github.com:HighEeM0/LikelihoodAnalysis.git
-```
+The current pyfitter is compatible with v01_01_00 of pyutils.
 
 ## On your own device:
 
@@ -40,6 +33,14 @@ $ source myzfitenv/bin/activate
 (myzfitenv)$ pip install -r requirements/current.txt
 ```
 
+In addition to work with the latest pyutils:
+
+```
+pip install hist 
+pip install tqdm 
+pip install git+https://github.com/Mu2e/pyutils.git 
+```
+
 ## On the Mu2e gpvm's:
 
 We have implemented a venv, with version control on the al9 based mu2egpvm's. To activate it:
@@ -51,15 +52,15 @@ source /exp/mu2e/data/users/sophie/mu2e_env.v1.2.0/bin/activate
 
 # Mock Data Samples:
 
-The code is current imagined to run using the Mu2e standard Ntuple EvtNtuple (formally trkana).
+The code is current imagined to run using the Mu2e standard Ntuple framework EventNtuple and will continue to assume that.
 
-It has been tested with the latest MDC2024 mock data samples, listed here: https://mu2ewiki.fnal.gov/wiki/MDC2024:_Mock_Data#MDC_2024:_Mock_Data_samples
+It has been tested with the latest MDC2020 MDS mock data samples, listed here: https://mu2ewiki.fnal.gov/wiki/MDC2024:_Mock_Data#MDC_2024:_Mock_Data_samples.
 
 # The Code:
 
 The code is currently object orientated with a set of distinct classes:
 
-* `process.py` - the driver function. The user can define several input parameters, check the default settings (at the bottom of the Main.py script).
+* `process.py` and `analyze.py`- the driver functions. The user can define several input parameters, check the default settings (at the bottom of the Main.py script).
 * `cut_module.py` - takes in an opt to a list of cuts, applies cuts
 * `fit_module.py` - runs unbinned ML fits to input data
 * `recoplot_module.py` - plots reconstructed information
@@ -176,7 +177,7 @@ We import the Mu2e ntuples using uproot and store it as an awkward array.
 
 ## Our Fitting Interface:
 
-The fit_module.py is our interface to zfit and the various parameterizations of the signal (CE) and backgrounds (currently DIO, RPC, and Cosmics). 1D PDFs are written for the time and momentum distributions, as well as a 2D PDF for time vs momentum (in progress).
+The ```fit_module.py``` is our interface to zfit and the various parameterizations of the signal (CE) and backgrounds (currently DIO, RPC, and Cosmics). 1D PDFs are written for the time and momentum distributions, as well as a 2D PDF for time vs momentum (in progress).
 
 There are three functions in the fit module:
 
@@ -227,7 +228,7 @@ The time fit currently parameterizes things as follows:
 
 ### Signal Momentum (CE) Shape Characteristics
 
-Susan Dittmer has carried out detailed work to parameterize the signal shape, taking into account resolution (i.e. reconstructed shape). Her work can be found in our meeting slides archive: https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB
+Detailed work has been carried out to parameterize the signal shape, taking into account resolution (i.e. reconstructed shape). Her work can be found in our meeting slides archive: https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB
 
 A number of possible signal shapes can be considered:
 
@@ -278,8 +279,6 @@ Full definitions are provided in https://drive.google.com/drive/u/0/folders/12jn
 ### DIO Momentum Shape Characteristics
 
 The DIO shape is a convolution of the theoretical DIO spectrum taken from https://arxiv.org/abs/1505.05237 and doc-db 6309 with an efficiency and resolution parameterization derived from flat spectra.
-
-
 
 
 <details>
