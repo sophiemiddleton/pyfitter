@@ -8,7 +8,14 @@ import hist as hist
 import dill as pickle
 
 class poly58(zfit.pdf.ZPDF):
-    """ for DIO parameterization """
+    """
+    Class:
+      Czarnecki et al parameterization for DIO theory spectrum
+    
+    Methods:
+      unnormalized_pdf(self, x):
+        defines parameters and zfit PDF
+    """
     _N_OBS = 1
     _PARAMS = ['a5', 'a6', 'a7', 'a8']
 
@@ -51,8 +58,23 @@ default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
 
 default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 200, 'RPC' : 1} #FIXME - should we make these relative?
 
+
 def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_range, constraints, dio_efficiency = None,
     dio_resolution = None):
+    """
+    Builds momentum fit model
+
+    Parameters
+    ----------
+      obs_mom = zfit parameter for reco momentum
+      params_tot = list of fit parameters
+      process = type of physics process
+      model = fit model
+      pardict = dictionary of parameters
+      trat_params = fixed or float, defined in componets script
+      fit_range = min, max to fit over
+      constraints= parameter specific constraints
+    """
     if isinstance(pardict,dict) and 'N' in pardict:
         N = zfit.Parameter('N_'+process, pardict['N'][0], pardict['N'][1], pardict['N'][2])
     elif process in list(default_norms.keys()):

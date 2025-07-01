@@ -11,7 +11,20 @@ default_norms = {'Cosmic' : 200, 'Pion' : 23, 'Muon' : 55600} #FIXME - should we
 
 
 def TimeModel(obs_time, params_tot, process, model, pardict, fit_range):
+    """
+    Builds time fit model
 
+    Parameters
+    ----------
+      obs_time = zfit parameter for reco momentum
+      params_tot = list of fit parameters
+      process = type of physics process
+      model = fit model
+      pardict = dictionary of parameters
+      trat_params = fixed or float, defined in componets script
+      fit_range = min, max to fit over
+      constraints= parameter specific constraints
+    """
     if pardict is not None and 'N' in pardict:
         N = zfit.Parameter('N_'+process, pardict['N'][0], pardict['N'][1], pardict['N'][2])
     elif process in list(default_norms.keys()):

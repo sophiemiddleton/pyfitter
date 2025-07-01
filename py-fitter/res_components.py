@@ -2,8 +2,16 @@ import zfit
 import pickle as pkl
 
 class res_components:
-
+    """
+    Class contains parameterization for the resolutions function, specifically for the CELL distribution
+    
+    """
     def __init__(self, p_bins = [95., 97., 99., 101., 103., 105.], res_sample = '/exp/mu2e/data/users/sdittmer/SignalShape/skimmed_flat_mom.pkl', res_type = 'gen'):
+        """Initialise the resolution function handler
+        Args:
+            p_bins = momentum bins where valid
+            res_sample = path to location of the .pkl fits #FIXME we should put these within the repo
+        """
         self.p_bins = p_bins
         self.res_sample = res_sample
         self.res_type = res_type
@@ -23,6 +31,9 @@ class res_components:
         return self.fitpars_res
             
     def get_nll(self,params_tot):
+        """
+        Get the nll associated with resolution
+        """
         nlls = []
         plane = 'entrance' # TODO this should be dynamic, match sid in cut_module.py. Flag when calling main.py?
         dict_flat = pkl.load(open(self.res_sample,'rb'))

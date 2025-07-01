@@ -12,11 +12,20 @@ from mc_module import *
 from results_module import ResultsClass
 
 import sys 
+<<<<<<< HEAD:py-fitter/attic/main.py
+from pyutils.pyprocess import Processor, Skeleton
+from pyutils.pyplot import Plot
+from pyutils.pyprint import Print
+from pyutils.pyselect import Select
+from pyutils.pyvector import Vector
+
+=======
 sys.path.append("../../pyutils/pyutils") # import pyutils
 
 # pyutils classes
 from pyprocess import Processor 
 from pyvector import Vector
+>>>>>>> 326ef8296cdef847be702e4ee933286989174ace:py-fitter/main.py
 
 # Define the path to our example file
 def  main(args):
@@ -58,7 +67,7 @@ def  main(args):
           branches = list_branch_crv
       )
     # use our custom cut class
-    cuts = CutClass(str(args.cuts), True, args.verbose)
+    cuts = CutClass(str(args.cuts),args.fitrange_low[0],args.fitrange_hi[0],args.fitrange_low[1], args.fitrange_hi[1], True, args.verbose)
     
     # apply cuts:
     if args.verbose > 0:
@@ -80,19 +89,22 @@ def  main(args):
                branches=list_branch_mc
           )
         track_cat = cuts.CategorizeTracks(array_mc,args.mismatch)
+        print(track_cat)
         array_cut['trksegs','cat'] = ak.broadcast_arrays(array_cut['trksegs','time'],track_cat)[1]
 
+    
+    
     if(args.fittype == "mom1D"):
       result, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat),args.verbose, args.DIO_efficiency_file, args.DIO_resolution_file)
       print('[py-fitter/main] ✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit')
 
-      result_output = ResultsClass(array_cut, result,  args.verbose)
+      #result_output = ResultsClass(array_cut, result,  args.verbose)
       #result_output.GetSignifcance(par, loss, 'freq')
       #result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),result.params['N_CE']['value'],0.90,'freq')
 
-      if (int(args.writeoutput) == 1):
-        result_output.WriteFittedData()
-        result_output.WriteResult()
+      #if (int(args.writeoutput) == 1):
+      #  result_output.WriteFittedData()
+      #  result_output.WriteResult()
 
     elif(args.fittype == "time1D"):
       result = Unbinned_fit_time(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]),bool(args.cat), args.verbose)
@@ -130,9 +142,9 @@ if __name__ == "__main__":
     parser.add_argument("--treename", type=str, default="ntuple", help="treename e.g. ntuple")
     parser.add_argument("--fittype", type=str, default="mom1D", help="fittype implemented opts: mom1D, time1D, momtime2D")
     parser.add_argument("--fitrange_low", type=float, default=[95,640], nargs='+', help="minimum to fit ordered mom, time")
-    parser.add_argument("--fitrange_hi", type=float, default=[115,1650], nargs='+',help="maximum to fit  ordered mom, time")
+    parser.add_argument("--fitrange_hi", type=float, default=[113,1650], nargs='+',help="maximum to fit  ordered mom, time")
     parser.add_argument("--cuts", type=str, default="SU2020", help="cut e.g. SU2020")
-    parser.add_argument("--writeoutput", type=int, default=1, help="writes data and fit results to csv")
+    parser.add_argument("--writeoutput", type=int, default=0, help="writes data and fit results to csv")
     parser.add_argument("--showMC", type=int, default=0, help="will use MC information")
     parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")
     parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")

@@ -15,18 +15,11 @@ As the code base has been applied to several mock data sets over the years we ha
 
 # Building the python environment:
 
-## Prerequisites
+## ```pyutils```
 
-In v2 onwards the user must have an EventNtuple install in their working directory. This is purely for use of pyutils (in EventNtuple/utils).
+In v2 onwards the code is dependent on pyutils, the python interface to EventNtuple developed by the Mu2e analysis tools group. This should be included in the python environment or you can include it on your own device using the instructions below.
 
-To create this:
-
-```
-mkdir working
-cd working
-git clone git@github.com:Mu2e/EventNtuple.git
-git clone git@github.com:HighEeM0/LikelihoodAnalysis.git
-```
+The current pyfitter is compatible with v01_01_00 of pyutils.
 
 ## On your own device:
 
@@ -40,6 +33,14 @@ $ source myzfitenv/bin/activate
 (myzfitenv)$ pip install -r requirements/current.txt
 ```
 
+In addition to work with the latest pyutils:
+
+```
+pip install hist 
+pip install tqdm 
+pip install git+https://github.com/Mu2e/pyutils.git 
+```
+
 ## On the Mu2e gpvm's:
 
 We have implemented a venv, with version control on the al9 based mu2egpvm's. To activate it:
@@ -51,21 +52,21 @@ source /exp/mu2e/data/users/sophie/mu2e_env.v1.2.0/bin/activate
 
 # Mock Data Samples:
 
-The code is current imagined to run using the Mu2e standard Ntuple EvtNtuple (formally trkana).
+The code is current imagined to run using the Mu2e standard Ntuple framework EventNtuple and will continue to assume that.
 
-It has been tested with the latest MDC2024 mock data samples, listed here: https://mu2ewiki.fnal.gov/wiki/MDC2024:_Mock_Data#MDC_2024:_Mock_Data_samples
+It has been tested with the latest MDC2020 MDS mock data samples, listed here: https://mu2ewiki.fnal.gov/wiki/MDC2024:_Mock_Data#MDC_2024:_Mock_Data_samples.
 
 # The Code:
 
 The code is currently object orientated with a set of distinct classes:
 
-* main.py - the driver function. The user can define several input parameters, check the default settings (at the bottom of the Main.py script).
-* cut_module.py - takes in an opt to a list of cuts, applies cuts
-* fit_module.py - runs unbinned ML fits to input data
-* recoplot_module.py - plots reconstructed information
-* XPDF_module.py - sets of PDFs to be input into the fit module (X = mom, time)
-* Xcomponent.py - user input list of chosen PDF names, parameters and draw options (X = mom, time)
-* results_module.py - TODO
+* `process.py` and `analyze.py`- the driver functions. The user can define several input parameters, check the default settings (at the bottom of the Main.py script).
+* `cut_module.py` - takes in an opt to a list of cuts, applies cuts
+* `fit_module.py` - runs unbinned ML fits to input data
+* `recoplot_module.py` - plots reconstructed information
+* `_PDF_module.py` - sets of PDFs to be input into the fit module ( mom, time)
+* `_component.py` - user input list of chosen PDF names, parameters and draw options (mom, time)
+* `results_module.py`- runs functions to interpret the result (e.g. significance tests and limit setting)
 
 The latest version of the code >= v2_00_00 requires Mu2e's pyutils be within the users working directory.
 
@@ -74,36 +75,97 @@ The latest version of the code >= v2_00_00 requires Mu2e's pyutils be within the
 To run for example:
 
 ```
-python main.py --file "/pnfs/mu2e/tape/phy-nts/nts/mu2e/ensembleMDS1dOnSpillTriggered/MDC2020ai_perfect_v1_3/root/d3/6f/nts.mu2e.ensembleMDS1dOnSpillTriggered.MDC2020ai_perfect_v1_3.0.root" --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113.
-```
-for a single file.
-
-With a file list, pass the files (with full paths) to a text file and run as:
-
-```
-python main.py --file filelist.txt --dirname "EventNtuple" --treename "ntuple" --cat 1 --mismatch 1 --fitrange_low=98. --fitrange_hi=113. --singlefile 0
-
+python process.py --file /exp/mu2e/app/users/sophie/analysis/LikelihoodAnalysis/py-fitter/filelist.txt --cat 1 --mismatch 1 --interpret 1
 ```
 
-the singlefile args should be switched off for this. Eventually this will probably become default.
+With a file list stored in the mentioned .txt file.
 
-* The Main function imports the given root NTuple (s) via the use of Mu2e's pyutils (maintained by the Mu2e Analysis tools group). This therefore assumes input is an up-to-date EventNtuple file or list of files.
+* The process function imports the given root NTuple (s) via the use of Mu2e's pyutils (maintained by the Mu2e Analysis tools group). This therefore assumes input is an up-to-date pyuyils. To get pyuyils in your python env:
 
-Here is a list of the current arguments and what they represent:
+```
+pip install git+https://github.com/Mu2e/pyutils.git 
 
-* file - filename (include path if not local), required
-* dirname - defaults to "EventNtuple"
-* treename - defaults to "ntuple"
-* fittype - implented opts: "mom1D", "time1D", "momtime2D"
-* fit range (low, hi) - range to fit over
-* showMC - set to 1 if "MC infor is present and I want to use it to help my analysis"
-* cuts - cut list to use, default is SU2020 cuts
-* categorize - uses MC process code to find true nature of the particles making the tracks
-* verbose - has the usual meaning, prints debug statements as desired, off by default
+```
 
-If the verbose option is set then arguments are printed out before running the main. The verbose arg is sent to sub-functions, and allows the user to track any failure modes. We suggest a verbose > 0 for  development users.
+this is already installed in the standard python env mentioned above.
 
-# Fitting:
+# Main Code Documentation
+
+## `process.py`
+
+The user runs the analysis through the process python code. There are a number of input arguments that the user uses to control the analysis.
+
+The process module contains a class AnaProcessor which inherits from the Skeleton ```pyutils/pyproces.py```. For more information see the pyutils documentation.
+
+
+
+<details>
+<summary>For our specific instance the class is detailed here</summary>
+    
+```
+NAME
+    process.py
+MODULE
+      process.py
+     |      User input args to module:
+     |          * file - filename (include path if not local), required
+     |           * jobs - should be the same as number of files to be as optimal as possible (number of worker threads for import)
+     |           * fittype - implented opts: "mom1D", "time1D", "momtime2D"
+     |           * fit range (low, hi) - range to fit over
+     |           * cat - uses MC process code to find true nature of the particles making the tracks
+     |           * mismatch - a work around (FIXME)
+     |           * verbose - has the usual meaning, prints debug statements as desired, off by default
+     |           * interpret - will look for pvalue and signficance
+     |           * setlimit  - assumes small or no signal and will try to set limit
+CLASSES
+    builtins.object
+        AnaProcessor inherits from pyprocess Skeleton class
+     |
+     |  process_file(): 
+     |     Process a single ROOT file
+     |     This method will be called for each file in our list.
+     |    It extracts data, processes it, and returns a result.
+     |     Args:
+     |         file_name: Path to the ROOT file to process   
+     |     Returns:
+     |         A tuple containing the histogram (counts and bin edges)
+     |  
+     | combine_arrays():
+     |  Combine filtered arrays from multiple files
+     |  Args:
+     |    results: list of returned filtered data
+     |  Returns:
+     |    concatanted results array
+     |  ----------------------------------------------------------------------
+```
+
+</details>
+
+---
+
+## `analyse.py`
+
+The user interacts with the analyze via the processor class. The analyze module contains 
+
+<details>
+<summary>For our specific instance the class is detailed here</summary>
+    
+```
+NAME
+    analyse.py
+CLASSES
+    builtins.object
+        analyse.
+     |      Class to handle analysis functions
+     |        Args:
+     |          * verbosity = verbosity level
+```
+
+</details>
+
+---
+
+# `fit_module.py`:
 
 ## zfit
 
@@ -115,17 +177,17 @@ We import the Mu2e ntuples using uproot and store it as an awkward array.
 
 ## Our Fitting Interface:
 
-The fit_module.py is our interface to zfit and the various parameterizations of the signal (CE) and backgrounds (currently DIO, RPC, and Cosmics). 1D PDFs are written for the time and momentum distributions, as well as a 2D PDF for time vs momentum (in progress).
+The ```fit_module.py``` is our interface to zfit and the various parameterizations of the signal (CE) and backgrounds (currently DIO, RPC, and Cosmics). 1D PDFs are written for the time and momentum distributions, as well as a 2D PDF for time vs momentum (in progress).
 
 There are three functions in the fit module:
 
 1) Unbinned_fit_mom - a 1D unbinned fit for momentum (default)
-2) Unbinned_fit_time - a 1D unbinned fit for time (probably not used on its own)
-3) Unbinned_2d_fit_mom_time - 2D fit for both momentum and time
+2) Unbinned_fit_time - a 1D unbinned fit for time (under development)
+3) Unbinned_2d_fit_mom_time - 2D fit for both momentum and time (under development)
 
 The user can specify the fit functions using the *components.py files, below is discussion of the parameters defined in these files and how to use them:
 
-### Components specification
+### `_components.py`
 
 The signal and backgrounds considered in the fit are specified in a dictionary within components.py . This dictionary specifies the following:
 * **pdf** -- PDF which describes the component; this will be one of the options described below
@@ -164,9 +226,9 @@ The time fit currently parameterizes things as follows:
 
 * The 2D fit combines the momentum and time 1D fits to provide a combined momentum time fit. The individual components are parameterized in the same way as the 1D fits.
 
-### Signal (CE) Fit Options
+### Signal Momentum (CE) Shape Characteristics
 
-Susan Dittmer has carried out detailed work to parameterize the signal shape, taking into account resolution (i.e. reconstructed shape). Her work can be found in our meeting slides archive: https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB
+Detailed work has been carried out to parameterize the signal shape, taking into account resolution (i.e. reconstructed shape). Her work can be found in our meeting slides archive: https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB
 
 A number of possible signal shapes can be considered:
 
@@ -214,6 +276,53 @@ The latter two use the lineshape convoluted with momentum concept, indepdently f
 
 Full definitions are provided in https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB.
 
+### DIO Momentum Shape Characteristics
+
+The DIO shape is a convolution of the theoretical DIO spectrum taken from https://arxiv.org/abs/1505.05237 and doc-db 6309 with an efficiency and resolution parameterization derived from flat spectra.
+
+
+<details>
+<summary>The efficiency and resolution are included optionally in the momPDF module</summary>
+    
+```
+elif model == 'poly58':
+        if dio_resolution is not None:
+            if dio_efficiency is None:
+                raise Exception("ERROR: dio_resolution can only be used if dio_efficiency is also defined")
+            else: # Both efficiency and resolution are defined
+                # Load the PDFs
+                efficiency_pdf = _load_pdf(dio_efficiency)
+                resolution_pdf = _load_pdf(dio_resolution)
+
+                # Adjust the PDFs
+                efficiency_pdf = efficiency_pdf.to_truncated(obs=obs_mom)
+                resolution_pdf = resolution_pdf.copy(obs=zfit.Space('mom', limits=(-8, 1)))
+
+                # Multiply the efficiency PDF with the poly58 PDF and convolve with the resolution PDF
+                poly58_pdf = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'])
+                poly58_efficiency_product = zfit.pdf.ProductPDF([poly58_pdf, efficiency_pdf])
+                PDF = zfit.pdf.FFTConvPDFV1(poly58_efficiency_product, resolution_pdf, obs=obs_mom, extended=N, n=1000)
+        else: 
+            if dio_efficiency is not None: # just efficiency, no resolution
+                # Load the efficiency PDF
+                efficiency_pdf = _load_pdf(dio_efficiency)
+
+                # Adjust the efficiency PDF to the observation space
+                efficiency_pdf = efficiency_pdf.to_truncated(obs=obs_mom)
+
+                # Multiply the efficiency PDF with the poly58 PDF
+                poly58_pdf = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'])
+                PDF = zfit.pdf.ProductPDF([poly58_pdf, efficiency_pdf], extended=N)
+            else: # no resolution or efficiency, just poly58 PDF
+                PDF = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'], extended=N)
+```
+
+</details>
+
+---
+
+
+
 # Characterizing Uncertainties
 
 Uncertainties can appear in two forms:
@@ -225,7 +334,7 @@ Uncertainties can appear in two forms:
 
 ## Shape uncertainties (underdevelopment)
 
-# Results
+# `results_module.py`
 
 The Results module store the final fit results in terms of expected yield from each of the sources of events. The results module can also print out the list of momenta or times used in the fit (passing all cuts). This can be in put into BAT.jl for Bayesian studies.
 
@@ -233,10 +342,105 @@ Another important goal of the "results" module is to have various statistical te
 
 The current version of this code is underdevelopment, but the concept is taking shape. The functions work, but have not been used to produce viable results due to missing external infrastructure.
 
-## GetSignificance (underdevelopment)
+## ```GetSignificance```
 
 The aim of this function is to take the output of a fit and understand the p-value on the derived signal yield and the significance (in n*sigma). It will be useful for understanding if we have a discovery.
 
-## GetUL (underdevelopment)
+The code uses the hepstats package ```hepstats.hypotests```
 
-This function will be used to derive frequentist UL at a chosen CL. It should be used with smaller yields. There is much work to do to understand how to run with large number of toys.
+First it computes a null hypothesis, using the fit parameters and assuming 0 signal yield:
+
+```
+    # the null hypothesis
+    sig_yield_poi = POI(par, 0)
+    minimizer = zfit.minimize.Minuit()
+```
+
+and the builds the chosen calculator from the zfit loss function where the self.result is the result of the combined fit:
+
+```  
+    if opt == 'freq':
+      calculator = FrequentistCalculator(input=loss, minimizer=minimizer)
+      calculator.bestfit = self.result
+      calculator = FrequentistCalculator(input=self.result, minimizer=minimizer)
+    elif opt == 'asym':
+      calculator = AsymptoticCalculator(input=loss, minimizer=minimizer)
+      calculator.bestfit = self.result
+      calculator = AsymptoticCalculator(input=self.result, minimizer=minimizer)
+```
+
+The 'freq' option uses a full frequentist procedure for sampling the test statistic distribution whereas the 'asym' generates the Asimov histogram using a model and dictionary of parameters (uses  Eur. Phys. J., C71:1–19, 2011).
+
+The asympotic formula is significantly faster than the Frequentist calculator, as it does not require the calculation of the frequentist p-value, which involves the calculation of toys 
+
+
+The significance is calculated using the Discovery class:
+
+```
+  discovery = Discovery(calculator=calculator, poinull=sig_yield_poi)
+  significance = discovery.result()
+```
+The output is in units of sigma.
+
+
+## ```GetUL```
+
+In the event that we have small/no signal we may want to derive an upper limit on the signal yield. The GetUL function performs this task using the hepstats hypotests package.
+
+The GetUL function has a number of parameters:
+
+```
+    Parameters
+    ----------
+      par : zfit parameters
+      loss : zfit loss function
+      combine_pdf: zfit combined pdf
+      fitlow, fithigh : fit range
+      sig_yield : observed CEs from fit
+      CL : confidence level for limit default is 90%
+      opt : option for how to compute (either frequentist (freq) or asymptotic (asym)
+```
+
+The function proceeds as follows.
+
+First the parameter of interest for the null hypothesis is taken from the derived signal yield (input)
+
+```
+    sig_yield_poi = POI(par, 0)
+    minimizer = zfit.minimize.Minuit()
+    # Sets the values of the parameters to the self.result of the simultaneous fit
+    zfit.param.set_values(loss.get_params(), self.result)
+```
+A sampler is created to  sample the combined pdf (input)
+```
+    # Creates a sampler that will draw events from the model
+    sampler = combine_pdf.create_sampler()
+```
+
+The loss is computed and the resampler samples with sig_yield. Since the model is extended the number of signal generated is drawn from a poisson distribution with lambda = sig_yield.
+
+```
+    sampler.resample({par: sig_yield})
+```
+
+Then calculators are called with the low signal nlls as inputs and the discovery significance calculated
+
+Then we look at the background only hypothesis:
+
+``` 
+    #Background only hypothesis.
+    bkg_only = POI(par, 0)
+    # Range of Nsig values to scan.
+    sig_yield_scan = POIarray(par, np.linspace(0,570,550))#FIXME - hardcoded
+
+    ul = UpperLimit(calculator=calculator_low_sig, poinull=sig_yield_scan, poialt=bkg_only)
+    ul.upperlimit(alpha=1-CL);
+
+```
+Further development of this limit setting interface is to be done with MDS2.
+
+
+## Passing to BAT.jl
+
+The ```WriteOuput``` function results in a text file format of the post-cut momentum and can be input into BAT.jl. We also write out the fit parameters using the ```WriteResult``` function.
+

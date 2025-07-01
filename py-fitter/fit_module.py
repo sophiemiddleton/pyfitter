@@ -6,32 +6,33 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import zfit
 
-from momPDF_module import MomModel
-from momPDF_module import poly58
+from momPDF_module import MomModel, poly58
 from timePDF_module import TimeModel
 from recoplot_module import plotmom_fit, plot_time_fit
 from mom_components import mom_components
 from time_components import time_components
 
-from hepstats.hypotests.parameters import POI
-from hepstats.hypotests.calculators import AsymptoticCalculator
-from hepstats.hypotests.calculators import FrequentistCalculator
-from hepstats.hypotests import Discovery
-from hepstats.hypotests import UpperLimit
-from hepstats.hypotests.parameters import POIarray
-#from utils import plotlimit
-
-def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, dio_efficiency = None,
+def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, dio_efficiency = None,
     dio_resolution = None):
-    '''
-    Fit the time data to a exponential distribution
+    """
+    Configures and calls the unbinned maximum likelihood fit for momentum using zfit
 
-    Parameters:
-        data (awkward array): Time data
-        fit_range_low (float): Lower limit of the fit range
-        fit_range_hi (float): Upper limit of the fit range
-        plot_cat (bool): looks at MC truth code
-    '''
+    Parameters
+    ----------
+    mom_mag : awkward array of floats
+        magnitude of momenta at chosen SID
+    track_cat : awkward array of floats
+        gives track catagory (corresponds to index in component list)
+    fit_range_low, fit_range_hi : float, float
+        min and max of fit range (args in the main function)
+    plot_cat: bool
+        show the MC truth processes on the histogram
+    verbose : 1
+        print progress statements and debug printouts
+    minos : bool
+        set true to evaluate minos errors
+    """
+
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ initializing fit")
     fit_range = (fit_range_low, fit_range_hi)
@@ -57,13 +58,13 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # Convert data to zfit Data
-    data_np = ak.to_numpy(ak.flatten(data['trksegs','mom.mag'], axis=None))
-    data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_mom)
+    mom_np = ak.to_numpy(ak.flatten(mom_mag, axis=None))
+    mom_zfit = zfit.Data.from_numpy(array=mom_np, obs=obs_mom)
 
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ running minimizer")
 
-    loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit, constraints=constraints)
+    loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=mom_zfit, constraints=constraints)
     for nll in nlls:
         loss = loss+nll
 
@@ -72,35 +73,43 @@ def Unbinned_fit_mom(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=
     
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ finished minimizing")
-    try:
-        param_errors, _ = result.errors(method='minuit_minos')
-    except:
-        print('[py-fitter/fit_module/Unbinned_fit_mom] ❌ ERROR! Invalid fit, postfit parameters may not be optimal')
+    if minos == True:
+      try:
+          param_errors, _ = result.errors(method='minuit_minos')
+      except:
+          print('[py-fitter/fit_module/Unbinned_fit_mom] ❌ ERROR! Invalid fit, postfit parameters may not be optimal')
 
     if result.valid == True:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ fit is valid")
     else:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
     # Plot after fit
-    cat = ak.to_numpy(ak.flatten(data['trksegs','cat'], axis=None)) if plot_cat else None
+ 
+    #cat = ak.to_numpy(ak.flatten(track_cat, axis=None)) if plot_cat else None
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ plotting")
-    plotmom_fit(data_np, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], cat)
-    
+    plotmom_fit(mom_np,track_cat, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat) 
+    plt.show()
 
 
     return result, pars[1], loss, nlls, combine_pdf, constraints
 
-def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
-    '''
-    Fit the time data to a exponential distribution
+def Unbinned_fit_time(data, track_cat, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
+    """
+    Configures and calls the unbinned maximum likelihood fit for time using zfit
 
-    Parameters:
-        data (awkward array): Time data
-        fit_range_low (float): Lower limit of the fit range
-        fit_range_hi (float): Upper limit of the fit range
-        plot_cat (bool): looks at MC truth code
-    '''
+    Parameters
+    ----------
+    data : awkward array (with cuts applied)
+        your data array post-processing
+    fit_range_low, fit_range_hi : float, float
+        min and max of fit range (args in the main function)
+    plot_cat: bool
+        show the MC truth processes on the histogram
+    verbose : 1
+        print progress statements and debug printouts
+
+    """
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_time] ✅ initializing fit")
     fit_range = (fit_range_low, fit_range_hi)
@@ -119,7 +128,7 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False, verbose
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # Convert data to zfit Data
-    data_np = ak.to_numpy(ak.flatten(data['trksegs']['time'], axis=None))
+    data_np = ak.to_numpy(ak.flatten(data['trkfit']['trksegs']['time'], axis=None))
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_time)
 
     # Loss function and minimizer
@@ -144,16 +153,22 @@ def Unbinned_fit_time(data, fit_range_low, fit_range_hi, plot_cat=False, verbose
 
     return result
 
-def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, plot_cat=False, verbose=0): #FIXME - the following code is not optimal, needs upgrading to new interface
-    '''
-    Fit the 2D data to a product of 1D PDFs
+def Unbinned_2d_fit_mom_time(data, track_cat, fit_range_mom, fit_range_time, plot_cat=False, verbose=0): #FIXME - the following code is not optimal, needs upgrading to new interface
+    """
+    Configures and calls the unbinned maximum likelihood fit for momentum and time using zfit
 
-    Parameters:
-        data (awkward array): 2D data
-        fit_range_mom (tuple): Fit range for momentum
-        fit_range_time (tuple): Fit range for time
-        plot_cat (bool): looks at MC truth code
-    '''
+    Parameters
+    ----------
+    data : awkward array (with cuts applied)
+        your data array post-processing
+    fit_range_mom, fit_range_time : [float, float] [float, float]
+        min and max of fit ranges for each dimension (args in the main function)
+    plot_cat: bool
+        show the MC truth processes on the histogram
+    verbose : 1
+        print progress statements and debug printouts
+
+    """
 
     obs_mom = zfit.Space('mom', limits=fit_range_mom)
     obs_time = zfit.Space('time', limits=fit_range_time)
@@ -211,8 +226,8 @@ def Unbinned_2d_fit_mom_time(data, fit_range_mom, fit_range_time, plot_cat=False
     list_pdfs = [('CE', CE, N_CE), ('DIO', DIO, N_DIO), ('RPC', RPC, N_RPC),('cosmic', cosmic, N_cosmic)]
 
     # Convert data to zfit Data
-    data_np_mom = ak.to_numpy(ak.flatten(data['trksegs']['mom.mag'], axis=None))
-    data_np_time = ak.to_numpy(ak.flatten(data['trksegs']['time'], axis=None))
+    data_np_mom = ak.to_numpy(ak.flatten(data['trkfit']['trksegs']['mom.mag'], axis=None))
+    data_np_time = ak.to_numpy(ak.flatten(data['trkfit']['trksegs']['time'], axis=None))
     data_zfit = zfit.Data.from_numpy(array=np.column_stack((data_np_mom, data_np_time)), obs=obs_2D)
 
     # Loss function and minimizer

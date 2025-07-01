@@ -2,8 +2,8 @@
 This code is intended for the Mu2e Analysis Group currently consisting of:
 
 * Caltech: L. Borrel, B. Echenard, D. Hitlin, H. Jafree, S. Middleton, F. Porter, S. Zhou
-* LBNL: R. Bonventre, D. Brown
-* Berkeley: S. Garg, Y. Kolomensky, V. Singh
+* LBNL: R. Bonventre, D. Brown, E. Callaghan
+* Berkeley: S. Garg, Y. Kolomensky, V. Singh, A. Trumic
 * CUNY-York: A. Edmonds
 * Northwestern: S. Dittmer, C. Kampa, M. Schmitt
 * plus others who may join
