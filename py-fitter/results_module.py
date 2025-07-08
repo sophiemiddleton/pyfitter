@@ -1,6 +1,7 @@
 import awkward as ak
 import numpy as np
 import csv
+import pickle
 import zfit
 
 from hepstats.hypotests.parameters import POI
@@ -150,14 +151,21 @@ class ResultsClass:
     
     return ul
     
-  def WriteFittedData(self):
+  def WriteFittedData(self, min_v, max_v):
     """ Write data used in fit to csv (i,mom,time) Note: should be in format useful to BAT"""
+    flat_mom = ak.flatten(self.data, axis = None)
+    flat_np = np.array(flat_mom)
+
+    # Create a boolean mask where elements are greater than or equal to 85
+    mask = (flat_np >= min_v) & (flat_np < max_v)
+
+    # Use the mask to filter the array and keep only the elements where the mask is True
+    filtered_array = flat_np[mask]
     file_path = 'output_data.csv'
-    data =self.data
 
     with open(file_path , 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
-        for item in data:
+        for item in filtered_array:
             csv_writer.writerow([item])
 
     if self.verbose > 0:
@@ -166,10 +174,46 @@ class ResultsClass:
   def WriteResult(self):
     """ Write result to csv file for safe keeping """
     file_path = 'output_fitresult.csv'
-    # Open the file in write mode ('w')
     with open(file_path, 'w') as csvfile:
-        csvfile.write(str(self.result))
+      csvfile.write('Param,Value\n')
+      for i, par in enumerate(self.result.params):
+        
+        csvfile.write(f"{par.name},{par.value().numpy()}\n")
 
+    
     if self.verbose > 0:
       print(f"[py-fitter/results_module/WriteFittedData] ✅ Result written to {file_path}")
 
+  def WritePkl(self):
+    """Outputs zfit result to a pkl file
+    """
+    # Specify the filename for your pickle file
+    filename = "output_fitresult.pkl"
+    my_data = [{'Param': [], 'Value' :[]}]
+    for i, par in enumerate(self.result.params):
+      my_data[0]['Param'].append(par.name)
+      my_data[0]['Value'].append(par.value().numpy())
+    print(my_data)
+    # Save the list to the .pkl file
+    try:
+        with open(filename, 'wb') as file:
+            pickle.dump(my_data, file)
+        print(f"List successfully saved to {filename}")
+    except Exception as e:
+        print(f"Error saving list: {e}")
+
+  def ReadPkl(self, filename):
+    """test to read in a zfit result (e.g. to compare to a previous result)
+    """
+    # To confirm it worked, you can load the data back:
+    loaded_data = None
+    my_data = self.result
+    try:
+        with open(filename, 'rb') as file:
+            loaded_data = pickle.load(file)
+        print(f"\nList successfully loaded from {filename}:")
+        print(loaded_data)
+        print(f"Type of loaded data: {type(loaded_data)}")
+        print(f"Is loaded_data equal to my_data? {loaded_data == my_data}")
+    except Exception as e:
+        print(f"Error loading list: {e}")
