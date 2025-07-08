@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import uproot
 import awkward as ak
 import argparse
-
+import csv
 from fit_module import *
 from results_module import ResultsClass
 from analyze import Analyze
@@ -179,8 +179,8 @@ def categorize_tracks( data, mismatch=False):
         
         categories = categories + (icat+1) * (goodCode)
     return categories
-    
-    
+
+       
 # Create an instance of our custom processor
 def  main(args):
   """ main driver function to run analysis
@@ -200,7 +200,7 @@ def  main(args):
   selector = Select()
   trk_front = selector.select_surface(pre_fit['trkfit'], sid=0)
    
-  trkfit_ent = pre_fit['trkfit']["trksegs"].mask[(trk_front)]
+  trkfit_ent = pre_fit['trkfit']["trksegs"].mask[(trk_front) ]
 
   if int(args.cat) == 1:
     track_cat = track_cat.mask[(trk_front)]
@@ -221,9 +221,12 @@ def  main(args):
     print('[py-fitter/main] ✅  Fit result: ', fitresult,'\n', 'for  fit')
     if (int(args.interpret) == 1):
       result_output = ResultsClass(mom_mag, fitresult,  args.verbose)
-      result_output.WriteFittedData()
+      result_output.WriteFittedData((args.fitrange_low[0]),(args.fitrange_hi[0]))
       result_output.WriteResult()
-      result_output.GetSignifcance(par, loss, 'asym')
+      
+      #result_output.WritePkl()
+      #result_output.ReadPkl("output_fitresult.pkl")
+      #result_output.GetSignifcance(par, loss, 'asym')
       if(int(args.setlimit)==1):
         result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),fitresult.params['N_CE']['value'],0.90,'asym')
   elif(args.fittype == "time1D"):
