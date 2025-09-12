@@ -51,25 +51,6 @@ mom_components = {
 
 import pickle as pkl
 
-def generate_res_X_lineshape(fitpars_in, lineshape_in) -> dict:
-    if isinstance(fitpars_in,str):
-        pardict = dict(pkl.load(open(fitpars_in,'rb')))
-    else:
-        pardict = fitpars_in
-    # Lineshape may be .txt file with p, pdf values or .pkl with array of momenta
-    try:
-        lineshape = pkl.load(open(lineshape_in,'rb'))
-        print('Loaded lineshape as pickle!')
-    except:
-        lineshape = []
-        with open(lineshape_in,'r') as f:
-            for line in f.readlines():
-                parts = line.split()
-                lineshape.append[parts[0],parts[1]]
-        print('Loaded lineshape as .txt file!')
-    pardict['lineshape'] = lineshape
-    return pardict
-
 # DCB signal, load parameters from fit to signal sample and fix to values or use constraints
 #fitpars_DCB = pkl.load(open('/exp/mu2e/data/users/sdittmer/SignalShape/fitpars_DCB.pkl','rb'))
 #mom_components['CE']['pdf'] = 'dscb'
@@ -109,7 +90,7 @@ def generate_res_X_lineshape(fitpars_in, lineshape_in) -> dict:
 #flat_res = res_components([95., 97., 99., 101., 103., 105.], '/exp/mu2e/data/users/sdittmer/SignalShape/skimmed_flat_mom.pkl', 'gen')
 #mom_components['CE']['pdf'] = 'gcb_gen_res'
 #mom_components['CE']['nll'] = flat_res
-#mom_components['CE']['pars'] = generate_res_X_lineshape(flat_res.params(),'/exp/mu2e/data/users/sdittmer/SignalShape/sig_p_gen_entrance_best.pkl')
+#mom_components['CE']['pars'] = generate_res_X_lineshape(flat_res.get_params(),'/exp/mu2e/data/users/sdittmer/SignalShape/sig_p_gen_entrance_best.pkl')
 #mom_components['CE']['treat_params'] = 'simul'
 
 # Momentum at plane X resolution, simultaneous fit
@@ -117,10 +98,45 @@ def generate_res_X_lineshape(fitpars_in, lineshape_in) -> dict:
 #flat_res = res_components([95., 97., 99., 101., 103., 105.], '/exp/mu2e/data/users/sdittmer/SignalShape/skimmed_flat_mom.pkl', 'mc')
 #mom_components['CE']['pdf'] = 'gcb_mc_res'
 #mom_components['CE']['nll'] = flat_res
-#mom_components['CE']['pars'] = generate_res_X_lineshape(flat_res.params(),'/exp/mu2e/data/users/sdittmer/SignalShape/sig_p_mc_entrance_best.pkl')
+#mom_components['CE']['pars'] = generate_res_X_lineshape(flat_res.get_params(),'/exp/mu2e/data/users/sdittmer/SignalShape/sig_p_mc_entrance_best.pkl')
 #mom_components['CE']['treat_params'] = 'simul'
 
 # If you want to use the same resolution with DIO, you should be able to do something like
 #mom_components['DIO']['pdf'] = 'gcb_mc_res'
-#mom_components['DIO']['pars'] = generate_res_X_lineshape(flat_res.params(),<DIO lineshape .pkl goes here>)
+#mom_components['DIO']['pars'] = generate_res_X_lineshape(flat_res.get_params(),<DIO lineshape .pkl goes here>)
+#mom_components['DIO']['treat_params'] = 'simul'
+
+# Theory lineshape * efficiency (hist) X loss (Landau) X resolution (GCB)
+from theo_components import binned_spectrum_CeLL
+from res_components import res_components
+lineshapes_in = {'theo' : binned_spectrum_CeLL(),
+                 'eff'  : pkl.load(open('/exp/mu2e/data/users/sdittmer/SignalShape/efficiency.pkl','rb'))}
+
+#flat_res  = res_components(params = '/exp/mu2e/data/users/sdittmer/SignalShape/pars_pyutils/fitpars_flat_res_entrance_gcb.pkl',             res_type = 'res',  pdf = 'gcb')
+#flat_loss = res_components(params = '/exp/mu2e/data/users/sdittmer/SignalShape/pars_pyutils/fitpars_flat_loss_entrance_landau_unbinned.pkl',res_type = 'loss', pdf = 'landau')
+# Must provide experimental PDFs in reverse order of convolution
+#fitpars_in = {'res'  : {'pdf' : 'gcb',    'params' : flat_res.get_params()},
+#              'loss' : {'pdf' : 'landau', 'params' : flat_loss.get_params()}
+#              }
+#from helper import gen_theo_exp
+#mom_components['CE']['pdf'] = 'theo_exp'
+#mom_components['CE']['pars'] = gen_theo_exp(fitpars_in,lineshapes_in)
+#mom_components['CE']['treat_params'] = 'fix'
+#mom_components['CE']['treat_params'] = 'constrain'
+
+dict_flat = pkl.load(open('/exp/mu2e/data/users/sdittmer/SignalShape/skimmed_flat_mom_v2.pkl','rb'))
+flat_res  = res_components(p_bins = [95.,97.,99.,101.,103.,105.], simul_source = (dict_flat['entrance']['gen'],dict_flat['entrance']['mc']),  res_type = 'res',  pdf = 'gcb')
+flat_loss = res_components(params = [95.,105.],                   simul_source = (dict_flat['entrance']['mc'], dict_flat['entrance']['reco']),res_type = 'loss', pdf = 'landau')
+# Must provide experimental PDFs in reverse order of convolution
+fitpars_in = {'res'  : {'pdf' : 'gcb',    'params' : flat_res.get_params()},
+              'loss' : {'pdf' : 'landau', 'params' : flat_loss.get_params()}
+              }
+from helper import gen_theo_exp
+mom_components['CE']['pdf'] = 'theo_exp'
+mom_components['CE']['pars'] = gen_theo_exp(fitpars_in,lineshapes_in)
+mom_components['CE']['treat_params'] = 'simul'
+mom_components['CE']['nll'] = [flat_res,flat_loss]
+
+#mom_components['DIO']['pdf'] = 'gcb_mc_res'
+#mom_components['DIO']['pars'] = generate_res_X_lineshape(flat_res.get_params(),<DIO lineshape .pkl goes here>)
 #mom_components['DIO']['treat_params'] = 'simul'

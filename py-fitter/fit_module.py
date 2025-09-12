@@ -52,7 +52,8 @@ def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=F
         treat_params = mom_components[proc]['treat_params']
         pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, pardict, treat_params, fit_range, constraints, dio_efficiency, dio_resolution)
         if 'nll' in mom_components[proc].keys():
-            nlls.extend(mom_components[proc]['nll'].get_nll(pars))
+            for nll_source in mom_components[proc]['nll']:
+                nlls.extend(nll_source.get_nll(pars))
 
     # build combined PDF
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
