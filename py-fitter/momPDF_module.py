@@ -106,9 +106,13 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
                 zpars[p] = zfit.Parameter(p+'_'+process, params[p][0], params[p][0]-0.005, params[p][0]+0.005, floating=False)
             elif treat_params == 'simul':
                 zpars[p] = zfit.ComposedParameter(p+'_'+process, lambda x : 1*x, params=params[p])
+            elif treat_params == 'param':
+                zpars[p] = params[p]
+                params_tot.append(params[p])
+                constraints.append(zfit.constraint.GaussianConstraint(zpars[p],observation=float(params[p].value()),uncertainty=max((float(params[p].upper)-float(params[p].value())),(float(params[p].value())-float(params[p].lower)))/5.))
             else:
                 if treat_params != 'float':
-                    print("Supported values for treat_params are 'float','fix','constrain', or 'simul'. You are using {} -- will be treated as 'float'")
+                    print(f"Supported values for treat_params are 'float', 'fix', 'constrain', 'param', or 'simul'. You are using {treat_params} -- will be treated as 'float'")
                 zpars[p] = zfit.Parameter(p+'_'+process, params[p][0], params[p][1], params[p][2])
                 params_tot.append(zpars[p])
 
@@ -151,35 +155,8 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
         PDF = zfit.pdf.TruncatedPDF(pdf_conv,limits=obs_mom,obs=obs_mom,extended=N)
 
     elif model == 'poly58':
-        if dio_resolution is not None:
-            if dio_efficiency is None:
-                raise Exception("ERROR: dio_resolution can only be used if dio_efficiency is also defined")
-            else: # Both efficiency and resolution are defined
-                # Load the PDFs
-                efficiency_pdf = _load_pdf(dio_efficiency)
-                resolution_pdf = _load_pdf(dio_resolution)
-                
-                # Adjust the PDFs
-                efficiency_pdf = efficiency_pdf.to_truncated(obs=obs_mom)
-                resolution_pdf = resolution_pdf.copy(obs=zfit.Space('mom', limits=(-8, 1)))
-                
-                # Multiply the efficiency PDF with the poly58 PDF and convolve with the resolution PDF
-                poly58_pdf = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'])
-                poly58_efficiency_product = zfit.pdf.ProductPDF([poly58_pdf, efficiency_pdf])
-                PDF = zfit.pdf.FFTConvPDFV1(poly58_efficiency_product, resolution_pdf, obs=obs_mom, extended=N, n=1000)
-        else: 
-            if dio_efficiency is not None: # just efficiency, no resolution
-                # Load the efficiency PDF
-                efficiency_pdf = _load_pdf(dio_efficiency)
-                
-                # Adjust the efficiency PDF to the observation space
-                efficiency_pdf = efficiency_pdf.to_truncated(obs=obs_mom)
-                
-                # Multiply the efficiency PDF with the poly58 PDF
-                poly58_pdf = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'])
-                PDF = zfit.pdf.ProductPDF([poly58_pdf, efficiency_pdf], extended=N)
-            else: # no resolution or efficiency, just poly58 PDF
-                PDF = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'], extended=N)
+        PDF = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'], extended=N)
+
     elif model == 'uniform':
         PDF = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_mom, extended=N)
         

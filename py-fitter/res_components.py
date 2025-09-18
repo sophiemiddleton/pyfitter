@@ -17,25 +17,22 @@ class res_components:
         self.res_type = res_type
         self.pdf = pdf
         self.simul_source = simul_source
+        self.fitpars = {'info' : {'pdf' : pdf}}
         if simul_source is not None:
-            self.fitpars = {}
+            self.fitpars['info']['p_bins'] = []
             for ip in range(len(p_bins)-1):
-                p_bin = (p_bins[ip],p_bins[ip+1])
+                self.fitpars['info']['p_bins'].append((p_bins[ip],p_bins[ip+1]))
                 if pdf == 'gcb' : 
-                    self.fitpars[p_bin] = {
-                        f"mu{ip}_{res_type}"     : zfit.Parameter(f"mu{ip}_{res_type}",     0.0, -3.0, 0.5),
-                        f"sigmaL{ip}_{res_type}" : zfit.Parameter(f"sigmaL{ip}_{res_type}", 0.5,  0.0, 2.0),
-                        f"sigmaR{ip}_{res_type}" : zfit.Parameter(f"sigmaR{ip}_{res_type}", 0.5,  0.0, 2.0),
-                        f"alphaL{ip}_{res_type}" : zfit.Parameter(f"alphaL{ip}_{res_type}", 0.5,  0.0, 3.0),
-                        f"alphaR{ip}_{res_type}" : zfit.Parameter(f"alphaR{ip}_{res_type}", 0.5,  0.0, 3.0),
-                        f"nL{ip}_{res_type}"     : zfit.Parameter(f"nL{ip}_{res_type}",     2.0,  0.0, 12.0),
-                        f"nR{ip}_{res_type}"     : zfit.Parameter(f"nR{ip}_{res_type}",     2.0,  0.0, 12.0)
-                    }
+                    self.fitpars[f"mu{ip}_{res_type}"]     = zfit.Parameter(f"mu{ip}_{res_type}",     0.0, -3.0, 0.5)
+                    self.fitpars[f"sigmaL{ip}_{res_type}"] = zfit.Parameter(f"sigmaL{ip}_{res_type}", 0.5,  0.0, 2.0)
+                    self.fitpars[f"sigmaR{ip}_{res_type}"] = zfit.Parameter(f"sigmaR{ip}_{res_type}", 0.5,  0.0, 2.0)
+                    self.fitpars[f"alphaL{ip}_{res_type}"] = zfit.Parameter(f"alphaL{ip}_{res_type}", 0.5,  0.0, 3.0)
+                    self.fitpars[f"alphaR{ip}_{res_type}"] = zfit.Parameter(f"alphaR{ip}_{res_type}", 0.5,  0.0, 3.0)
+                    self.fitpars[f"nL{ip}_{res_type}"]     = zfit.Parameter(f"nL{ip}_{res_type}",     2.0,  0.0, 12.0)
+                    self.fitpars[f"nR{ip}_{res_type}"]     = zfit.Parameter(f"nR{ip}_{res_type}",     2.0,  0.0, 12.0)
                 elif pdf == 'landau' :
-                    self.fitpars[p_bin] = {
-                        f"loc{ip}_{res_type}"   : zfit.Parameter(f"loc{ip}_{res_type}",   0.0, -5.0, 5.0),
-                        f"scale{ip}_{res_type}" : zfit.Parameter(f"scale{ip}_{res_type}", 1.0,  0.0, 5.0)
-                    }
+                    self.fitpars[f"loc{ip}_{res_type}"]   = zfit.Parameter(f"loc{ip}_{res_type}",   0.0, -5.0, 5.0)
+                    self.fitpars[f"scale{ip}_{res_type}"] = zfit.Parameter(f"scale{ip}_{res_type}", 1.0,  0.0, 5.0)
                 else:
                     print("ERROR: res_components only supports gcb or landau pdfs. Exiting...")
                     exit()
@@ -44,7 +41,11 @@ class res_components:
                 pardict = dict(pkl.load(open(params,'rb')))
             else:
                 pardict = params
-            self.fitpars = pardict
+
+            self.fitpars['info']['p_bins'] = list(pardict.keys())
+            for p_bin in pardict.keys():
+                for p in pardict[p_bin].keys():
+                    self.fitpars[p] = zfit.Parameter(p, pardict[p_bin][p][0], pardict[p_bin][p][0]+5*pardict[p_bin][p][1], pardict[p_bin][p][0]+5*pardict[p_bin][p][2],step_size=0.0001)
 
     def get_params(self):
         return self.fitpars
@@ -59,7 +60,7 @@ class res_components:
         obs_res  = zfit.Space('x',-1,1) if self.res_type == 'res' else zfit.Space('x',-10,10)
         
         # Get slice of flat p data
-        for ip,p_bin in enumerate(self.fitpars.keys()):
+        for ip,p_bin in enumerate(self.fitpars['info']['p_bins']):
             true_slice = true_mom[(true_mom>=p_bin[0]) & (true_mom<p_bin[1])]
             reco_slice = reco_mom[(true_mom>=p_bin[0]) & (true_mom<p_bin[1])]
             res_slice = reco_slice - true_slice
@@ -67,12 +68,11 @@ class res_components:
             
             N_slice = zfit.Parameter(f'N{ip}_{self.res_type}', len(res_slice), 0.8*len(res_slice), 1.2*len(res_slice), step_size=0.1)
             params_tot.append(N_slice)
-            zpars = self.fitpars[p_bin]
             if self.pdf == 'gcb':
-                res = zfit.pdf.GeneralizedCB(obs=obs_res, mu=zpars[f'mu{ip}_{self.res_type}'], sigmal=zpars[f'sigmaL{ip}_{self.res_type}'], sigmar=zpars[f'sigmaR{ip}_{self.res_type}'], alphal=zpars[f'alphaL{ip}_{self.res_type}'], alphar=zpars[f'alphaR{ip}_{self.res_type}'], nl=zpars[f'nL{ip}_{self.res_type}'], nr=zpars[f'nR{ip}_{self.res_type}'], extended=N_slice)
+                res = zfit.pdf.GeneralizedCB(obs=obs_res, mu=self.fitpars[f'mu{ip}_{self.res_type}'], sigmal=self.fitpars[f'sigmaL{ip}_{self.res_type}'], sigmar=self.fitpars[f'sigmaR{ip}_{self.res_type}'], alphal=self.fitpars[f'alphaL{ip}_{self.res_type}'], alphar=self.fitpars[f'alphaR{ip}_{self.res_type}'], nl=self.fitpars[f'nL{ip}_{self.res_type}'], nr=self.fitpars[f'nR{ip}_{self.res_type}'], extended=N_slice)
             elif self.pdf == 'landau':
-                res = trunc_landau(obs=obs_res, loc=zpars[f'loc{ip}_{self.res_type}'], scale=zpars[f'scale{ip}_{self.res_type}'], extended=N_slice)
-            params_tot.extend(list(zpars.values()))
+                res = trunc_landau(obs=obs_res, loc=self.fitpars[f'loc{ip}_{self.res_type}'], scale=self.fitpars[f'scale{ip}_{self.res_type}'], extended=N_slice)
+            params_tot.extend([v for k,v in self.fitpars.items() if k != 'info'])
 
             nlls.append(zfit.loss.ExtendedUnbinnedNLL(model=res, data=data_res))
 
