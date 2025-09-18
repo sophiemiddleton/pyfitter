@@ -43,10 +43,11 @@ pip install git+https://github.com/Mu2e/pyutils.git
 
 ## On the Mu2e gpvm's:
 
-We have implemented a venv, with version control on the al9 based mu2egpvm's. To activate it:
+We have all our package dependecies installed in the standard Mu2e python environment
 
 ```
-source /exp/mu2e/data/users/sophie/mu2e_env.v1.2.0/bin/activate 
+source /cvmfs/mu2e.opensciencegrid.org/env/ana/current/bin/activate
+
 
 ```
 
