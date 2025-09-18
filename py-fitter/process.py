@@ -24,9 +24,8 @@ class AnaProcessor(Skeleton):
     This class inherits from the Skeleton defined in pyutils/pyprocess base class, which provides the 
     basic structure and methods withing the Processor framework 
     """
-    def __init__(self, file_list_path, jobs=1 ):
+    def __init__(self, file_list_path, jobs=1, cuts=[], location='disk'):
         """Initialise your processor with specific configuration
-        
         
         This method sets up all the parameters needed for this specific analysis.
         """
@@ -35,7 +34,7 @@ class AnaProcessor(Skeleton):
         super().__init__()
 
         # Now override parameters from the Skeleton with the ones we need
-        self.file_list_path = file_list_path#"/exp/mu2e/app/users/sophie/analysis/LikelihoodAnalysis/py-fitter/filelist.txt"
+        self.file_list_path = file_list_path
 
         self.branches = { 
             "evt" : [
@@ -63,9 +62,10 @@ class AnaProcessor(Skeleton):
                 "trkmc.valid"
             ]
         }
+        self.tree_path = "ntuple"
         #self.filelist = "filelist.txt"          # text file containing list of files
         self.use_remote = False     # Use remote file via mdh
-        # self.location = "tape"     # File location
+        self.location = str(location)     # File location
         self.max_workers = jobs      # Limit the number of workers
         self.verbosity = 2         # Set verbosity 
         self.use_processes = True  # Use processes rather than threads
@@ -74,9 +74,7 @@ class AnaProcessor(Skeleton):
 
         # Init analysis methods
         # Would be good to load an analysis config here 
-        self.analyse = Analyze(
-            verbosity=0
-        )
+        self.analyse = Analyze(verbosity=0, cut_switch=cuts)
             
         # Custom prefix for log messages from this processor
         self.print_prefix = "[AnaProcessor] "
@@ -110,11 +108,8 @@ class AnaProcessor(Skeleton):
             
             # Process the files using multithreading
             data = processor.process_data(
-                file_list_path = self.file_list_path, 
-                # file_name = self.file_name,
-                # defname = defname, # Alternatively, you can provide a SAM definition
+                file_name = file_name,
                 branches = self.branches
-              
             )
             
             # ---- Analysis ----            
@@ -144,7 +139,6 @@ def combine_arrays(results):
         # Concatenate arrays
         arrays_to_combine.append(result)
     return ak.concatenate(arrays_to_combine)
-
 def categorize_tracks( data, mismatch=False):
     array_tmp = ak.copy(data['trkmc'])
 
@@ -186,7 +180,10 @@ def categorize_tracks( data, mismatch=False):
 def  main(args):
   """ main driver function to run analysis
   """
-  ana_processor = AnaProcessor(args.file, args.jobs)
+  old = [True, True, True, True, False, True, True, True,True,True, False, False]
+  new = [True, True, True, True, False, False, False, False,True,True, True,True]
+  
+  ana_processor = AnaProcessor(args.file, args.jobs, old, args.loc)
   results = ana_processor.execute()
 
   # Create an instance of our custom processor
@@ -252,6 +249,7 @@ def PrintArgs(args):
   """
   print("========= [py-fitter/main]✅  Analyzing with user opts: ===========")
   print("file:", args.file)
+  print("location: ", args.loc)
   print("number of processes (njobs - optimal is 1 per file):", args.jobs)
   print("fittype: ", args.fittype)
   print("range: ", args.fitrange_low, args.fitrange_hi)
@@ -274,6 +272,7 @@ if __name__ == "__main__":
     parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")
     parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")
     parser.add_argument("--verbose", default=1, help="verbose")
+    parser.add_argument("--loc", type=str, required=False, default='disk', help="location of files")
     args = parser.parse_args()
     (args) = parser.parse_args()
 
