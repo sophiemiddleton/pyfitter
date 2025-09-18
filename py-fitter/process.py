@@ -27,6 +27,7 @@ class AnaProcessor(Skeleton):
     def __init__(self, file_list_path, jobs=1 ):
         """Initialise your processor with specific configuration
         
+        
         This method sets up all the parameters needed for this specific analysis.
         """
         # Call the parent class's __init__ method first
@@ -198,7 +199,7 @@ def  main(args):
 
   # select only track front to fit to
   selector = Select()
-  trk_front = selector.select_surface(pre_fit['trkfit'], sid=0)
+  trk_front = selector.select_surface(pre_fit['trkfit'], surface_name='TT_Front')
    
   trkfit_ent = pre_fit['trkfit']["trksegs"].mask[(trk_front) ]
 
@@ -215,6 +216,10 @@ def  main(args):
   mom_mag = ak.nan_to_none(mom_mag)
   mom_mag = ak.drop_none(mom_mag)
   
+  time = ak.nan_to_none(trkfit_ent['time'])
+  time = ak.drop_none(time)
+  
+  
   #call the fitter
   if(args.fittype == "mom1D"):
     fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(mom_mag, track_cat,  (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat), args.verbose)
@@ -224,19 +229,16 @@ def  main(args):
       result_output.WriteFittedData((args.fitrange_low[0]),(args.fitrange_hi[0]))
       result_output.WriteResult()
       
-      #result_output.WritePkl()
-      #result_output.ReadPkl("output_fitresult.pkl")
-      #result_output.GetSignifcance(par, loss, 'asym')
+      result_output.GetSignifcance(par, loss, 'asym')
       if(int(args.setlimit)==1):
         result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),fitresult.params['N_CE']['value'],0.90,'asym')
+        
   elif(args.fittype == "time1D"):
-    print("working on it")
-    #FIXME
-    #result = Unbinned_fit_time(array_cut, (args.fitrange_low[0]), (args.fitrange_hi[0]),bool(args.cat), args.verbose)
-    #print('[py-fitter/main] ✅ Fit result: ', result,'\n', 'for ',args.fittype,' fit')
+    fitresult, par, loss, combine_pdf= Unbinned_fit_time(time, track_cat, float(args.fitrange_low[1]), float(args.fitrange_hi[1]),bool(args.cat), args.verbose)
+    print('[py-fitter/main] ✅ Fit result: ', fitresult,'\n', 'for ',args.fittype,' fit')
   elif(args.fittype == "momtime2D"):
-    print("working on it")
     #FIXME
+    print('test')
     #result = Unbinned_2d_fit_mom_time(array_cut, [(args.fitrange_low[0]),(args.fitrange_hi[0])], [(args.fitrange_low[1]),(args.fitrange_hi[1])],bool(args.cat), args.verbose)
    #print('[py-fitter/main]✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit')  
   else:

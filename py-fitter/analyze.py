@@ -46,7 +46,7 @@ class Analyze:
         # Track segments cuts
         try:
             
-            at_trk_front = selector.select_surface(data['trkfit'], sid=0)
+            at_trk_front = selector.select_surface(data['trkfit'], surface_name='TT_Front')
            
             # Append: this is useful for plotting and debugging
             data["at_trk_front"] = at_trk_front

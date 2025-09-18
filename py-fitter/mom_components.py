@@ -14,24 +14,15 @@ mom_components = {
                 'lineStyle' : '-.',
                 'catColor' : 'violet'},
     
-   # 'RPC'    : {'pdf' : 'Gauss',
-   #             'pars' : {'mu'    : (100, 98,   102),
-   #                       'sigma' : (11, 5, 25)},
-   #             'treat_params' : 'float',
-   #             'startCode' : [178,179],
-   #             'genCode' : [None],
-   #             'lineColor' : 'darkorange',
-   #             'lineStyle' : (0, (3, 5, 1, 5)),
-   #             'catColor' : 'orange'},
+   
     
-    'CE'     : {'pdf' : 'gcb',
-                'pars' : {'mu'     : (104,   103,  107),
-                          'sigmal' : (0.5,   0.08, 2.0),
-                          'sigmar' : (0.5,   0.08, 2.0),
-                          'alphal' : (0.422, 0,    10),
-                          'nl'     : (25.1,  0,    100),
-                          'alphar' : (2.227, 0,    100),
-                          'nr'     : (5.954, 0,    100)},
+    'CE'     : {'pdf' : 'dscb',
+                'pars' : {'mu'     : (104,           103,   107),
+                                    'sigma'  : (0.5,           0.08,  2.0),
+                                    'alphaL' : (0.422,         0,     10),
+                                    'nL'     : (25.1,          0,     100),
+                                    'alphaR' : (2.227,         0,     100),
+                                    'nR'     : (5.954,         0,     100)},
                 'treat_params' : 'float',
                 'startCode' : [168],
                 'genCode' : [None],
@@ -46,7 +37,16 @@ mom_components = {
                 'genCode' : [None],
                 'lineColor' : 'g',
                 'lineStyle' : ':',
-                'catColor' : 'lightgreen'}
+                'catColor' : 'lightgreen'},
+   'RPC'    : {'pdf' : 'Gauss',
+                'pars' : {'mu'    : (100, 98,   102),
+                          'sigma' : (11, 5, 25)},
+                'treat_params' : 'float',
+                'startCode' : [178,179],
+                'genCode' : [None],
+                'lineColor' : 'darkorange',
+                'lineStyle' : (0, (3, 5, 1, 5)),
+                'catColor' : 'orange'}
 }
 
 import pickle as pkl

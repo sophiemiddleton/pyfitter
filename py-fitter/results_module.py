@@ -10,7 +10,7 @@ from hepstats.hypotests.calculators import FrequentistCalculator
 from hepstats.hypotests import Discovery
 from hepstats.hypotests import UpperLimit
 from hepstats.hypotests.parameters import POIarray
-from utils import *
+#from utils import *
 class ResultsClass:
   """Class to interpret results: provide discovery tests and limits, print to BAT.jl readable file etc.
   """
