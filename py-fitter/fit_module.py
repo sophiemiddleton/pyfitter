@@ -88,13 +88,14 @@ def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=F
     #cat = ak.to_numpy(ak.flatten(track_cat, axis=None)) if plot_cat else None
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ plotting")
+    print(pars)
+   
     plotmom_fit(mom_np,track_cat, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat) 
     plt.show()
 
-
     return result, pars[1], loss, nlls, combine_pdf, constraints
 
-def Unbinned_fit_time(data, track_cat, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
+def Unbinned_fit_time(times, track_cat, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
     """
     Configures and calls the unbinned maximum likelihood fit for time using zfit
 
@@ -128,7 +129,7 @@ def Unbinned_fit_time(data, track_cat, fit_range_low, fit_range_hi, plot_cat=Fal
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # Convert data to zfit Data
-    data_np = ak.to_numpy(ak.flatten(data['trkfit']['trksegs']['time'], axis=None))
+    data_np = ak.to_numpy(ak.flatten(times, axis=None))
     data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_time)
 
     # Loss function and minimizer
@@ -146,12 +147,12 @@ def Unbinned_fit_time(data, track_cat, fit_range_low, fit_range_hi, plot_cat=Fal
     else:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
     # Plot after fit
-    cat = ak.to_numpy(ak.flatten(data['trksegs','cat'], axis=None)) if plot_cat else None
+
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_time] ✅ plotting")
-    plot_time_fit(data_np, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in time_components.keys()], cat)
-
-    return result
+    plot_time_fit(data_np, track_cat, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in time_components.keys()], plot_cat)
+    plt.show()
+    return result, pars[1], loss, combine_pdf
 
 def Unbinned_2d_fit_mom_time(data, track_cat, fit_range_mom, fit_range_time, plot_cat=False, verbose=0): #FIXME - the following code is not optimal, needs upgrading to new interface
     """
@@ -175,52 +176,34 @@ def Unbinned_2d_fit_mom_time(data, track_cat, fit_range_mom, fit_range_time, plo
     obs_2D = obs_mom * obs_time
 
     # time PDF components
-    ## Exponential decay for muons
-    decay_rate = zfit.Parameter('decay_rate', -1 / 864, -1 / 10, -1 / 1000)
-    exp_t = zfit.pdf.Exponential(decay_rate, obs=obs_time)
-    ## Exponential decay for pions
-    decay_rate_RPC = zfit.Parameter('decay_rate_rpc', -1 / 864, -1 / 10, -1 / 1000)
-    exp_t_RPC = zfit.pdf.Exponential(decay_rate_RPC, obs=obs_time)
-    ## Uniform distribution
-    cosmic_t = zfit.pdf.Uniform(low=fit_range_time[0], high=fit_range_time[1], obs=obs_time)
-
-    # momentum PDF components
-    ## CE
-    mu = zfit.Parameter('mu', 104.329, 103, 107)
-    sigma = zfit.Parameter('sigma', 0.434276, 0.08, 2.0)
-    alphal = zfit.Parameter('alphal', 0.515, 0, 10)
-    nl = zfit.Parameter('nl', 99.997, 0, 200)
-    alphar = zfit.Parameter('alphar', 1.335, 0, 100)
-    nr = zfit.Parameter('nr', 6.558, 0, 100)
-    CE = zfit.pdf.DoubleCB(obs=obs_mom, mu=mu, sigma=sigma, alphal=alphal, nl=nl, alphar=alphar, nr=nr)
-
-    ## DIO
-    a5 = zfit.Parameter('a5', 8.6434e-17, 0, 1e-16)
-    a6 = zfit.Parameter('a6', 1.16874e-17, 0, 1e-16)
-    a7 = zfit.Parameter('a7', -1.87828e-19, -1e-18, 0)
-    a8 = zfit.Parameter('a8', 9.16327e-20, 0, 1e-18)
-    DIO = poly58(obs=obs_mom, a5=a5, a6=a6, a7=a7, a8=a8)
-
-    ## RPC
-    mu_RPC = zfit.Parameter('mu_rpc', 100, 95, 115)
-    sigma_RPC = zfit.Parameter('sigma_rpc', 0.5, 1e-3, 1e3)
-    RPC = zfit.pdf.Gauss(obs=obs_mom, mu=mu_RPC, sigma=sigma_RPC)
-
-    ## cosmic
-    cosmic = zfit.pdf.Uniform(low=fit_range_mom[0], high=fit_range_mom[1], obs=obs_mom)
+    pars_time = []
+    pdfs_time = {}
+    norms_time = {}
+    
+    pars_mom = []
+    pdfs_mom = {}
+    norms_mom = {}
+    constraints_mom = []
+    nlls_mom = []
+    
+    #loop over time components
+    for proc_time in time_components:
+        pdf_time = time_components[proc_time]['pdf']
+        pardict_time = time_components[proc_time]['pars']
+        pdfs_time[proc_time], norms_time[proc_time] = TimeModel(obs_time, pars_time, proc_time, pdf_time, pardict_time, fit_range_time)
+    
+    # loop over mom components
+    for proc_mom in mom_components:
+        pdf_mom = mom_components[proc_mom]['pdf']
+        pardict_mom = mom_components[proc_mom]['pars']
+        treat_params_mom = mom_components[proc_mom]['treat_params']
+        pdfs_mom[proc_mom], norms[proc_mom] = MomModel(obs_mom, pars_mom, proc_mom, pdf_mom, pardict_mom, treat_params_mom, fit_range_mom, constraints_mom, dio_efficiency, dio_resolution)
+        if 'nll' in mom_components[proc_mom].keys():
+            nlls_mom.extend(mom_components[proc_mom]['nll'].get_nll(pars_mom))
 
     # Combined PDFs
     N_CE = zfit.Parameter('N_CE', 34.069, 0, 1e6)
     combine_CE_pdf = zfit.pdf.ProductPDF([CE, exp_t], extended=N_CE)
-
-    N_DIO = zfit.Parameter('N_DIO', 4398.87, 0, 1e6)
-    combine_DIO_pdf = zfit.pdf.ProductPDF([DIO, exp_t], extended=N_DIO)
-
-    N_RPC = zfit.Parameter('N_rpc', 0, 0, 1e6)
-    combine_RPC_pdf = zfit.pdf.ProductPDF([RPC, exp_t_RPC], extended=N_RPC)
-
-    N_cosmic = zfit.Parameter('N_cosmic', 0, 0, 1e6)
-    combine_cosmic_pdf = zfit.pdf.ProductPDF([cosmic, cosmic_t], extended=N_cosmic)
 
     combine_pdf = zfit.pdf.SumPDF([combine_CE_pdf, combine_DIO_pdf, combine_RPC_pdf, combine_cosmic_pdf])
     list_pdfs = [('CE', CE, N_CE), ('DIO', DIO, N_DIO), ('RPC', RPC, N_RPC),('cosmic', cosmic, N_cosmic)]
@@ -236,8 +219,6 @@ def Unbinned_2d_fit_mom_time(data, track_cat, fit_range_mom, fit_range_time, plo
 
     result = minimizer.minimize(loss, params=[mu, sigma, alphal, nl, alphar, nr, N_CE, N_DIO, decay_rate, N_cosmic, mu_RPC, sigma_RPC, N_RPC])
     # the null hypothesis
-
-    #FIXME - can we add some plotting functionality here?
 
     param_errors, _ = result.errors(method='minuit_minos')
     #result.hesse(method='minuit_hesse', name='Hesse')

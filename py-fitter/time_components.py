@@ -13,19 +13,30 @@ time_components = {
                 'lineStyle' : '-.',
                 'catColor' : 'violet'},
     
-    'Pion'    : {'pdf' : 'piexp',
+    
+    
+    'CE'     : {'pdf' : 'muexp',
+                'pars' : {'decay_rate_mu'    : (-1/864, -1/10, -1/10005)},
+                'startCode' : [168],
+                'genCode' : [None],
+                'lineColor' : 'b',
+                'lineStyle' : '--',
+                'catColor' : 'lightskyblue'},
+                
+      'DIO'     : {'pdf' : 'muexp',
+                'pars' : {'decay_rate_mu'    : (-1/864, -1/10, -1/10005)},
+                'startCode' : [166,170],
+                'genCode' : [None],
+                'lineColor' : 'b',
+                'lineStyle' : '--',
+                'catColor' : 'lightgreen'},
+                
+                
+      'Pion'    : {'pdf' : 'piexp',
                 'pars' : {'decay_rate_pi'    : (-1/26, -1/10, -1/10005)},
                 'startCode' : [178,179],
                 'genCode' : [None],
                 'lineColor' : 'darkorange',
                 'lineStyle' : (0, (3, 5, 1, 5)),
-                'catColor' : 'orange'},
-    
-    'Muon'     : {'pdf' : 'muexp',
-                'pars' : {'decay_rate_mu'    : (-1/864, -1/10, -1/10005)},
-                'startCode' : [168,166,170],
-                'genCode' : [None],
-                'lineColor' : 'b',
-                'lineStyle' : '--',
-                'catColor' : 'lightskyblue'}
+                'catColor' : 'orange'}
 }

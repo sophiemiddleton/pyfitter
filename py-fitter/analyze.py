@@ -2,13 +2,12 @@ import awkward as ak
 from pyutils.pyselect import Select
 from pyutils.pylogger import Logger
 from cut_manager import CutManager
-from mom_components import mom_components
 import matplotlib.pyplot as plt
 
 class Analyze:
     """Class to handle analysis functions
     """
-    def __init__(self, verbosity=1):
+    def __init__(self,  verbosity=1, sign="minus", cut_switch=[]):
         """Initialise the analysis handler
         Args:
             verbosity (int, optional): Level of output detail (0: critical errors only, 1: info, 2: debug, 3: deep debug)
@@ -24,7 +23,8 @@ class Analyze:
         self.selector = Select(verbosity=self.verbosity)
         # Analysis configuration
         self.logger.log(f"Initialised", "info")
-        
+        self.sign = sign
+        self.switch = cut_switch
 
     def define_cuts(self, data, cut_manager):
         """Define analysis cuts
@@ -46,59 +46,111 @@ class Analyze:
         # Track segments cuts
         try:
             
-            at_trk_front = selector.select_surface(data['trkfit'], sid=0)
-           
-            # Append: this is useful for plotting and debugging
-            data["at_trk_front"] = at_trk_front
-
-            # 1. Electron tracks 
-            # Reco track fit is electron 
-            is_reco_electron = selector.is_electron(data["trk"])
-            data["is_reco_electron"] = is_reco_electron
-        
+            
+            # Track segments level definition
+            at_trk_front = self.selector.select_surface(data["trkfit"], surface_name="TT_Front") 
+            at_trk_mid = self.selector.select_surface(data["trkfit"], surface_name="TT_Mid")
+            at_trk_back = self.selector.select_surface(data["trkfit"], surface_name="TT_Back")
+            in_trk = (at_trk_front | at_trk_mid | at_trk_back)
+            
+            # 0. Check that there is something at the tracker entrance
+            # Track level definition 
+            has_trk_front = ak.any(at_trk_front, axis=-1)
+            # Add cut 
             cut_manager.add_cut(
+                name="has_trk_front", 
+                description="Tracks intersect tracker entrance", 
+                mask=has_trk_front,
+                active=False
+            )
+            # Append for debugging
+            data["at_trk_front"] = at_trk_front
+            data["has_trk_front"] = has_trk_front
+            
+            
+            # 1. Electron tracks 
+            # Reco track fit is electron
+            if (str(self.sign) == "minus"):
+              is_reco_electron = selector.is_electron(data["trk"])
+              data["is_reco_electron"] = is_reco_electron
+              
+              cut_manager.add_cut(
                 name="is_reco_electron", 
                 description="Tracks are assumed to be electrons (trk)", 
-                mask=is_reco_electron 
-            )
+                mask=(is_reco_electron ),
+                active= self.switch[0]
+              )
 
-            # Append track-level definition
-            data["is_reco_electron"] = is_reco_electron
+              # Append track-level definition
+              data["is_reco_electron"] = is_reco_electron
+              # check for multi electron events
+              one_reco_electron_per_event = ak.sum(is_reco_electron, axis=-1) == 1
+              # Broadcast to track level
+              one_reco_electron, _ = ak.broadcast_arrays(one_reco_electron_per_event, is_reco_electron) # this returns a tuple
+              # Add cut 
+              cut_manager.add_cut(
+                  name="one_reco_electron",
+                  description="One reco electron / event",
+                  mask=one_reco_electron,
+                  active=False#self.switch[0]
+              )
+              # Append for debugging 
+              data["one_reco_electron"] = one_reco_electron
+              data["one_reco_electron_per_event"] = one_reco_electron_per_event
+            
+            if (str(self.sign) == "plus"):
+              is_reco_positron = selector.is_positron(data["trk"])
+              data["is_reco_positron"] = is_reco_positron
+              
+              cut_manager.add_cut(
+                name="is_reco_positron", 
+                description="Tracks are assumed to be positron (trk)", 
+                mask=(is_reco_positron ),
+                active= self.switch[0]
+              )
 
+              data["is_reco_positron"] = is_reco_positron
 
-            # 2. Track fit quality
-            good_trkqual = selector.select_trkqual(data["trk"], quality=0.2)
-            cut_manager.add_cut(
-                name="good_trkqual",
-                description="Track quality (quality > 0.2)",
-                mask=good_trkqual 
-            )
-            data["good_trkqual"] = good_trkqual
+            
 
-            # 3. Downstream tracks only through tracker entrance 
+            # 2. Downstream tracks only through tracker entrance 
             self.logger.log("Defining downstream tracks cut", "max")
-            is_downstream = selector.is_downstream(data['trkfit']) # at tracker entrance
-            has_downstream = ak.any(is_downstream, axis=-1)
+            is_downstream = selector.is_downstream(data['trkfit'])
+            
+            is_downstream = ak.all( ~in_trk | is_downstream, axis=-1) #
+            #has_downstream = ak.any(is_downstream, axis=-1)
             
             cut_manager.add_cut(
-                name="downstream",
+                name="has_downstream",
                 description="Downstream tracks (p_z > 0 through tracker)",
-                mask=has_downstream 
+                mask=is_downstream,
+                active= self.switch[1] 
             )
 
             # trksegs-level definition
             data["is_downstream"] = is_downstream
             # trk-level definition
-            data["has_downstream"] = has_downstream
+            #data["has_downstream"] = has_downstream
            
+            # 3. Track fit quality
+            good_trkqual = selector.select_trkqual(data["trk"], quality=0.2)
+            cut_manager.add_cut(
+                name="good_trkqual",
+                description="Track quality (quality > 0.2)",
+                mask=good_trkqual,
+                active= self.switch[2] 
+            )
+            data["good_trkqual"] = good_trkqual
+
             # 4. Minimum hits
             has_hits = selector.has_n_hits(data["trk"], n_hits=20)
             cut_manager.add_cut(
                 name="has_hits",
                 description="Minimum of 20 active hits in the tracker",
-                mask=has_hits 
+                mask=has_hits ,
+                active= self.switch[3]
             )
-        
+
             
             # 5. trksegs level
             within_t0 = ((640 < data['trkfit']["trksegs"]["time"]) & 
@@ -109,9 +161,10 @@ class Analyze:
             cut_manager.add_cut( 
                 name="within_t0",
                 description="t0 at tracker mid (640 < t_0 < 1650 ns)",
-                mask=within_t0 
+                mask=within_t0,
+                active= self.switch[4]
             )
-                
+            
             # 6. Loop helix maximum radius
             within_lhr_max = ((450 < data['trkfit']["trksegpars_lh"]["maxr"]) & 
                               (data['trkfit']["trksegpars_lh"]["maxr"] < 680)) # changed from 650
@@ -121,10 +174,12 @@ class Analyze:
             cut_manager.add_cut(
                 name="within_lhr_max",
                 description="Loop helix maximum radius (450 < R_max < 680 mm)",
-                mask=within_lhr_max
+                mask=within_lhr_max,
+                active= self.switch[5]
             )
             
             # 7. Distance from origin
+
             within_d0 = (data['trkfit']["trksegpars_lh"]["d0"] < 100)
         
             # trk-level definition (the actual cut)
@@ -132,7 +187,8 @@ class Analyze:
             cut_manager.add_cut(
                 name="within_d0",
                 description="Distance of closest approach (d_0 < 100 mm)",
-                mask=within_d0 
+                mask=within_d0,
+                active= self.switch[6] 
                 
             )
             
@@ -145,10 +201,12 @@ class Analyze:
             cut_manager.add_cut(
                 name="within_pitch_angle",
                 description="Extrapolated pitch angle (0.5577350 < tan(theta_Dip) < 1.0)",
-                mask=within_pitch_angle
+                mask=within_pitch_angle,
+                active= self.switch[7]
             )
             
-            #9. Loop helix maximum radius
+         
+            #9. Loop helix track time err
             within_t0err = ((data['trkfit']["trksegpars_lh"]["t0err"])  < 0.9)
         
             # trk-level definition (the actual cut)
@@ -156,10 +214,10 @@ class Analyze:
             cut_manager.add_cut(
                 name="within_t0err",
                 description="t0err < 0.9",
-                mask=within_t0err
+                mask=within_t0err,
+                active= self.switch[8]
             )
-            
-
+                        
             # 10. CRV veto: |dt| < 150 ns (dt = coinc time - track t0) 
             # Check if EACH track is within 150 ns of ANY coincidence 
 
@@ -194,7 +252,26 @@ class Analyze:
             cut_manager.add_cut(
                 name="no_crv_veto",
                 description="No crv-trk veto: |dt| >= 200 ns",
-                mask=~veto
+                mask=~veto,
+                active= self.switch[9]
+            )
+            
+            # 11. New ST selection
+            has_st  = selector.has_ST(data['trkfit'])
+            cut_manager.add_cut(
+                name="has_st",
+                description="has Nst > 0",
+                mask=has_st,
+                active= self.switch[10]
+            )
+            
+            # 12. New OPA veto
+            no_OPA = selector.has_OPA(data['trkfit'])
+            cut_manager.add_cut(
+                name="no_opa",
+                description="has N_opa == 0",
+                mask=no_OPA,
+                active= self.switch[11]
             )
             
             self.logger.log("All cuts defined", "success")
@@ -202,6 +279,8 @@ class Analyze:
         except Exception as e:
             self.logger.log(f"Error defining cuts: {e}", "error") 
             return None  
+    
+
         
     def apply_cuts(self, data, cut_manager, group=None, active_only=True):
 
@@ -219,6 +298,9 @@ class Analyze:
         self.logger.log("Applying cuts to data", "info")
         
         try:
+            #check mc truth codes before cuts
+            #mc_parts = self.mc_pre_cuts(data)
+            
             # Copy the array 
             # This is memory intensive but the easiest solution for what I'm trying to do
             data_cut = ak.copy(data) 
@@ -258,7 +340,7 @@ class Analyze:
           stats.append(results["cut_stats"])
       return stats
 
-    def execute(self, data, file_id, inactive_cuts=None):
+    def execute(self, data, file_id,  inactive_cuts=None):
         """Perform complete analysis on an array
         Args:
             data: The data to analyse
