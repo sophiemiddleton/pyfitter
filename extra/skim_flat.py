@@ -35,7 +35,7 @@ my_branches = {
     ]
 }
 
-data = processor.process_data(file_name = "data/SignalShape/ntuple_flat.root", branches = my_branches)
+data = processor.process_data(file_name = "/exp/mu2e/data/users/sdittmer/SignalShape/ntuple_flat.root", branches = my_branches)
 gc.collect()
 
 # Selecting flat e- gen particles
@@ -47,7 +47,7 @@ data['trkmc']  = data['trkmc'][trk_flat_e]
 data['trk']    = data['trk'][trk_flat_e]
 
 # Apply reco selection
-flat_sel = analyse.execute(data, "data/SignalShape/ntuple_flat.root")
+flat_sel = analyse.execute(data, "/exp/mu2e/data/users/sdittmer/SignalShape/ntuple_flat.root")
 
 # Calculate efficiency
 fig, ax = plt.subplots(1,1,figsize=(5.2,4.3))
@@ -64,13 +64,12 @@ ax.legend()
 plt.savefig("flat_efficiency.png")
 print(h_eff)
 print(edges)
-with open(f'data/SignalShape/efficiency.pkl','wb') as f:
+with open(f'../common/efficiency.pkl','wb') as f:
     pkl.dump([h_eff,edges],f)
 
 # Clean up
-#del trk_flat_e
 gc.collect()
-'''
+
 data_flat = {}
 
 for sid, plane in enumerate(['entrance','middle','exit']):
@@ -83,8 +82,6 @@ for sid, plane in enumerate(['entrance','middle','exit']):
   good_track = (ak.sum(at_plane_reco,axis=2) >= 1)
   good_track = (good_track) & (ak.sum(at_plane_mc,axis=2) == 1)
 
-  #del good_track
-  #del selector
   gc.collect()
   
   # make vector mag branch
@@ -109,18 +106,11 @@ for sid, plane in enumerate(['entrance','middle','exit']):
 
   data_flat[plane] = {'reco' : reco_mom, 'mc' : mc_mom, 'gen' : gen_mom}
 
-  #del vector
-  #del reco_mom
-  #del mc_mom
-  #del gen_mom
-  #del at_plane_reco
-  #del at_plane_mc
-  #del at_plane_gen
   gc.collect()
   
 print('Loaded everything')
 
 # Save skimmed data
-with open(f'data/SignalShape/skimmed_flat_mom_v3.pkl','wb') as f:
+with open(f'skimmed_flat_mom_v2.pkl','wb') as f:
     pkl.dump(data_flat,f)
-'''
+
