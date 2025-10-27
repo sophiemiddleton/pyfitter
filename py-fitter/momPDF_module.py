@@ -45,8 +45,7 @@ default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
                                     'alphaR' : (2.227,         0,     100),
                                     'nR'     : (5.954,         0,     100)},
                         'kde' : None,
-                        'gcb_gen_res' : None,
-                        'gcb_mc_res' : None,
+                        'theo_exp' : None,
                         'poly58' : {'a5'     : (8.97879e-17,    0,     1e-16),
                                     'a6'     : (1.17169e-17,   0,     1e-16),
                                     'a7'     : (-1.06599e-19, -1e-18, 0),
@@ -82,30 +81,22 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
     else:
         N = zfit.Parameter('N_'+process, 10,                     0, 1e6)
     params_tot.append(N)
-
+        
     # Start with default parameters for model
-    params_ini = default_model_params[model]
+    params = default_model_params[model]
     # If any parameters are specified in mom_components.py, override
     if pardict is not None:
-        if params_ini is None:
-            params_ini = pardict
+        if params is None:
+            params = pardict
         else:
             for par in pardict.keys(): 
-                if par in params_ini.keys() : params_ini[par] = pardict[par]
+                if par in params.keys() : params[par] = pardict[par]
     zpars = {}
 
-    if isinstance(params_ini,dict) and params_ini:
-        lineshape = params_ini.pop('lineshape',None) # lineshape X resolution fits
-
-        # If input parameters is a dict of dicts (ex. for p-binned resolution) merge the values
-        # Parameters should have unique names -- none should be lost
-        params = {}
-        if isinstance(list(params_ini.values())[0],dict):
-            for pardict in params_ini.values():
-                params.update(pardict)
-        else:
-            params = params_ini
-
+    if isinstance(params,dict) and params:
+        lineshape = params.pop('lineshape',None) # lineshape X resolution fits
+        info = params.pop('info',None)
+        
         for p in params.keys():
             if treat_params == 'constrain':
                 zpars[p] = zfit.Parameter(p+'_'+process, params[p][0], params[p][0]+5*params[p][1], params[p][0]+5*params[p][2],step_size=0.0001)
@@ -115,19 +106,19 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
                 zpars[p] = zfit.Parameter(p+'_'+process, params[p][0], params[p][0]-0.005, params[p][0]+0.005, floating=False)
             elif treat_params == 'simul':
                 zpars[p] = zfit.ComposedParameter(p+'_'+process, lambda x : 1*x, params=params[p])
+            elif treat_params == 'param':
+                zpars[p] = params[p]
+                params_tot.append(params[p])
+                constraints.append(zfit.constraint.GaussianConstraint(zpars[p],observation=float(params[p].value()),uncertainty=max((float(params[p].upper)-float(params[p].value())),(float(params[p].value())-float(params[p].lower)))/5.))
             else:
                 if treat_params != 'float':
-                    print("Supported values for treat_params are 'float','fix','constrain', or 'simul'. You are using {} -- will be treated as 'float'")
+                    print(f"Supported values for treat_params are 'float', 'fix', 'constrain', 'param', or 'simul'. You are using {treat_params} -- will be treated as 'float'")
                 zpars[p] = zfit.Parameter(p+'_'+process, params[p][0], params[p][1], params[p][2])
                 params_tot.append(zpars[p])
 
-    # For KDE, pass input data in place of params
-    else: 
-        params = params_ini
-
     if model == 'dscb': # Crystalball function with asymmetric tails
         PDF = zfit.pdf.DoubleCB(obs=obs_mom, mu=zpars['mu'], sigma=zpars['sigma'], alphal=zpars['alphaL'], nl=zpars['nL'], alphar=zpars['alphaR'], nr=zpars['nR'], extended=N)
-
+        
     elif model == 'gcb': # Fully asymmetric Crystalball function
         PDF = zfit.pdf.GeneralizedCB(obs=obs_mom, mu=zpars['mu'], sigmal=zpars['sigmaL'], sigmar=zpars['sigmaR'], alphal=zpars['alphaL'], nl=zpars['nL'], alphar=zpars['alphaR'], nr=zpars['nR'], extended=N)
 
@@ -135,99 +126,52 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
         data = zfit.Data.from_numpy(array=params, obs=obs_mom)
         PDF = zfit.pdf.KDE1DimGrid(data, num_grid_points=256, binning_method='linear', extended=N, bandwidth='adaptive_zfit')
         
-    elif model == 'gcb_gen_res' or model == 'gcb_mc_res':
-        if lineshape is None:
-            raise Exception("ERROR: '*_res' models can only be used if 'lineshape' is defined in parameters dict")
-
-        binwidth_eval = 0.1
+    elif model == 'theo_exp':
+        if lineshape is None or info is None:
+            raise Exception("ERROR: 'theo_exp' model can only be used if 'lineshape' and 'info' are defined in parameters dict")
         
-        # Lineshape is either an array of momentum values or a true lineshape e.g. list of (p,pdf) values.
-        # In either case this will be used to fill a histogram -- pdf used as weights for the latter case
-        # TODO for true lineshape, check that binning is appropriate / values are filled in correct bins
-        if isinstance(lineshape[0],tuple):
-            gen_mom = np.array([l[0] for l in lineshape])
-            weights = np.array([l[1] for l in lineshape])
-        else:
-            gen_mom = np.array(lineshape)
-            weights = np.ones_like(gen_mom)
-        
-        obs_res  = zfit.Space('x',-10,10) if 'gen_res' in model else zfit.Space('x',-1,1)
-        obs_gen  = zfit.Space('x',math.floor(max(float(np.min(gen_mom)),fit_range[0]-float(obs_res.v1.upper))),math.ceil(min(float(np.max(gen_mom)),fit_range[1]-float(obs_res.v1.lower))))
-        obs_full = zfit.Space('x',float(obs_gen.v1.lower+obs_res.v1.lower),float(obs_gen.v1.upper+obs_res.v1.upper))
-        nbins_gen = int((obs_gen.v1.upper - obs_gen.v1.lower)/binwidth_eval)
-        nbins_res = int((obs_res.v1.upper - obs_res.v1.lower)/binwidth_eval)
+        # Get lineshape
+        prob,edges = lineshape
+            
+        # Get relevant spaces for convolution
+        # Want final obs_conv to be obs_mom
+        obs_kern = []
+        obs_func = []
+        bound_all = 0
+        for ipdf, name in enumerate(info.keys()):
+            bound = 1 if name == 'res' else 10
+            bound_all += bound
+            obs_func.append(zfit.Space('x',float(obs_mom.v1.lower)-bound_all,float(obs_mom.v1.upper)+bound_all))
+            obs_kern.append(zfit.Space('x',-bound,bound))
+        obs_func.reverse()
+        obs_kern.reverse()
+        names = reversed(list(info.keys()))
 
-        fracs = []
-        pdfs = []
-        
-        for ip,pbin in enumerate(params_ini.keys()):
-            # Get lineshape part
-            plow  = pbin[0] if ip != 0                        else float(obs_gen.v1.lower)
-            phigh = pbin[1] if ip != len(params_ini.keys())-1 else float(obs_gen.v1.upper)
-            mask = (gen_mom >= plow) & (gen_mom < phigh)
-            gen_slice = gen_mom[mask]
-            w_slice = weights[mask]
-            if len(gen_slice) == 0: continue
-            h_gen_slice = hist.Hist(hist.axis.Regular(bins=nbins_gen, start=obs_gen.v1.lower, stop=obs_gen.v1.upper, name="x"))
-            h_gen_slice.fill(x=gen_slice,weight=w_slice)
-            lineshape_pdf = zfit.pdf.UnbinnedFromBinnedPDF(zfit.pdf.HistogramPDF(h_gen_slice),obs=obs_gen)
-
-            # Get resolution part
-            res = zfit.pdf.GeneralizedCB(obs=obs_res, mu=zpars[f'mu{ip}'], sigmal=zpars[f'sigmaL{ip}'], sigmar=zpars[f'sigmaR{ip}'], alphal=zpars[f'alphaL{ip}'], alphar=zpars[f'alphaR{ip}'], nl=zpars[f'nL{ip}'], nr=zpars[f'nR{ip}'])
-
-            # Do convolution
-            func   = lineshape_pdf if (nbins_gen >= nbins_res) else res
-            kernel = res           if (nbins_gen >= nbins_res) else lineshape_pdf
-            conv = zfit.pdf.FFTConvPDFV1(func, kernel, n=nbins_res, obs=obs_mom, norm=obs_full)
-            pdfs.append(conv)
-            fracs.append(len(gen_slice))
-
-        PDF = zfit.pdf.SumPDF(pdfs, fracs=[f/sum(fracs) for f in fracs[:-1]], obs=obs_mom, norm=obs_full, extended=N)
+        # Iteratively do convolution
+        from helper import doConv
+        pdf_conv = (prob,edges)
+        for name, obs_f, obs_k in zip(names,obs_func,obs_kern):
+            pdf_conv = doConv(pdf_conv, obs_f, obs_k, name, info[name], zpars)
+        PDF = zfit.pdf.TruncatedPDF(pdf_conv,limits=obs_mom,obs=obs_mom,extended=N)
 
     elif model == 'poly58':
-        if dio_resolution is not None:
-            if dio_efficiency is None:
-                raise Exception("ERROR: dio_resolution can only be used if dio_efficiency is also defined")
-            else: # Both efficiency and resolution are defined
-                # Load the PDFs
-                efficiency_pdf = _load_pdf(dio_efficiency)
-                resolution_pdf = _load_pdf(dio_resolution)
+        PDF = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'], extended=N)
 
-                # Adjust the PDFs
-                efficiency_pdf = efficiency_pdf.to_truncated(obs=obs_mom)
-                resolution_pdf = resolution_pdf.copy(obs=zfit.Space('mom', limits=(-8, 1)))
-
-                # Multiply the efficiency PDF with the poly58 PDF and convolve with the resolution PDF
-                poly58_pdf = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'])
-                poly58_efficiency_product = zfit.pdf.ProductPDF([poly58_pdf, efficiency_pdf])
-                PDF = zfit.pdf.FFTConvPDFV1(poly58_efficiency_product, resolution_pdf, obs=obs_mom, extended=N, n=1000)
-        else: 
-            if dio_efficiency is not None: # just efficiency, no resolution
-                # Load the efficiency PDF
-                efficiency_pdf = _load_pdf(dio_efficiency)
-
-                # Adjust the efficiency PDF to the observation space
-                efficiency_pdf = efficiency_pdf.to_truncated(obs=obs_mom)
-
-                # Multiply the efficiency PDF with the poly58 PDF
-                poly58_pdf = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'])
-                PDF = zfit.pdf.ProductPDF([poly58_pdf, efficiency_pdf], extended=N)
-            else: # no resolution or efficiency, just poly58 PDF
-                PDF = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'], extended=N)
     elif model == 'uniform':
         PDF = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_mom, extended=N)
-
+        
     elif model == 'Gauss':
         PDF = zfit.pdf.Gauss(obs=obs_mom, mu=zpars['mu'], sigma=zpars['sigma'], extended=N)
-
+        
     else:
         raise Exception(f"ERROR: model {model} not defined!")
-
+    
     return PDF, N
-  
+
 def _load_pdf(file_path_or_pdf):
     if isinstance(file_path_or_pdf, zfit.pdf.ZPDF):
         return file_path_or_pdf  
     else:
         with open(file_path_or_pdf, "rb") as f:
             return pickle.load(f)
+        
