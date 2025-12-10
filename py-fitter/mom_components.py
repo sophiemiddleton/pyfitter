@@ -30,7 +30,7 @@ mom_components = {
                 'lineStyle' : '--',
                 'catColor' : 'lightskyblue'},
 
-    'DIO'    : {'pdf' : 'poly58',
+    'DIO'    : {'pdf' : 'dio_custom_model_2025',
                 'pars' : {'N' : (55000, 0, 1e6)},
                 'treat_params' : 'fix',
                 'startCode' : [166,170],
