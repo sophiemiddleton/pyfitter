@@ -7,6 +7,8 @@ import math
 import hist as hist
 import dill as pickle
 
+# DIO models
+m_mu = 105.194 # mass of the muon [MeV]
 class poly58(zfit.pdf.ZPDF):
     """
     Class:
@@ -31,6 +33,32 @@ class poly58(zfit.pdf.ZPDF):
 
         return a5 * delta**5 + a6 * delta**6 + a7 * delta**7 + a8 * delta**8
 
+class DIO_custom_model_2025(zfit.pdf.ZPDF):
+    _N_OBS = 1
+    _PARAMS = ['DIO_endpoint', 'beta', 'degree_shift']
+
+    def _unnormalized_pdf(self, x):
+        x = zfit.z.unstack_x(x)
+        endpoint = self.params['DIO_endpoint']
+        beta = self.params['beta']
+        degree_shift = self.params['degree_shift']
+
+        delta_E = (endpoint - x)
+
+        # The spectrum is zero for energies above the endpoint
+        is_valid = delta_E > 0
+        # Use a safe value for log to prevent NaNs, the final tf.where makes it 0 anyway
+        safe_delta_E = tf.where(is_valid, delta_E, 1.0)
+
+        log_delta_E_over_mu = tf.math.log(safe_delta_E/m_mu)
+
+        power = 5.0 + degree_shift
+        poly_term = beta * tf.square(log_delta_E_over_mu)
+
+        pdf_val = tf.pow(safe_delta_E, power) * tf.exp(poly_term)
+
+        return tf.where(is_valid, pdf_val, 0.0)
+
 default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
                                     'sigma'  : (0.5,           0.08,  2.0),
                                     'alphaL' : (0.422,         0,     10),
@@ -50,6 +78,9 @@ default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
                                     'a6'     : (1.17169e-17,   0,     1e-16),
                                     'a7'     : (-1.06599e-19, -1e-18, 0),
                                     'a8'     : (8.14251e-20,   0,     1e-19)},
+                        'dio_custom_model_2025' : {'DIO_endpoint' : (104.973, 102.0, 107.0),
+                                                   'beta' : (-0.00232, -10, 10),
+                                                   'degree_shift' : (0.00828, -10, 10)},  
                         'Gauss'  : {'mu'     : (100,           95,    115),
                                     'sigma'  : (0.5,           1e-3,  1e3)},
                         'uniform' : {}
@@ -153,9 +184,13 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
         for name, obs_f, obs_k in zip(names,obs_func,obs_kern):
             pdf_conv = doConv(pdf_conv, obs_f, obs_k, name, info[name], zpars)
         PDF = zfit.pdf.TruncatedPDF(pdf_conv,limits=obs_mom,obs=obs_mom,extended=N)
-
+    
+    # models for DIO spectrum
     elif model == 'poly58':
         PDF = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'], extended=N)
+
+    elif model == 'DIO_custom_model_2025':
+        PDF = DIO_custom_model_2025(obs=obs_mom, DIO_endpoint=zpars['DIO_endpoint'], beta=zpars['beta'], degree_shift=zpars['degree_shift'], extended=N)
 
     elif model == 'uniform':
         PDF = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_mom, extended=N)

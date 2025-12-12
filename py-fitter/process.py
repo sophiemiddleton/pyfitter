@@ -64,7 +64,7 @@ class AnaProcessor(Skeleton):
         }
         self.tree_path = "ntuple"
         #self.filelist = "filelist.txt"          # text file containing list of files
-        self.use_remote = True     # Use remote file via mdh
+        self.use_remote = False     # Use remote file via mdh
         self.location = str(location)     # File location
         self.max_workers = jobs      # Limit the number of workers
         self.verbosity = 2         # Set verbosity 
