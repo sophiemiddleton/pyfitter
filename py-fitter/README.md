@@ -1,61 +1,13 @@
-# $\mu^{-} \rightarrow e^{-}$ Analysis
+# $\mu^{-} \rightarrow e^{-}$ Analysis (PyFitter)
 
 Python based analysis tool for analysis of reconstructed Mu2e data or MC.
 
-# Developers
+# Documentaion
 
-The current code base has been developed by Leo Borrel, Susan Dittmer, Sophie Middleton and Sam Zhou as part of the joint Mu2e Analysis Working Group.
-
-# Legacy Branches
-
-As the code base has been applied to several mock data sets over the years we have two legacy branches:
-
-* MDC2018 branch  was developed using MDC2018 TrkAna NTuples. See the Mu2e wiki page for more information on MDC2018.
-* MDS0 branch was developed using the MDS0 samples of MDC2020.
-
-# Building the python environment:
-
-## ```pyutils```
-
-In v2 onwards the code is dependent on pyutils, the python interface to EventNtuple developed by the Mu2e analysis tools group. This should be included in the python environment or you can include it on your own device using the instructions below.
-
-The current pyfitter is compatible with v01_01_00 of pyutils.
-
-## On your own device:
-
-In order to ensure reproducibility, we have a standard set of python packages which should be used with each intall. This is stored in the requirements/current.txt
-
-On your own device you can use pip (or other means) to produce a virtual environment for your work:
-
-```
-$ virtualenv myzfitenv
-$ source myzfitenv/bin/activate
-(myzfitenv)$ pip install -r requirements/current.txt
-```
-
-In addition to work with the latest pyutils:
-
-```
-pip install hist 
-pip install tqdm 
-pip install git+https://github.com/Mu2e/pyutils.git 
-```
-
-## On the Mu2e gpvm's:
-
-We have all our package dependecies installed in the standard Mu2e python environment
-
-```
-source /cvmfs/mu2e.opensciencegrid.org/env/ana/current/bin/activate
-
-
-```
-
-# Mock Data Samples:
-
-The code is current imagined to run using the Mu2e standard Ntuple framework EventNtuple and will continue to assume that.
-
-It has been tested with the latest MDC2020 MDS mock data samples, listed here: https://mu2ewiki.fnal.gov/wiki/MDC2024:_Mock_Data#MDC_2024:_Mock_Data_samples.
+* [Getting Started](.documentation/GettingStarted.md)
+* [The `pyfitter` framework](.documentation/GettingStarted.md)
+* [Our Likelihood Definition](.documentation/GettingStarted.md)
+* [Results and Interpretaion](.documentation/GettingStarted.md)
 
 # The Code:
 

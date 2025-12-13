@@ -1,17 +1,17 @@
-import hist
-import gc
 import sys
-from datetime import datetime
+import gc
 import numpy as np
 import matplotlib.pyplot as plt
 import uproot
 import awkward as ak
 import argparse
 import csv
+
 from fit_module import *
 from results_module import ResultsClass
 from analyze import Analyze
 from mom_components import mom_components
+from cut_manager import CutManager
 from pyutils.pyprocess import Processor, Skeleton
 from pyutils.pyplot import Plot
 from pyutils.pyprint import Print
@@ -24,7 +24,7 @@ class AnaProcessor(Skeleton):
     This class inherits from the Skeleton defined in pyutils/pyprocess base class, which provides the 
     basic structure and methods withing the Processor framework 
     """
-    def __init__(self, file_list_path, jobs=1, cuts=[], location='disk'):
+    def __init__(self, file_list_path, jobs=1, cuts=[], location='disk', mom_lo = 95, mom_hi = 115):
         """Initialise your processor with specific configuration
         
         This method sets up all the parameters needed for this specific analysis.
@@ -64,7 +64,9 @@ class AnaProcessor(Skeleton):
         }
         self.tree_path = "ntuple"
         #self.filelist = "filelist.txt"          # text file containing list of files
-        self.use_remote = False     # Use remote file via mdh
+        self.use_remote = True     # Use remote file via mdh
+        if str(location)  == "local":
+          self.use_remote = False
         self.location = str(location)     # File location
         self.max_workers = jobs      # Limit the number of workers
         self.verbosity = 2         # Set verbosity 
@@ -74,7 +76,7 @@ class AnaProcessor(Skeleton):
 
         # Init analysis methods
         # Would be good to load an analysis config here 
-        self.analyse = Analyze(verbosity=0, cut_switch=cuts)
+        self.analyse = Analyze(verbosity=0, cut_switch=cuts, mom_lo = mom_lo, mom_hi = mom_hi)
             
         # Custom prefix for log messages from this processor
         self.print_prefix = "[AnaProcessor] "
@@ -124,7 +126,67 @@ class AnaProcessor(Skeleton):
             # Handle any errors that occur during processing
             print(f"{self.print_prefix}Error processing {file_name}: {e}")
             return None
+            
+def combine_cut_flows( cut_flow_list):
+    """Combine a list of cut flows after multiprocessing 
+    
+    Args:
+        cut_flows: List of cut statistics lists from different files
 
+    Returns:
+        list: Combined cut statistics
+    """        
+    try:
+        # Use the first (now filtered) list as template
+        template = cut_flow_list[0]
+        
+        # Use the template to initialise combined stats
+        combined_cut_flow = []
+        for cut in template:
+            # Create a copy (needed?)
+            cut_copy = {k: v for k, v in cut.items()}
+            # Reset the event count
+            cut_copy["events_passing"] = 0
+            combined_cut_flow.append(cut_copy)
+        
+        # Create a mapping of cut names to indices in combined_stats 
+        cut_name_to_index = {cut["name"]: i for i, cut in enumerate(combined_cut_flow)}
+        
+        # Sum up events_passing for each cut across all files
+        for cut_flow in cut_flow_list:
+            for cut in cut_flow:
+                cut_name = cut["name"]
+                # Only process cuts that are in our combined_stats
+                if cut_name in cut_name_to_index:
+                    idx = cut_name_to_index[cut_name]
+                    combined_cut_flow[idx]["events_passing"] += cut["events_passing"]
+        
+        # Recalculate percentages
+        if combined_cut_flow and combined_cut_flow[0]["events_passing"] > 0:
+            total_events = combined_cut_flow[0]["events_passing"]
+            
+            for i, cut in enumerate(combined_cut_flow):
+                events = cut["events_passing"]
+                
+                # Absolute percentage
+                cut["absolute_frac"] = (events / total_events) * 100.0
+                
+                # Relative percentage
+                if i == 0:  # "No cuts"
+                    cut["relative_frac"] = 100.0
+                else:
+                    prev_events = combined_cut_flow[i-1]["events_passing"]
+                    cut["relative_frac"] = (events / prev_events) * 100.0 if prev_events > 0 else 0.0
+
+        cut_manager = CutManager(verbosity=0)
+        print("================== Total Cut Flow =======================")
+        cut_manager.print_cut_stats(stats=combined_cut_flow, active_only=True, csv_name="cut_stats.csv")
+        return combined_cut_flow
+    
+    except Exception as e:
+        print(f"Exception when combining cut flows: {e}", "error")
+        raise
+        
 def combine_arrays(results):
     """Combine filtered arrays from multiple files
     """
@@ -133,12 +195,15 @@ def combine_arrays(results):
     if not results:
         return None
     # Loop through all files
-    for result in results: #
+    for i, result in enumerate(results):
         if len(result) == 0:
             continue
         # Concatenate arrays
-        arrays_to_combine.append(result)
+        arrays_to_combine.append(result["filtered_data"])
     return ak.concatenate(arrays_to_combine)
+
+    
+    
 def categorize_tracks( data, mismatch=False):
     array_tmp = ak.copy(data['trkmc'])
 
@@ -175,25 +240,142 @@ def categorize_tracks( data, mismatch=False):
         categories = categories + (icat+1) * (goodCode)
     return categories
 
-       
+def count_particle_types(data):
+  """
+  Counts the occurrences of different particle types based on
+  simulation data, leveraging the properties of Awkward Arrays.
+
+  Args:
+      data (ak.Array): An Awkward Array containing simulation data,
+                       including 'trkmc' with 'trkmcsim' nested field.
+
+  Returns:
+      list: A list containing particle type identifiers for each event.
+  """
+
+  # Check for empty data
+  if ak.num(data['trkmc'], axis=0) == 0:
+      print("No events found in the data.")
+      return []
+
+  # Vectorized approach for efficiency using Awkward Array operations
+  #  This is generally faster than looping through events individually for large datasets.
+
+  # Get startCode for the first track in each event, handling empty lists
+  # Use ak.firsts to safely get the first element or None if the list is empty
+  proc_codes = ak.firsts(data['trkmc']['trkmcsim', 'startCode'], axis=1) 
+  gen_codes = ak.firsts(data['trkmc']['trkmcsim', 'gen'], axis=1)
+  vector = Vector()
+
+  #rhos = vector.get_rho(data['trkmc','trkmcsim'],'pos')
+  vec = vector.get_vector(branch=data['trkmc','trkmcsim'],vector_name='pos')
+  rhos = vec.rho
+  position = ak.firsts(rhos, axis=1) 
+
+  #position = ak.firsts(sim_pos_vec.rho, axis = 1)
+  # Use vectorized comparisons and selection for counting
+  dio_mask = (proc_codes == 166) & (position <= 75) # Create boolean mask for DIO events
+  ipa_mask = (proc_codes == 166) & (position > 75) # Create boolean mask for IPA DIO events
+  cem_mask = ((proc_codes == 168)  | (proc_codes == 167)  ) # Create boolean mask for CE events
+  cep_mask = ((proc_codes == 176) | (proc_codes == 169) )  # Create boolean mask for CE events
+  erpc_mask = (proc_codes == 178)  # Create boolean mask for external RPC events
+  irpc_mask = (proc_codes == 179)  # Create boolean mask for internal RPC events
+  ermc_mask = (proc_codes == 172)  # Create boolean mask for external RMC events
+  irmc_mask = (proc_codes == 171)  # Create boolean mask for internal RMC events
+  cosmic_mask = ((gen_codes == 44) | (gen_codes == 38))  # Create boolean mask for cosmic events
+
+  # Combine masks to identify 'other' events
+  other_mask = ~(dio_mask | cem_mask | erpc_mask | irpc_mask | cosmic_mask | ipa_mask | irmc_mask | ermc_mask | cep_mask)
+
+  # Initialize particle_count with -2 for 'others'
+  particle_count = ak.zeros_like(proc_codes, dtype=int) - 2
+  
+  # Assign particle types based on masks
+  particle_count = ak.where(dio_mask, 166, particle_count)
+  particle_count = ak.where(ipa_mask, 0, particle_count)
+  particle_count = ak.where(cosmic_mask, -1, particle_count)
+  particle_count = ak.where(other_mask, -2, particle_count)
+  particle_count = ak.where(irpc_mask, 179, particle_count)
+  particle_count = ak.where(erpc_mask, 178, particle_count)
+  particle_count = ak.where(irmc_mask, 171, particle_count)
+  particle_count = ak.where(ermc_mask, 172, particle_count)
+  particle_count = ak.where(cem_mask, 168, particle_count)
+  particle_count = ak.where(cep_mask, 176, particle_count)
+  particle_count_return = particle_count
+  #particle_count = ak.any(dio_mask, axis=1)
+  # Count the occurrences of each particle type
+  counts = {
+      166: (len(particle_count[ak.any(dio_mask, axis=1)==True])),
+      0: (len(particle_count[ak.any(ipa_mask, axis=1)==True])),
+      168:  (len(particle_count[ak.any(cem_mask, axis=1)==True])),
+      176:  (len(particle_count[ak.any(cep_mask, axis=1)==True])),
+      178:  (len(particle_count[ak.any(erpc_mask, axis=1)==True])),
+      179:  (len(particle_count[ak.any(irpc_mask, axis=1)==True])),
+      171:  (len(particle_count[ak.any(irmc_mask, axis=1)==True])),
+      172:  (len(particle_count[ak.any(ermc_mask, axis=1)==True])), 
+      -1:  (len(particle_count[ak.any(cosmic_mask, axis=1)==True])),
+      -2:  (len(particle_count[ak.any(other_mask, axis=1)==True])),
+  }
+    
+  # Print the yields to terminal for cross-check
+  print("===== MC truth yields for full momentum and time range=====")
+  print("N_DIO: ", counts[166])
+  print("N_IPA: ", counts[0])
+  print("N_CEM: ", counts[168])
+  print("N_CEP: ", counts[176])
+  print("N_eRPC: ", counts[178])
+  print("N_iRPC: ", counts[179])
+  print("N_eRMC: ", counts[171])
+  print("N_iRMC: ", counts[172])
+  print("N_cosmic: ", counts[-1])
+  print("N_others: ", counts[-2])
+  
+  # Now return a 1D list with one element per event corresponding to the primary trk
+  #particle_count_return = ak.flatten(particle_count_return, axis=None)
+  #    The mask will be True for values that are not -2.
+  primary_mask = particle_count_return != -2
+
+  # Apply the mask to the flattened array to select desired elements
+  particle_count_return = particle_count_return[primary_mask]
+  particle_count_return = [[sublist[0]] for sublist in particle_count_return]
+  particle_count_return = ak.flatten(particle_count_return, axis=None)
+  print("returned particle count length",len(particle_count_return))
+  
+  return particle_count_return
+  
 # Create an instance of our custom processor
 def  main(args):
   """ main driver function to run analysis
   """
-  old = [True, True, True, True, False, True, True, True,True,True, False, False]
-  new = [True, True, True, True, False, False, False, False,True,True, True,True]
   
-  ana_processor = AnaProcessor(args.file, args.jobs, old, args.loc)
+  """
+  list which cuts to switch on/off:
+  0) Is electron 1) Track fit quality 2) Downstream 3) Minimum hits 4) t0 5) rMax 6) d0 7) tanDip 8) t0Err 10) CRV 11) newST 12) new OPA
+  """
+  
+  cutC = [True, True, True, True, True, True, True, True,True,True, False, False,True]
+  new = [True, True, True, True,True, True, False, False,False,True, True,True, True]
+  nocuts = [False, False, False, False, False, False, False, False,False, False,False, False, False]
+  
+  
+  ana_processor = AnaProcessor(args.file, args.jobs, new, args.loc,args.fitrange_low[0], args.fitrange_hi[0])
   results = ana_processor.execute()
 
   # Create an instance of our custom processor
   pre_fit = combine_arrays(results)
+  cutlist = []
+  for i, result in enumerate(results):
+    cutlist.append(result["cut_stats"])
+  combine_cutflows = combine_cut_flows(cutlist)
 
   # run cat
   if int(args.cat) == 1:
     track_cat = categorize_tracks(pre_fit, args.mismatch) #just pre-fit here worked but misaaligned .mask[(trk_front)]
     track_cat = (ak.broadcast_arrays(pre_fit['trkfit']['trksegs','time'],track_cat)[1])
 
+  # run mc_count
+  mc_count = count_particle_types(pre_fit)
+  
   # select only track front to fit to
   selector = Select()
   trk_front = selector.select_surface(pre_fit['trkfit'], surface_name='TT_Front')
@@ -205,21 +387,25 @@ def  main(args):
     track_cat = ak.flatten(track_cat, axis=None)
   else:
     track_cat = []
-    
-  # make vector mag branch
+  
+  #trkfit_ent_mc = combine_result['trkfit']["trksegsmc"].mask[(trk_front_mc) ]
+
   vector = Vector()
+  #mom_mag_mc = vector.get_mag(trkfit_ent_mc ,'mom')
+
+  # make vector mag branch
   mom_mag = vector.get_mag(trkfit_ent ,'mom')
 
-  mom_mag = ak.nan_to_none(mom_mag)
-  mom_mag = ak.drop_none(mom_mag)
+  #mom_mag = ak.nan_to_none(mom_mag)
+  #mom_mag = ak.drop_none(mom_mag)
   
-  time = ak.nan_to_none(trkfit_ent['time'])
+  time = ak.nan_to_none(trkfit_ent['time']) #FIXME
   time = ak.drop_none(time)
   
   
   #call the fitter
   if(args.fittype == "mom1D"):
-    fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(mom_mag, track_cat,  (args.fitrange_low[0]), (args.fitrange_hi[0]), bool(args.cat), args.verbose)
+    fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(mom_mag, track_cat, mc_count,  (args.fitrange_low[0]), (args.fitrange_hi[0]), True, args.verbose)
     print('[py-fitter/main] ✅  Fit result: ', fitresult,'\n', 'for  fit')
     if (int(args.interpret) == 1):
       result_output = ResultsClass(mom_mag, fitresult,  args.verbose)
@@ -231,13 +417,12 @@ def  main(args):
         result_output.GetUL(par, loss, nlls, combine_pdf, constraints,(args.fitrange_low[0]), (args.fitrange_hi[0]),fitresult.params['N_CE']['value'],0.90,'asym')
         
   elif(args.fittype == "time1D"):
-    fitresult, par, loss, combine_pdf= Unbinned_fit_time(time, track_cat, float(args.fitrange_low[1]), float(args.fitrange_hi[1]),bool(args.cat), args.verbose)
+    fitresult, par, loss, combine_pdf= Unbinned_fit_time(time, track_cat,mc_count, float(args.fitrange_low[1]), float(args.fitrange_hi[1]),True, args.verbose)
     print('[py-fitter/main] ✅ Fit result: ', fitresult,'\n', 'for ',args.fittype,' fit')
-  elif(args.fittype == "momtime2D"):
-    #FIXME
-    print('test')
-    #result = Unbinned_2d_fit_mom_time(array_cut, [(args.fitrange_low[0]),(args.fitrange_hi[0])], [(args.fitrange_low[1]),(args.fitrange_hi[1])],bool(args.cat), args.verbose)
-   #print('[py-fitter/main]✅  Fit result: ', result,'\n', 'for ',args.fittype,' fit')  
+    
+  elif(args.fittype == "2D"):
+    fitresult, par, loss, combine_pdf= Unbinned_2d_fit_mom_time(mom_mag, time, track_cat, [(args.fitrange_low[0]),(args.fitrange_hi[0])], [(args.fitrange_low[1]),(args.fitrange_hi[1])],bool(args.cat), args.verbose)
+    print('[py-fitter/main]✅  Fit result: ', fitresult,'\n', 'for ',args.fittype,' fit')  
   else:
     raise Exception("[py-fitter/main] ❌ ERROR: choice of fit type does not exist, please choose: mom1D, time1D or momtime2D")
       
@@ -265,7 +450,7 @@ if __name__ == "__main__":
     parser.add_argument("--file", type=str, required=True, help="filename or file list name (text file list,fullpaths)")
     parser.add_argument("--jobs", type=int, required=False, default=1,help="use if more than one file, should be nfiles")
     parser.add_argument("--fittype", type=str, default="mom1D", help="fittype implemented opts: mom1D, time1D, momtime2D")
-    parser.add_argument("--fitrange_low", type=float, default=[95,640], nargs='+', help="minimum to fit ordered mom, time")
+    parser.add_argument("--fitrange_low", type=float, default=[95,475], nargs='+', help="minimum to fit ordered mom, time")
     parser.add_argument("--fitrange_hi", type=float, default=[110,1650], nargs='+',help="maximum to fit  ordered mom, time")
     parser.add_argument("--interpret", type=int, default=0, help="allows for significance evaluation")
     parser.add_argument("--setlimit", type=int, default=0, help="assumes low signal and will try to set limit")
