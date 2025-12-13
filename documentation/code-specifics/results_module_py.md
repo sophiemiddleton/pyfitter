@@ -19,7 +19,9 @@ This class wraps the final fit result and provides methods for calculating key p
 
 * **Purpose:** Estimates the $\text{R}_{\mu \text{e}}$ ratio (the branching ratio for $\mu^- N \to e^- N$ conversion) by normalizing the fitted signal yield $N_{\text{CE}}$ to the number of available stopped muons.
 * **Formula (Text Equivalent):** The $\text{R}_{\mu \text{e}}$ ratio is proportional to:
+    
     $$\text{R}_{\mu \text{e}} \propto \frac{N_{\text{CE}}}{\text{Number of Stopped Muons}}$$
+    
 * **Status:** Marked as `#FIXME`, indicating it requires complex work to incorporate experimental efficiencies, acceptance, and normalization constants (like POT).
 
 ## 📊 Hypothesis Testing (Using `hepstats`)
