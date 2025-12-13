@@ -1,74 +1,79 @@
-# Getting Started
+# 🚀 Getting Started
 
-`py-fitter` is a custom **Python-based physics analysis tool** for analyzing reconstructed Mu2e data or mock data (MC).
- 
-Our philosophy is to utilize Mu2e's standard analysis tools devloped by the Mu2e Analysis Tools Group led by Andy Edmonds and Sophie Middleton, leveraging `EventNtuple` and `pyutils` framework.
+`py-fitter` is a custom **Python-based physics analysis tool** designed for fitting and interpreting reconstructed Mu2e data and Monte Carlo (MC) simulations.
 
-To get started there are two primary options for setting up the required environment: 
+## Philosophy
 
-* (**recommended**) using the standard environment provided on the Mu2e GpVMs or elastic analysis facility;
-* on a personal device using a virtual environment. 
+Our analysis framework is built to integrate seamlessly with the standard tools developed by the Mu2e Analysis Tools Group (led by Andy Edmonds and Sophie Middleton). We leverage the established **`EventNtuple`** data structure and the **`pyutils`** package for common utilities. The code is compatible with the standard mu2e **`pyana`** python environment and can be ran on the **Elastic Analysis Facility**.
 
-## On the Mu2e Machines or the Elastic Analysis Facility
+## Environment Setup
 
-All required python package dependecies are installed in the standard Mu2e python environment that can be sourced directly:
+There are two primary options for setting up the required analysis environment.
 
+### Option 1: Mu2e Supported Machines (Recommended)
+
+Running on the Mu2e General Purpose Virtual Machines (GpVMs) or the Elastic Analysis Facility is the **recommended** approach. This offers a centrally maintained, pre-installed Python environment and access to the vast computing resources of the Elastic Analysis Facility.
+
+All required Python package dependencies are pre-installed in the standard Mu2e Python environment. You can activate it using one of the following methods:
+
+**Method A: Direct Source**
 
 ```
 source /cvmfs/mu2e.opensciencegrid.org/env/ana/current/bin/activate
-
 ```
-or 
+**Method B: Mu2e Aliases**
 
 ```
 mu2einit
 pyenv ana
 ```
 
-Running on the Mu2e supported machines has the advantage of the ready installed python enviroment, which is centrally maintained by the Mu2e Analysis Tools group, and the opportunity to leverage the vast resources of the Elastic Analysis Facility. 
+### Option 2: Local Development Environment
 
-## Building the Python Environment On Your Own Device
+If you prefer to develop on a personal machine, the code can be run locally as it does not directly depend on the Mu2e source code (only standard Python packages).
 
-We appreciate users may wish to develop locally, since the code does not depend on any mu2e source code (only python), this is possible:
+#### Prerequisites
 
-### Prerequisites
+* **Python 3.8+**
+* **`pip`** (Python package installer)
+* **`pyutils`** package (from the Mu2e Analysis Tools Group)
 
-This tool requires **Python 3.8+** and several external libraries managed via `pip`. It is also dependent on the `pyutils` package developed by the Mu2e analysis tools group.
+To ensure a clean and reproducible environment, using a virtual environment (`virtualenv` or similar) is highly recommended.
 
-The current version of PyFitter is compatible with the current version of the Mu2e specific `pyutils` package.
+#### Installation Steps
 
+**1. Create and Activate a Virtual Environment**
 
-
-
-To ensure reproducibility, we use a standard set of Python packages defined in the `requirements/current.txt` file. Using a virtual environment is highly recommended:
-
-
-#### 1. Create a new virtual environment
 ```
+# Create a new virtual environment
 virtualenv myzfitenv
+
+# Activate the environment
+source myzfitenv/bin/activate
 ```
 
-#### 2. Activate the environment
-```
-source myzfitenv/bin/activatehttps://mu2ewiki.fnal.gov/wiki/Mock_Data_(MDS)#MDC2025_ensembles
-```
+**2. Install Core Dependencies**
 
-#### 3. Install core dependencies from the requirements file
+The required third-party Python packages are defined in the `requirements/current.txt` file.
+
 ```
 pip install -r requirements/current.txt
 ```
 
-#### 4. Install `pyutils`:
+**3. Install `pyutils`**
+
+Install the Mu2e-specific utility package directly from the repository:
 
 ```
 pip install git+https://github.com/Mu2e/pyutils.git
 ```
 
+> **Note:** The current version of PyFitter is compatible with the current version of the Mu2e `pyutils` package.
 
 ## Mock Data
 
-The code is designed to run using the Mu2e standard Ntuple framework (EventNtuple). 
+This analysis code is designed to process data formatted according to the Mu2e standard Ntuple framework (EventNtuple).
 
-In the absence of real physics data development is currently taking place using the simulated Mock Data. More details can be found: https://mu2ewiki.fnal.gov/wiki/Mock_Data_(MDS)#MDC2025_ensembles.
+In the absence of real physics data, development and testing are performed using the simulated Mock Data (MDS). More details regarding the available data ensembles (e.g., MDC2025) can be found on the Mu2e Wiki.
 
 
