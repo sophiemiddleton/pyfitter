@@ -1,158 +1,64 @@
-# Defining our Likelihood
+## 📑 Mu2e Analysis Likelihood Definition Summary
 
-# `fit_module.py`:
+The analysis group for the muon-to-electron conversion search is conducting a "shape" analysis using a maximum likelihood fitter written in Python leveraging the **zfit** package. This approach is paired with a Bayesian analysis using the **BAT.jl** framework.
 
-## zfit
+The core of the analysis is an **extended likelihood** function, $\mathcal{L}$:
 
-zfit is likelihood fitting code, it is very similar to the popular RooFit code base. The zft source code can be found: https://github.com/zfit/zfit.
+$$\mathcal{L}=\mathcal{P}_{\text{poisson}}(N_{\text{obs}};N_{\text{exp}})\cdot\prod_{i}^{N_{\text{obs}}}\left[\sum_{j}w_{j}f_{j}(p_{i},t_{i})\right]$$
 
-zfit allows for custom (and predefined) -log likelihood maximizaton. Underneath it interfaces with iminuit and TensorFlow and is purely python based.
+### 1. Components of the Likelihood
 
-We import the Mu2e ntuples using uproot and store it as an awkward array.
+| Component | Mathematical Term | Description |
+| :--- | :--- | :--- |
+| **Poisson Term** | $\mathcal{P}_{\text{poisson}}(N_{\text{obs}};N_{\text{exp}})$ | Normalizes the likelihood. $N_{\text{exp}} = N_{s} + N_{b}$, where $N_{s}$ and $N_{b}$ are the expected signal and background events. This makes the total event count a parameter of the fit. |
+| **Product Term** | $\prod_{i}^{N_{\text{obs}}}$ | A product over all observed track events, $i$. |
+| **Sum Term** | $\sum_{j}w_{j}f_{j}(p_{i},t_{i})$ | A weighted sum of the probability density functions (PDFs) for each process $j$ (e.g., DIO, RPC, signal), evaluated at the measurement $i$. |
 
-## Our Fitting Interface:
+### 2. The Model for a Single Process ($f_j$)
 
-The ```fit_module.py``` is our interface to zfit and the various parameterizations of the signal (CE) and backgrounds (currently DIO, RPC, and Cosmics). 1D PDFs are written for the time and momentum distributions, as well as a 2D PDF for time vs momentum (in progress).
+The model $f_j$ for a given process $j$ is defined as a function of momentum ($p$) and time ($t$). The fit is conducted in a **2D space** of momentum and time.
 
-There are three functions in the fit module:
+$$f_{j}=\left[f_{\text{theory},j}(p,t)\times(\mathcal{A}\times\epsilon_{\text{trig.}}\times\epsilon_{\text{reco}})_{j}(p,t)\times\epsilon_{\text{sel}.j}(p,t)\right]*(L\times r)_{j}$$
 
-1) Unbinned_fit_mom - a 1D unbinned fit for momentum (default)
-2) Unbinned_fit_time - a 1D unbinned fit for time (under development)
-3) Unbinned_2d_fit_mom_time - 2D fit for both momentum and time (under development)
+This model includes theoretical spectra and a series of efficiency and response terms:
 
-The user can specify the fit functions using the *components.py files, below is discussion of the parameters defined in these files and how to use them:
+| Term | Symbol | Description |
+| :--- | :--- | :--- |
+| **Theoretical Spectrum** | $f_{\text{theory},j}(p,t)$ | The theoretical assumed spectrum for the process. |
+| **Acceptance** | $\mathcal{A}$ | The implicit tracker geometric acceptance. |
+| **Trigger Efficiency** | $\epsilon_{\text{trig.}}$ | Includes the trigger and digitization efficiency, which has a time dependence. Cannot digitize for $t<450$ ns. |
+| **Reconstruction Efficiency** | $\epsilon_{\text{reco}}$ | The efficiency to reconstruct a viable track. |
+| **Selection Efficiency** | $\epsilon_{\text{sel.}}$ | The efficiency of pre-selection criteria, if applicable. |
+| **Response Function** | $R(p) = L(p) \times r(p)$ | The total detector response, consisting of two sub-components: |
+| $\quad$ Energy Loss | $L(p)$ | Momentum-dependent energy loss, naturally described by a Landau function. |
+| $\quad$ Detector Response | $r(p)$ | Momentum-dependent detector response/resolution, often parameterized by a Generalized or Double-Sided Crystal Ball function. |
 
-### `_components.py`
+The total efficiency terms ($\mathcal{A}$, $\epsilon_{\text{trig.}}$, $\epsilon_{\text{reco}}$, $\epsilon_{\text{sel.}}$) are often combined into a single function, $\epsilon(p)$, parameterized by a Chebyshev polynomial function.
 
-The signal and backgrounds considered in the fit are specified in a dictionary within components.py . This dictionary specifies the following:
-* **pdf** -- PDF which describes the component; this will be one of the options described below
-* **pars** -- Optional user-defined values for the PDF values and lower/upper limits in the fit. If not given, default values for the parameters will be used.
-* **startCode**, **genCode**, **catColor** -- When the --categorize option is used, tracks are categorized based on the true particle type when plotting (for better comparison with fit results). The true particle type is defined by the corresponding startCode and genCode, and the component is plotted with color catColor.
-* **lineColor**, **lineStyle** -- The line color and style when drawing the PDF component
-  
-### The Momentum PDF Parameterizations
+### 3. Key Process Models
 
-Signal (detailed below):
+The fit is conducted in the $\mathbf{95 < p < 115 \text{ MeV/c}}$ momentum region.
 
-* **dscb** -- Double Sided Crystal Ball distribution;
-* **gcb** -- generalized crystal ball
-* **kde** -- kernal density estimation
-* **gcb_gen_res** or **gcb_mc_res** -- use lineshape assumptions
+| Process | Momentum Component | Time Component | Notes |
+| :--- | :--- | :--- | :--- |
+| **Signal (CE)** | $f_{\text{CE}}(E)$ (Complex spectrum, $E=\sqrt{p^{2}+m_{e}^{2}}$) | $f_{\text{CE}}(t)=e^{-t/\tau_{\text{Al}_{\mu}}}$ | $\tau_{\text{Al}_{\mu}}$ (muonic aluminum mean lifetime) is assumed to be 864 ns. |
+| **Decay in Orbit (DIO)** | $f_{\text{DIO}}(p)$ (Polynomial fit to theoretical spectrum) | $f_{\text{DIO}}(t)=e^{-t/\tau_{\text{Al}_{\mu}}}$ | Assumed to have the same time component as CE. |
+| **Cosmic Induced** | Uniform, $U(a,b)$ with $a=95, b=115$ MeV/c | Uniform, $U(a,b)$ with $a=640, b=1650$ ns | Uniform distribution is a basic starting point; off-spill data is planned for a data-driven distribution. |
+| **Radiative Pion Capture (RPC)** | Gaussian, $\mathcal{N}(\mu,\sigma^{2})$ | Exponential, $f_{\text{RPC}}(t)=e^{-t/\tau_{\pi}}$ | Gaussian is a simplification; $\tau_{\pi}$ is the free pion lifetime, as the pionic aluminum lifetime is unknown. Data-driven estimates are preferred. |
 
-Backgrounds
+### 4. Including Constraints and Uncertainties
 
-* **poly58** -- Decay in orbit (DIO) is currently parameterized using the work of Czernecki et al and the polynomial functional form derived in [Phys. Rev. D 94, 051301];
-* **uniform** -- Cosmic induced background is currently parameterized as a uniform distribution;
-* **Gauss** -- RPC is characterized as a Gaussian, centered on 100MeV/c following studies outline in mu2e-doc-db: 36503. Could also use uniform for the signal region we are looking at.
+The full likelihood is often combined with likelihoods from Control Regions (CRs) in a **simultaneous fit**:
 
-These distributions are all defined inside of momPDF_module.py. While the different distributions were developed to describe specific processes, this is not hardcoded in the script.
+$$\mathcal{L}_{\text{combined}}=\mathcal{L}_{\text{SR}}\times\prod_{k}\mathcal{L}_{\text{CR}_{k}}$$
 
-### The Time PDF Parameterizations
+This allows data from CRs to constrain shared parameters ($\theta$) in the Signal Region (SR).
 
-Our final goal is to conduct a 2D fit in momentum and time. The time component helps remove in-time RPC.
+Systematic uncertainties are incorporated into the full likelihood, $\mathcal{L}(\theta, \vec{\nu})$, through the inclusion of **nuisance parameters** ($\vec{\nu}$). These are typically constrained by Gaussian or Log Normal terms, reflecting external or subsidiary measurements.
 
-The time fit currently parameterizes things as follows:
+* **Normalization Uncertainties** are handled by simple Gaussian/Log Normal constraint terms on nuisance parameters that scale yields.
+* **Shape Uncertainties** (e.g., the DIO tail, resolution, and efficiency shapes) are complex and may be handled using:
+    * **Templates/Morphing:** Describing the shape as a linear combination or interpolation between templates, with a mixing coefficient/morphing parameter acting as a nuisance parameter.
+    * **Parametric Nuisance:** For functional forms (e.g., Double-Sided Crystal Ball for resolution), the uncertainty on the function's parameters is characterized by a nuisance parameter with a Gaussian constraint.
 
-* **muexp** -- for all muon processes (CE, DIO, RMC) these are parameterized as an exponential with a rate according to the mean lifetime in Al (864ns)
-* **piexp**  -- for in time RPC
-* **uniform** -- Cosmic induced background is assumed uniform in time
-
-### 2D fits
-
-* The 2D fit combines the momentum and time 1D fits to provide a combined momentum time fit. The individual components are parameterized in the same way as the 1D fits.
-
-### Signal Momentum (CE) Shape Characteristics
-
-Detailed work has been carried out to parameterize the signal shape, taking into account resolution (i.e. reconstructed shape). Her work can be found in our meeting slides archive: https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB
-
-A number of possible signal shapes can be considered:
-
-```
-default_model_params = {'dscb'   : {'mu'     : (104,           103,   107),
-                                    'sigma'  : (0.5,           0.08,  2.0),
-                                    'alphaL' : (0.422,         0,     10),
-                                    'nL'     : (25.1,          0,     100),
-                                    'alphaR' : (2.227,         0,     100),
-                                    'nR'     : (5.954,         0,     100)},
-                        'gcb'    : {'mu'     : (104,           103,   107),
-                                    'sigmaL' : (0.5,           0.08,  2.0),
-                                    'sigmaR' : (0.5,           0.08,  2.0),
-                                    'alphaL' : (0.422,         0,     10),
-                                    'nL'     : (25.1,          0,     100),
-                                    'alphaR' : (2.227,         0,     100),
-                                    'nR'     : (5.954,         0,     100)},
-                        'kde' : None,
-                        'gcb_gen_res' : None,
-                        'gcb_mc_res' : None,
-                        }
-```
-Where:
-
-* **gcb** = "Fully asymmetric Crystalball function" --> default (implicitly assumes resolution)
-* **dscb** = "double sided crystal ball" (implicitly assumes resolution)
-
-Parameters can be floated by setting the following in the components:
-
-```
-'treat_params' : 'float'
-```
-other ways to treat the parameters are:
-* ```'fix'``` (fixed)
-* ```'simul' ```(simultaneous fits)
-
-In addition there is the option to use kernal density estimation:
-
-* **kde** = "kernal density estimator" derived from fits to primary CeMLL sample
-
-The latter two use the lineshape convoluted with momentum concept, indepdently fitting to extract the resolution:
-
-* **gcb_gen_res**
-* **gcb_mc_res**
-
-Full definitions are provided in https://drive.google.com/drive/u/0/folders/12jnMJh-Hg7eg-WNqawPMq2lZ15e9xwQB.
-
-### DIO Momentum Shape Characteristics
-
-The DIO shape is a convolution of the theoretical DIO spectrum taken from https://arxiv.org/abs/1505.05237 and doc-db 6309 with an efficiency and resolution parameterization derived from flat spectra.
-
-
-<details>
-<summary>The efficiency and resolution are included optionally in the momPDF module</summary>
-    
-```
-elif model == 'poly58':
-        if dio_resolution is not None:
-            if dio_efficiency is None:
-                raise Exception("ERROR: dio_resolution can only be used if dio_efficiency is also defined")
-            else: # Both efficiency and resolution are defined
-                # Load the PDFs
-                efficiency_pdf = _load_pdf(dio_efficiency)
-                resolution_pdf = _load_pdf(dio_resolution)
-
-                # Adjust the PDFs
-                efficiency_pdf = efficiency_pdf.to_truncated(obs=obs_mom)
-                resolution_pdf = resolution_pdf.copy(obs=zfit.Space('mom', limits=(-8, 1)))
-
-                # Multiply the efficiency PDF with the poly58 PDF and convolve with the resolution PDF
-                poly58_pdf = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'])
-                poly58_efficiency_product = zfit.pdf.ProductPDF([poly58_pdf, efficiency_pdf])
-                PDF = zfit.pdf.FFTConvPDFV1(poly58_efficiency_product, resolution_pdf, obs=obs_mom, extended=N, n=1000)
-        else: 
-            if dio_efficiency is not None: # just efficiency, no resolution
-                # Load the efficiency PDF
-                efficiency_pdf = _load_pdf(dio_efficiency)
-
-                # Adjust the efficiency PDF to the observation space
-                efficiency_pdf = efficiency_pdf.to_truncated(obs=obs_mom)
-
-                # Multiply the efficiency PDF with the poly58 PDF
-                poly58_pdf = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'])
-                PDF = zfit.pdf.ProductPDF([poly58_pdf, efficiency_pdf], extended=N)
-            else: # no resolution or efficiency, just poly58 PDF
-                PDF = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'], extended=N)
-```
-
-</details>
-
----
 
