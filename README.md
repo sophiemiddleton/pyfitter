@@ -17,7 +17,6 @@ The following resources provide detailed technical information on the framework 
 | [**The `pyfitter` framework**](documentation/OurFramework.md) | Detailed explanation of the main class structure and workflow. |
 | [**Our Likelihood Definition**](documentation/LikelihoodDefinition.md) | Mathematical definition of the likelihood function and its parameters. |
 | [**Results and Interpretation**](documentation/ResultsInterpretation.md) | Guide on plotting results, statistical methods, and interpreting confidence limits. |
-| [**Uncertainties**](documentation/Uncertainties.md) | Comprehensive list and treatment of systematic and statistical uncertainties. |
 
 ---
 ---
