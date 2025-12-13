@@ -1,6 +1,6 @@
 # ⚙️ `process.py` - Data Processing and Preparation
 
-The `process.py` file is the data pipeline module. It defines the main class, `AnaProcessor`, which is responsible for **reading Mu2e EventNtuples**, applying event and track **selection cuts**, and preparing the final event data for the subsequent `zfit` minimization.
+The `process.py` file is the data pipeline module. It defines the main class, `AnaProcessor`, which is responsible for **reading Mu2e EventNtuples**, applying event and event **selection cuts**, and preparing the final event data for the subsequent `zfit` minimization.
 
 ## 📝 `class AnaProcessor(Skeleton)`
 
@@ -47,7 +47,7 @@ These functions handle post-processing tasks, primarily combining the output fro
 * **Input:** A list of dictionaries, where each dictionary contains the `"filtered_data"` from one input file.
 * **Output:** A single `awkward.Array` containing all events that passed the cuts across all processed files. This array is the input for the fitting stage.
 
-### `categorize_tracks(data, mismatch=False)`
+### `categorize_tracks(data, mismatch=False)` **Deprecated**
 
 * **Purpose:** Assigns a category ID to each track based on its **Monte Carlo truth information** (`startCode`, `genCode`). This is used to separate event types (e.g., signal, DIO, Cosmic) for categorized fitting.
 * **Logic:** Uses vectorized `awkward` operations to efficiently match `startCode` and `genCode` to the definitions stored in `mom_components.py`.
@@ -57,6 +57,24 @@ These functions handle post-processing tasks, primarily combining the output fro
 * **Purpose:** Calculates the raw event counts for different background and signal sources based on MC truth information.
 * **Logic:** Uses specific `startCode` and geometric criteria (like rho position) to create boolean masks for each particle type (e.g., DIO, CE, RPC, Cosmic). Prints the raw yields for diagnostic purposes.
 * **Output:** Returns a 1D `awkward.Array` where each element corresponds to the primary track's MC truth category, ready for use in the fitting module.
+
+## 💻 Command Line Interface (CLI) Arguments
+
+The main execution of `process.py` is controlled via the following command-line arguments, parsed by `argparse`:
+
+| Argument | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--file` | `str` | (Required) | Filename or path to a text file listing full paths of input Ntuples. |
+| `--jobs` | `int` | 1 | The number of parallel processes/jobs to use (should ideally match the number of files for maximum efficiency). |
+| `--fittype` | `str` | `mom1D` | The dimension and observable of the fit. Options: `mom1D`, `time1D`, or `momtime2D`. |
+| `--fitrange_low` | `float+` | `[95, 475]` | Minimum observable values for the fit. Ordered: Momentum (MeV/c), Time (ns). |
+| `--fitrange_hi` | `float+` | `[110, 1650]` | Maximum observable values for the fit. Ordered: Momentum (MeV/c), Time (ns). |
+| `--interpret` | `int` | 0 | If set to `1`, enables significance evaluation and writes final fitted results. |
+| `--setlimit` | `int` | 0 | If set to `1`, the framework assumes a low signal hypothesis and attempts to set an upper limit. |
+| `--cat` | `int` | 0 | If set to `1`, enables MC-truth based categorization of tracks for use in the fit. |
+| `--mismatch` | `int` | 0 | A flag for older samples with known MC-reco track mismatch issues. Set to `1` to enable specific handling. **Deprecated** |
+| `--verbose` | `int` | 1 | Verbosity level for output printing. |
+| `--loc` | `str` | `disk` | Location of the input files: `'disk'` (default, for remote access) or `'local'`. |
 
 ## 🚀 Main Execution (`main(args)` and `__main__`)
 
