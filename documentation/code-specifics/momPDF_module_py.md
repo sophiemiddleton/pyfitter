@@ -52,7 +52,7 @@ This function is the main entry point called by `fit_module.py` to construct a c
 Based on the `model` string, the appropriate `zfit` PDF is instantiated:
 
 | `model` | Description | `zfit` Class | Component |
-| :--- | :--- | :--- |
+| :--- | :--- | :--- | :--- |
 | `dscb` | Double Sided Crystal Ball | `zfit.pdf.DoubleCB` | signal |
 | `gcb` | Generalized Crystal Ball | `zfit.pdf.GeneralizedCB` | signal |
 | `Gauss` | Gaussian (Normal) | `zfit.pdf.Gauss` | RPC |
