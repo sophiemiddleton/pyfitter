@@ -38,7 +38,9 @@ $$\text{R}_{\mu \text{e}} \propto \frac{N_{\text{CE}}}{\text{Number of Stopped M
 
 * **Purpose:** Calculates the **Upper Limit (UL)** on the signal yield $N_{\text{CE}}$ at a specified Confidence Level (CL) in cases where no significant signal is observed.
 * **Methodology:** Uses the **$\text{CL}_{\text{s}}$ method**, standard in high-energy physics, where the limit is set by scanning signal yields and finding the point where the test statistic satisfies:
-    $$\text{CL}_{\text{s}} = 1 - \text{CL}$$
+
+$$\text{CL}_{\text{s}} = 1 - \text{CL}$$
+
     *(Note: $\text{CL}_{\text{s}} = p_{\text{clsb}} / p_{\text{clb}}$, where $p_{\text{clsb}}$ is the p-value of the signal-plus-background hypothesis, and $p_{\text{clb}}$ is the p-value of the background-only hypothesis.)*
 * **Input Data/Model:** The method reconstructs the combined PDF and loss function using parameters from the initial best fit, then uses the `UpperLimit` class from `hepstats`.
 * **Output:** Returns the `UpperLimit` object and generates a plot showing the $\text{CL}_{\text{s}}$ scan.
