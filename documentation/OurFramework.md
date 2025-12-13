@@ -19,8 +19,8 @@ These modules are responsible for defining the specific components (PDFs) that m
 | File | Description | Role in Analysis |
 | :--- | :--- | :--- |
 | [`fit_module.py`](code-specifics/fitmodule_py.md )| **Main Fitting Orchestrator** | Central module that takes the defined PDFs from the component modules, combines them into the full model (Signal + Backgrounds), defines the **Negative Log-Likelihood (NLL)** loss function, and executes the `zfit` minimization. |
-| `momPDF_module.py` | **Momentum PDF** | Defines the probability density functions (PDFs) for the **reconstructed momentum** observable. Includes signal and various background shapes. |
-| `timePDF_module.py` | **Time PDF** | Defines the PDFs for the **reconstructed time** observable, accounting for time distribution differences between prompt and delayed components. |
+| [`momPDF_module.py`](code-specifics/momPDF_module_py.md) | **Momentum PDF** | Defines the probability density functions (PDFs) for the **reconstructed momentum** observable. Includes signal and various background shapes. |
+| [`timePDF_module.py`](code-specifics/timePDF_module_py.md) | **Time PDF** | Defines the PDFs for the **reconstructed time** observable, accounting for time distribution differences between prompt and delayed components. |
 | `mom_components.py` | **Momentum PDF Definitions** | Contains the explicit mathematical implementations for momentum component shapes (e.g., Crystall Ball, Gaussian, Exponential functions) used by `momPDF_module.py`. |
 | `time_components.py` | **Time PDF Definitions** | Contains the explicit mathematical implementations for time component shapes (e.g., lifetime model, prompt beam shape) used by `timePDF_module.py`. |
 | `landau_pdf.py` | **Specific PDF** | contains the implementation for a non-standard landau for the energy loss of a particle |
