@@ -10,9 +10,10 @@ $$\mathcal{L}=\mathcal{P}_{\text{poisson}}(N_{\text{obs}};N_{\text{exp}})\cdot\p
 
 | Component | Mathematical Term | Description |
 | :--- | :--- | :--- |
-| **Poisson Term** | $\mathcal{P}_{\text{poisson}}(N_{\text{obs}};N_{\text{exp}})$ | Normalizes the likelihood. $N_{\text{exp}} = N_{s} + N_{b}$, where $N_{s}$ and $N_{b}$ are the expected signal and background events. This makes the total event count a parameter of the fit.  |
+| **Poisson Term** | ```math
+\mathcal{P}_{\text{poisson}}(N_{\text{obs}};N_{\text{exp}})``` | Normalizes the likelihood. $N_{\text{exp}} = N_{s} + N_{b}$, where $N_{s}$ and $N_{b}$ are the expected signal and background events. This makes the total event count a parameter of the fit.  |
 | **Product Term** | $\prod_{i}^{N_{\text{obs}}}$ | A product over all observed track events, $i$. |
-| **Sum Term** | $\sum_{j}w_{j}f_{j}(p_{i},t_{i})$ | [cite_start]A weighted sum of the probability density functions (PDFs) for each process $j$ (e.g., DIO, RPC, signal), evaluated at the measurement $i$. |
+| **Sum Term** | $\sum_{j}w_{j}f_{j}(p_{i},t_{i})$ |A weighted sum of the probability density functions (PDFs) for each process $j$ (e.g., DIO, RPC, signal), evaluated at the measurement $i$. |
 
 ### 2. The Model for a Single Process ($f_j$)
 
