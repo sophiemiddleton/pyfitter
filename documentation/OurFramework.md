@@ -8,7 +8,7 @@ These scripts manage the overall execution flow, handle data preparation, and ru
 
 | File | Description | Role in Analysis |
 | :--- | :--- | :--- |
-| [`process.py`](.code_specifics/process_py.md) | **Main Data Processor** | Handles reading the input `EventNtuple` data, applying selection cuts via `cut_manager.py`, and preparing the data into the appropriate format for `zfit` fitting. |
+| [`process.py`](.code-specifics/process_py.md) | **Main Data Processor** | Handles reading the input `EventNtuple` data, applying selection cuts via `cut_manager.py`, and preparing the data into the appropriate format for `zfit` fitting. |
 | `analyze.py` | **Analysis Execution Script** | utilizes the `cut_manager.py` applies a list of simple selection cuts |
 | `cut_manager.py` | **Selection Manager** | Contains the logic for applying sequential data selection cuts (e.g., energy, time, momentum windows) to isolate the signal region. |
 | `helper.py` | **General Utility Functions** | Contains miscellaneous functions used across multiple modules, such as common math operations, error handling, or simple data manipulation routines. |
