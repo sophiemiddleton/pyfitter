@@ -32,7 +32,7 @@ These modules handle post-fit analysis, visualization, and the incorporation of 
 
 | File | Description | Role in Analysis |
 | :--- | :--- | :--- |
-| `results_module.py` | **Results Handler** | Processes the `zfit` `FitResult` object, calculates final yields and confidence intervals, and formats the output. |
+| [`results_module.py`](code-specifics/results_module_py.md) | **Results Handler** | Processes the `zfit` `FitResult` object, calculates final yields and confidence intervals, and formats the output. |
 | `recoplot_module.py` | **Visualization** | Contains functions for generating plots of the fitted model overlayed on the data and various diagnostic plots. |
 | `res_components.py` | **Detector Resolution Inputs** | Manages inputs related to the detector's finite resolution, which are crucial for modeling the observed PDFs accurately. |
 | `sysunc_components.py` | **Systematic Uncertainties** | Manages the constraints and parameters related to systematic uncertainties (nuisance parameters) that are included in the overall likelihood function. |
