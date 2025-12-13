@@ -10,7 +10,7 @@ $$\mathcal{L}=\mathcal{P}_{\text{poisson}}(N_{\text{obs}};N_{\text{exp}})\cdot\p
 
 | Component | Mathematical Term | Description |
 | :--- | :--- | :--- |
-| **Poisson Term** | $\mathcal{P}_{\text{poisson}}(N_{\text{obs}};N_{\text{exp}})$ | Normalizes the likelihood. $N_{\text{exp}} = N_{s} + N_{b}$, where $N_{s}$ and $N_{b}$ are the expected signal and background events. This makes the total event count a parameter of the fit. |
+| **Poisson Term** | $\mathcal{P}_{\text{poisson}}(N_{\text{obs}}$;$N_{\text{exp}})$ | Normalizes the likelihood. $N_{\text{exp}} = N_{s} + N_{b}$, where $N_{s}$ and $N_{b}$ are the expected signal and background events. This makes the total event count a parameter of the fit. |
 | **Product Term** | $\prod_{i}^{N_{\text{obs}}}$ | A product over all observed track events, $i$. |
 | **Sum Term** | $\sum_{j}w_{j}f_{j}(p_{i},t_{i})$ | A weighted sum of the probability density functions (PDFs) for each process $j$ (e.g., DIO, RPC, signal), evaluated at the measurement $i$. |
 
@@ -60,5 +60,9 @@ Systematic uncertainties are incorporated into the full likelihood, $\mathcal{L}
 * **Shape Uncertainties** (e.g., the DIO tail, resolution, and efficiency shapes) are complex and may be handled using:
     * **Templates/Morphing:** Describing the shape as a linear combination or interpolation between templates, with a mixing coefficient/morphing parameter acting as a nuisance parameter.
     * **Parametric Nuisance:** For functional forms (e.g., Double-Sided Crystal Ball for resolution), the uncertainty on the function's parameters is characterized by a nuisance parameter with a Gaussian constraint.
+    
+> Note: we are still finalizing our uncertainty analyses 
+
+Most uncertainties will be input through subsidiary measurments. Each uncertainty requires careful study and is an analysis task in itself. In some cases we can do it ourselves, in other cases a dedicated other WG might provide us their final result.
 
 
