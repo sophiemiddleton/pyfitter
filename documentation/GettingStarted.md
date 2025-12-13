@@ -70,10 +70,32 @@ pip install git+https://github.com/Mu2e/pyutils.git
 
 > **Note:** The current version of PyFitter is compatible with the current version of the Mu2e `pyutils` package.
 
-## Mock Data
+# Mock Data
 
 This analysis code is designed to process data formatted according to the Mu2e standard Ntuple framework (EventNtuple).
 
 In the absence of real physics data, development and testing are performed using the simulated Mock Data (MDS). More details regarding the available data ensembles (e.g., MDC2025) can be found on the Mu2e Wiki.
 
+## Running  in `py-fitter`
 
+Before running the fitting code you should familarize yourself with the remaining documentation. For a quick start:
+
+### 1. **Get Mock Data** current mock data samples for MDS2c (nominal Mu2e Geometry, with MDC2020 assumptions):
+
+```
+
+ls /pnfs/mu2e/persistent/users/mu2epro/ensembles/MDS2c/1e-13_1month_10exps/merged_files_1/*.root &> MDS2c_1e-13_1month_exp1.txt
+```
+
+these are examples of up to 10 random samples for 1month of data with a $R_{\mu e} = 1 \times 10^{-13}$. The `i` in the `merged_files_i` represents the experiment number.
+
+### 2. ** Run `py-fitter`
+
+To run `py-fitter` in default: 
+
+```
+python process.py --file MDS2c_1e-13_1month_exp1.txt --loc "local"
+
+```
+
+where the `.txt` file is the file list you made above and `--loc` tells the processor to look locally.
