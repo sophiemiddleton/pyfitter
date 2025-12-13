@@ -27,7 +27,7 @@ These modules are responsible for defining the specific components (PDFs) that m
 | [`sysunc_components.py`](code-specifics/dictionaries.md) | **Systematic Uncertainties** | Manages the constraints and parameters related to systematic uncertainties (nuisance parameters) that are included in the overall likelihood function. |
 | [`theo_components.py`](code-specifics/dictionaries.md) | **Theoretical Inputs** | Manages fixed or constrained parameters related to theoretical predictions (e.g., branching ratios, physics constants) used in the fit. |
 | `landau_pdf.py` | **Specific PDF** | contains the implementation for a non-standard landau for the energy loss of a particle |
-| `helper.py` | **General Utility Functions** | Contains miscellaneous functions used across multiple modules, such as common math operations, error handling, or simple data manipulation routines. |
+| `helper.py` | **General Utility Functions** | Contains miscellaneous helper functions. |
 
 ## 📊 Results, Systematics, and Theoretical Inputs
 
