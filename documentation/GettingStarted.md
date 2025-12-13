@@ -80,7 +80,7 @@ In the absence of real physics data, development and testing are performed using
 
 Before running the fitting code you should familarize yourself with the remaining documentation. For a quick start:
 
-### 1. **Get Mock Data** 
+### 1. Get Mock Data 
 
 Current mock data samples for MDS2c (nominal Mu2e Geometry, with MDC2020 assumptions):
 
@@ -91,7 +91,7 @@ ls /pnfs/mu2e/persistent/users/mu2epro/ensembles/MDS2c/1e-13_1month_10exps/merge
 
 these are examples of up to 10 random samples for 1month of data with a $R_{\mu e} = 1 \times 10^{-13}$. The `i` in the `merged_files_i` represents the experiment number.
 
-### 2. ** Run `py-fitter`**
+### 2. Run `py-fitter`
 
 To run `py-fitter` in default: 
 
