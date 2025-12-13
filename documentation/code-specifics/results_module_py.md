@@ -18,7 +18,8 @@ This class wraps the final fit result and provides methods for calculating key p
 ### Method: `CalculateRmue(self, n_ce, n_dio)`
 
 * **Purpose:** Estimates the $\text{R}_{\mu \text{e}}$ ratio (the branching ratio for $\mu^- N \to e^- N$ conversion) by normalizing the fitted signal yield $N_{\text{CE}}$ to the number of available stopped muons.
-* **Formula:** $\text{R}_{\mu \text{e}} \propto \frac{N_{\text{CE}}}{\text{Number of Stopped Muons}}$
+* **Formula (Text Equivalent):** The $\text{R}_{\mu \text{e}}$ ratio is proportional to:
+    $$\text{R}_{\mu \text{e}} \propto \frac{N_{\text{CE}}}{\text{Number of Stopped Muons}}$$
 * **Status:** Marked as `#FIXME`, indicating it requires complex work to incorporate experimental efficiencies, acceptance, and normalization constants (like POT).
 
 ## 📊 Hypothesis Testing (Using `hepstats`)
@@ -34,9 +35,12 @@ This class wraps the final fit result and provides methods for calculating key p
 ### Method: `GetUL(self, par, loss, ..., CL=0.90, opt='freq')`
 
 * **Purpose:** Calculates the **Upper Limit (UL)** on the signal yield $N_{\text{CE}}$ at a specified Confidence Level (CL) in cases where no significant signal is observed.
-* **Methodology:** Uses the **$\text{CL}_{\text{s}}$ method**, standard in high-energy physics, where the limit is set by scanning signal yields and finding the point where the test statistic satisfies $\text{CL}_{\text{s}} = 1 - \text{CL}$. 
+* **Methodology:** Uses the **$\text{CL}_{\text{s}}$ method**, standard in high-energy physics, where the limit is set by scanning signal yields and finding the point where the test statistic satisfies:
+    $$\text{CL}_{\text{s}} = 1 - \text{CL}$$
+    *(Note: $\text{CL}_{\text{s}} = p_{\text{clsb}} / p_{\text{clb}}$, where $p_{\text{clsb}}$ is the p-value of the signal-plus-background hypothesis, and $p_{\text{clb}}$ is the p-value of the background-only hypothesis.)*
 * **Input Data/Model:** The method reconstructs the combined PDF and loss function using parameters from the initial best fit, then uses the `UpperLimit` class from `hepstats`.
 * **Output:** Returns the `UpperLimit` object and generates a plot showing the $\text{CL}_{\text{s}}$ scan.
+***(Visualization Note: This generates the standard limit plot showing the observed $\text{CL}_{\text{s}}$ curve, the expected median, and the $\pm 1\sigma$ and $\pm 2\sigma$ uncertainty bands.)***
 
 ---
 *The `plotlimit` function is included within the class definition, which renders the standard CLs plot showing the observed CLs curve, the expected median, and the $\pm 1\sigma$ and $\pm 2\sigma$ uncertainty bands.*
