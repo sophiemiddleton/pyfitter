@@ -41,7 +41,13 @@ $$\text{R}_{\mu \text{e}} \propto \frac{N_{\text{CE}}}{\text{Number of Stopped M
 
 $$\text{CL}_{\text{s}} = 1 - \text{CL}$$
 
-    *(Note: $\text{CL}_{\text{s}} = p_{\text{clsb}} / p_{\text{clb}}$, where $p_{\text{clsb}}$ is the p-value of the signal-plus-background hypothesis, and $p_{\text{clb}}$ is the p-value of the background-only hypothesis.)*
+
+Note: 
+
+$$\text{CL}_{\text{s}} = p_{\text{clsb}} / p_{\text{clb}}$$, 
+
+where $p_{\text{clsb}}$ is the p-value of the signal-plus-background hypothesis, and $p_{\text{clb}}$ is the p-value of the background-only hypothesis.)
+
 * **Input Data/Model:** The method reconstructs the combined PDF and loss function using parameters from the initial best fit, then uses the `UpperLimit` class from `hepstats`.
 * **Output:** Returns the `UpperLimit` object and generates a plot showing the $\text{CL}_{\text{s}}$ scan.
 ***(Visualization Note: This generates the standard limit plot showing the observed $\text{CL}_{\text{s}}$ curve, the expected median, and the $\pm 1\sigma$ and $\pm 2\sigma$ uncertainty bands.)***
