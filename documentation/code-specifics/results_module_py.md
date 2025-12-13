@@ -44,7 +44,7 @@ $$\text{CL}_{\text{s}} = 1 - \text{CL}$$
 
 Note: 
 
-$$\text{CL}_{\text{s}} = p_{\text{clsb}} / p_{\text{clb}}$$, 
+$$\text{CL}_{\text{s}} = p_{\text{clsb}} / p_{\text{clb}}$$
 
 where $p_{\text{clsb}}$ is the p-value of the signal-plus-background hypothesis, and $p_{\text{clb}}$ is the p-value of the background-only hypothesis.)
 
