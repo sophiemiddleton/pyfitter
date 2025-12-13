@@ -46,7 +46,7 @@ Calculates the number of events remaining after each cut in the sequence.
 * **`progressive=True` (Default):** Each cut is applied cumulatively on the results of all preceding cuts (sequential AND). This is the standard way to generate a cut flow table.
 * **`progressive=False`:** Each cut is applied independently to the initial data sample.
 * **The Masking Logic:** For track-level cuts (which operate on nested arrays of tracks per event), the final event count is determined using:
-    $$\text{Events Passing} = \sum_{\text{event}} \text{ak.any}(\text{current\_mask}_{\text{event}})$$
+    $$\text{Events Passing} = \sum_{\text{event}} \text{ak.any}(\text{current-mask}_{\text{event}})$$
     This counts an event as "passing" if **at least one track** survives the applied `current_mask`.
 * **Output:** Returns a list of dictionaries, where each dictionary contains the cut's name, description, event counts (`events_passing`), absolute efficiency, and relative efficiency.
 
