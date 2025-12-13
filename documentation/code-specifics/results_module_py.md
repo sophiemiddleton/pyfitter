@@ -41,7 +41,6 @@ $$\text{R}_{\mu \text{e}} \propto \frac{N_{\text{CE}}}{\text{Number of Stopped M
 
 $$\text{CL}_{\text{s}} = 1 - \text{CL}$$
 
-
 Note: 
 
 $$\text{CL}_{\text{s}} = p_{\text{clsb}} / p_{\text{clb}}$$

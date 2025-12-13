@@ -23,6 +23,9 @@ These modules are responsible for defining the specific components (PDFs) that m
 | [`timePDF_module.py`](code-specifics/TimePDF_module_py.md) | **Time PDF** | Defines the PDFs for the **reconstructed time** observable, accounting for time distribution differences between prompt and delayed components. |
 | [`mom_components.py`](code-specifics/dictionaries.md) | **Momentum PDF Definitions** | Contains the explicit mathematical implementations for momentum component shapes (e.g., Crystall Ball, Gaussian, Exponential functions) used by `momPDF_module.py`. |
 | [`time_components.py`](code-specifics/dictionaries.md) | **Time PDF Definitions** | Contains the explicit mathematical implementations for time component shapes (e.g., lifetime model, prompt beam shape) used by `timePDF_module.py`. |
+| [`res_components.py`](code-specifics/dictionaries.md) | **Detector Resolution Inputs** | Manages inputs related to the detector's finite resolution, which are crucial for modeling the observed PDFs accurately. |
+| [`sysunc_components.py`](code-specifics/dictionaries.md) | **Systematic Uncertainties** | Manages the constraints and parameters related to systematic uncertainties (nuisance parameters) that are included in the overall likelihood function. |
+| [`theo_components.py`](code-specifics/dictionaries.md) | **Theoretical Inputs** | Manages fixed or constrained parameters related to theoretical predictions (e.g., branching ratios, physics constants) used in the fit. |
 | `landau_pdf.py` | **Specific PDF** | contains the implementation for a non-standard landau for the energy loss of a particle |
 | `helper.py` | **General Utility Functions** | Contains miscellaneous functions used across multiple modules, such as common math operations, error handling, or simple data manipulation routines. |
 
@@ -33,9 +36,7 @@ These modules handle post-fit analysis, visualization, and the incorporation of 
 | File | Description | Role in Analysis |
 | :--- | :--- | :--- |
 | [`results_module.py`](code-specifics/results_module_py.md) | **Results Handler** | Processes the `zfit` `FitResult` object, calculates final yields and confidence intervals, and formats the output. |
-| `recoplot_module.py` | **Visualization** | Contains functions for generating plots of the fitted model overlayed on the data and various diagnostic plots. |
-| `res_components.py` | **Detector Resolution Inputs** | Manages inputs related to the detector's finite resolution, which are crucial for modeling the observed PDFs accurately. |
-| `sysunc_components.py` | **Systematic Uncertainties** | Manages the constraints and parameters related to systematic uncertainties (nuisance parameters) that are included in the overall likelihood function. |
-| `theo_components.py` | **Theoretical Inputs** | Manages fixed or constrained parameters related to theoretical predictions (e.g., branching ratios, physics constants) used in the fit. |
+| [`recoplot_module.py`](code-specifics/recoplot_module_py.md) | **Visualization** | Contains functions for generating plots of the fitted model overlayed on the data and various diagnostic plots. |
+
 
 
