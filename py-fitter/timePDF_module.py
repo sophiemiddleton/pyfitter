@@ -2,12 +2,13 @@ import numpy as np
 import tensorflow as tf
 import zfit
 
-default_model_params = {'muexp'   : {'decay_rate_mu'     : (-1/864, -1/10, -1/10005)},
-                        'piexp'   : {'decay_rate_pi'     : (-1/2100, -1/10, -1/10005)},
+default_model_params = {'muexp'   : {'decay_rate_mu'     : (-0.001157,-0.0015, -0.001)},
+                        'piexp'   : {'decay_rate_pi'     : (-0.03846, -0.04, -0.01)},
+                        'cosmicexp'   : {'decay_rate_cosmic'     : (-0.037, -0.04, -0.03)},
                         'uniform' : {}
                         }
                         
-default_norms = {'Cosmic' : 200, 'Pion' : 23, 'Muon' : 55600} #FIXME - should we make these relative?
+default_norms = {'Cosmic' : 35, 'RPC' : 39, 'Muon' : 55600} #FIXME - should we make these relative?
 
 
 def TimeModel(obs_time, params_tot, process, model, pardict, fit_range):
@@ -25,13 +26,14 @@ def TimeModel(obs_time, params_tot, process, model, pardict, fit_range):
       fit_range = min, max to fit over
       constraints= parameter specific constraints
     """
-    if pardict is not None and 'N' in pardict:
+    if isinstance(pardict,dict) and 'N' in pardict:
         N = zfit.Parameter('N_'+process, pardict['N'][0], pardict['N'][1], pardict['N'][2])
     elif process in list(default_norms.keys()):
         N = zfit.Parameter('N_'+process, default_norms[process], 0, 1e6)
     else:
         N = zfit.Parameter('N_'+process, 10,                     0, 1e6)
-
+    params_tot.append(N)
+    
     # Start with default parameters for model
     params = default_model_params[model]
 
@@ -49,6 +51,9 @@ def TimeModel(obs_time, params_tot, process, model, pardict, fit_range):
     elif model == "piexp":
       params_tot.append(N)
       PDF = zfit.pdf.Exponential(zpars['decay_rate_pi'], obs=obs_time, extended=N)
+    elif model == "cosmicexp":
+      params_tot.append(N)
+      PDF = zfit.pdf.Exponential(zpars['decay_rate_cosmic'], obs=obs_time, extended=N)
     elif model == "uniform":
       params_tot.append(N)
       PDF = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_time, extended=N)

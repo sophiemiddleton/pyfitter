@@ -8,35 +8,27 @@ time_components = {
     'Cosmic' : {'pdf' : 'uniform',
                 'pars' : None,
                 'startCode' : [None],
-                'genCode' : [44],
+                'genCode' : [44,38],
                 'lineColor' : 'm',
                 'lineStyle' : '-.',
                 'catColor' : 'violet'},
     
     
     
-    'CE'     : {'pdf' : 'muexp',
-                'pars' : {'decay_rate_mu'    : (-1/864, -1/10, -1/10005)},
-                'startCode' : [168],
+    'Muon'     : {'pdf' : 'muexp',
+                'pars' : {'decay_rate_mu'    : (-0.001157, -0.0015, -0.001)},
+                'startCode' : [168,166,170],
                 'genCode' : [None],
                 'lineColor' : 'b',
                 'lineStyle' : '--',
                 'catColor' : 'lightskyblue'},
+                  
                 
-      'DIO'     : {'pdf' : 'muexp',
-                'pars' : {'decay_rate_mu'    : (-1/864, -1/10, -1/10005)},
-                'startCode' : [166,170],
-                'genCode' : [None],
-                'lineColor' : 'b',
-                'lineStyle' : '--',
-                'catColor' : 'lightgreen'},
-                
-                
-      'Pion'    : {'pdf' : 'piexp',
-                'pars' : {'decay_rate_pi'    : (-1/26, -1/10, -1/10005)},
+      'RPC'    : {'pdf' : 'piexp',
+                'pars' : {'decay_rate_pi'    : (-0.03846,  -0.04, -0.01)},
                 'startCode' : [178,179],
                 'genCode' : [None],
-                'lineColor' : 'darkorange',
+                'lineColor' : 'black',
                 'lineStyle' : (0, (3, 5, 1, 5)),
-                'catColor' : 'orange'}
+                'catColor' : 'black'}
 }

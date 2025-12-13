@@ -8,12 +8,11 @@ import zfit
 
 from momPDF_module import MomModel, poly58
 from timePDF_module import TimeModel
-from recoplot_module import plotmom_fit, plot_time_fit
+from recoplot_module import plotmom_fit, plottime_fit, plotmom_fit_old, plot_variable
 from mom_components import mom_components
 from time_components import time_components
 
-def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, dio_efficiency = None,
-    dio_resolution = None):
+def Unbinned_fit_mom(mom_mag, track_cat,count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, dio_efficiency = None,dio_resolution = None, ):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
 
@@ -53,13 +52,15 @@ def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=F
         pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, pardict, treat_params, fit_range, constraints, dio_efficiency, dio_resolution)
         if 'nll' in mom_components[proc].keys():
             for nll_source in mom_components[proc]['nll']:
-                nlls.extend(nll_source.get_nll(pars))
+              nlls.extend(nll_source.get_nll(pars))
 
     # build combined PDF
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # Convert data to zfit Data
-    mom_np = ak.to_numpy(ak.flatten(mom_mag, axis=None))
+    mom_mag_skim = ak.nan_to_none(mom_mag)
+    mom_mag_skim = ak.drop_none(mom_mag_skim)
+    mom_np = ak.to_numpy(ak.flatten(mom_mag_skim, axis=None))
     mom_zfit = zfit.Data.from_numpy(array=mom_np, obs=obs_mom)
 
     if verbose > 0:
@@ -91,12 +92,58 @@ def Unbinned_fit_mom(mom_mag, track_cat, fit_range_low, fit_range_hi, plot_cat=F
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ plotting")
     print(pars)
    
-    plotmom_fit(mom_np,track_cat, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat) 
+    #plotmom_fit_old(mom_np,track_cat, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat) 
+    #plt.show()
+     
+    plotmom_fit(mom_mag,count_particle_types, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat)
     plt.show()
+    
+    plot_NLL = False
+    if plot_NLL:
+      # performs optional scan to draw NLL plot:
+      best_nll = result.fmin
+      print(f"Best fit nsig: {result.params[pars[1]]['value']:.2f}")
+      print(f"Minimum NLL: {best_nll:.2f}")
 
+      scan_range = np.linspace(0,float(pars[1].value())+float(pars[1].value())*0.5, 41)
+      nll_values = []
+
+      print("Starting NLL scan...")
+      # Loop over the scan range for the signal yield
+      for n in scan_range:
+          with pars[1].set_value(n):
+              pars[1].floating = False
+              
+              minimizer.minimize(loss )
+              nll_values.append(loss.value()) 
+              pars[1].floating = True
+
+      print("Scan complete...")
+
+      # find true number:
+      data_signal = mom_mag.mask[count_particle_types == 168]
+      data_signal = np.array(ak.flatten(data_signal, axis=None))
+      
+
+      delta_nll = np.array(nll_values) - best_nll
+      fig, ax = plt.subplots()
+      ax.plot(scan_range, delta_nll)
+      #ax.plot([len(data_signal),len(data_signal)], [min(delta_nll),max(delta_nll)], 'k--')
+      true_signal = len(data_signal)
+      ax.axvline(true_signal, color='red', linestyle='--', label=f'True $N_{{sig}}$: {true_signal:.1f}')
+      ax.legend()
+      ax.text(true_signal + 5, 4, f'True $N_{{sig}} = {true_signal:.1f}$',
+           verticalalignment='top', horizontalalignment='left', color='red')
+
+      ax.set_xlabel('$N_{sig}$')
+      ax.set_ylabel('$-2\Delta \ln(L)$')
+      ax.set_title('NLL Scan for $N_{sig}$')
+      ax.grid(True)
+      plt.show()
+    
     return result, pars[1], loss, nlls, combine_pdf, constraints
 
-def Unbinned_fit_time(times, track_cat, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
+def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
     """
     Configures and calls the unbinned maximum likelihood fit for time using zfit
 
@@ -130,11 +177,13 @@ def Unbinned_fit_time(times, track_cat, fit_range_low, fit_range_hi, plot_cat=Fa
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # Convert data to zfit Data
-    data_np = ak.to_numpy(ak.flatten(times, axis=None))
-    data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_time)
-
+    time_skim = ak.nan_to_none(times)
+    time_skim = ak.drop_none(time_skim)
+    time_np = ak.to_numpy(ak.flatten(time_skim, axis=None))
+    time_zfit = zfit.Data.from_numpy(array=time_np, obs=obs_time)
+    
     # Loss function and minimizer
-    loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)
+    loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=time_zfit)
     minimizer = zfit.minimize.Minuit()
     result = minimizer.minimize(loss, params=pars)
     if verbose > 0:
@@ -151,11 +200,11 @@ def Unbinned_fit_time(times, track_cat, fit_range_low, fit_range_hi, plot_cat=Fa
 
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_time] ✅ plotting")
-    plot_time_fit(data_np, track_cat, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in time_components.keys()], plot_cat)
+    plottime_fit(times, count_particle_types, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in time_components.keys()], True)
     plt.show()
     return result, pars[1], loss, combine_pdf
 
-def Unbinned_2d_fit_mom_time(data, track_cat, fit_range_mom, fit_range_time, plot_cat=False, verbose=0): #FIXME - the following code is not optimal, needs upgrading to new interface
+def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, fit_range_mom, fit_range_time, plot_cat=False, verbose=0, dio_efficiency = None, dio_resolution = None):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum and time using zfit
 
@@ -176,52 +225,57 @@ def Unbinned_2d_fit_mom_time(data, track_cat, fit_range_mom, fit_range_time, plo
     obs_time = zfit.Space('time', limits=fit_range_time)
     obs_2D = obs_mom * obs_time
 
-    # time PDF components
-    pars_time = []
-    pdfs_time = {}
-    norms_time = {}
+    mompars = []
+    mompdfs = {}
+    timepars = []
+    timepdfs = {}
+    norms = {}
+    constraints = []
+    nlls = []
     
-    pars_mom = []
-    pdfs_mom = {}
-    norms_mom = {}
-    constraints_mom = []
-    nlls_mom = []
-    
-    #loop over time components
-    for proc_time in time_components:
-        pdf_time = time_components[proc_time]['pdf']
-        pardict_time = time_components[proc_time]['pars']
-        pdfs_time[proc_time], norms_time[proc_time] = TimeModel(obs_time, pars_time, proc_time, pdf_time, pardict_time, fit_range_time)
     
     # loop over mom components
-    for proc_mom in mom_components:
-        pdf_mom = mom_components[proc_mom]['pdf']
-        pardict_mom = mom_components[proc_mom]['pars']
-        treat_params_mom = mom_components[proc_mom]['treat_params']
-        pdfs_mom[proc_mom], norms[proc_mom] = MomModel(obs_mom, pars_mom, proc_mom, pdf_mom, pardict_mom, treat_params_mom, fit_range_mom, constraints_mom, dio_efficiency, dio_resolution)
-        if 'nll' in mom_components[proc_mom].keys():
-            nlls_mom.extend(mom_components[proc_mom]['nll'].get_nll(pars_mom))
+    for proc in mom_components:
+        mompdf = mom_components[proc]['pdf']
+        pardict = (mom_components[proc]['pars'])
+        treat_params = mom_components[proc]['treat_params']
+        timepdf = mom_components[proc]['timepdf']
 
-    # Combined PDFs
-    N_CE = zfit.Parameter('N_CE', 34.069, 0, 1e6)
-    combine_CE_pdf = zfit.pdf.ProductPDF([CE, exp_t], extended=N_CE)
+        pdfs[proc], norms[proc] = MomTimeModel(obs_mom, obs_time, mompars,timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints, dio_efficiency, dio_resolution)
+        if 'nll' in mom_components[proc].keys():
+            nlls.extend(mom_components[proc]['nll'].get_nll(pars))
 
-    combine_pdf = zfit.pdf.SumPDF([combine_CE_pdf, combine_DIO_pdf, combine_RPC_pdf, combine_cosmic_pdf])
-    list_pdfs = [('CE', CE, N_CE), ('DIO', DIO, N_DIO), ('RPC', RPC, N_RPC),('cosmic', cosmic, N_cosmic)]
-
+    
+    combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
     # Convert data to zfit Data
-    data_np_mom = ak.to_numpy(ak.flatten(data['trkfit']['trksegs']['mom.mag'], axis=None))
-    data_np_time = ak.to_numpy(ak.flatten(data['trkfit']['trksegs']['time'], axis=None))
+    data_np_time = ak.to_numpy(ak.flatten(times, axis=None))
+    data_np_mom = ak.to_numpy(ak.flatten(mom_mag, axis=None))
     data_zfit = zfit.Data.from_numpy(array=np.column_stack((data_np_mom, data_np_time)), obs=obs_2D)
 
     # Loss function and minimizer
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)
     minimizer = zfit.minimize.Minuit()
+    result = minimizer.minimize(loss, params=pars)
+    
+    if verbose > 0:
+      print("[py-fitter/fit_module/Unbinned_fit_time] ✅ finished minimizing")
+    try:
+        param_errors, _ = result.errors(method='minuit_minos')
+    except:
+        print('[py-fitter/fit_module] ❌ WARNING! Invalid fit, postfit parameters may not be optimal')
+    if result.valid == True:
+      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ fit is valid")
+    else:
+      print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
+    # Plot after fit
 
-    result = minimizer.minimize(loss, params=[mu, sigma, alphal, nl, alphar, nr, N_CE, N_DIO, decay_rate, N_cosmic, mu_RPC, sigma_RPC, N_RPC])
-    # the null hypothesis
-
-    param_errors, _ = result.errors(method='minuit_minos')
-    #result.hesse(method='minuit_hesse', name='Hesse')
-
-    return result
+    if verbose > 0:
+      print("[py-fitter/fit_module/Unbinned_fit_time] ✅ plotting")
+      
+    # plot time fit
+    plottime_fit(times, count_particle_types, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in time_components.keys()], True)
+    
+    # plot mom fit
+    plotmom_fit(data_zfit,track_cat, fit_range_mom, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat) 
+    plt.show()
+    return result, pars[1], loss, combine_pdf
