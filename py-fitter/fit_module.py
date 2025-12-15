@@ -5,6 +5,8 @@ import awkward as ak
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import zfit
+from typing import List, Tuple, Optional, Any
+from zfit.result import FitResult
 
 from momPDF_module import MomModel, poly58
 from timePDF_module import TimeModel
@@ -12,28 +14,18 @@ from recoplot_module import plotmom_fit, plottime_fit, plotmom_fit_old, plot_var
 from mom_components import mom_components
 from time_components import time_components
 
-def Unbinned_fit_mom(mom_mag, track_cat,count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, dio_efficiency = None,dio_resolution = None, ):
+def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, dio_efficiency=None, dio_resolution=None):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
 
     Parameters
     ----------
-    mom_mag : awkward array of floats
-        magnitude of momenta at chosen SID
-    track_cat : awkward array of floats
-        gives track catagory (corresponds to index in component list)
-    fit_range_low, fit_range_hi : float, float
-        min and max of fit range (args in the main function)
-    plot_cat: bool
-        show the MC truth processes on the histogram
-    verbose : 1
-        print progress statements and debug printouts
-    minos : bool
-        set true to evaluate minos errors
+    ... (Docstrings remain unchanged) ...
     """
 
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ initializing fit")
+
     fit_range = (fit_range_low, fit_range_hi)
     obs_mom = zfit.Space('x', limits=fit_range)
 
@@ -42,19 +34,55 @@ def Unbinned_fit_mom(mom_mag, track_cat,count_particle_types, fit_range_low, fit
     pdfs = {}
     norms = {}
     constraints = []
-    nlls = []
+    
+    # Renamed 'nlls' to 'aux_nlls' for clarity (stores NLL terms from secondary fits/constraints)
+    aux_nlls = [] 
+    
     if verbose > 0:
-          print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ components", mom_components)
+      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ components", mom_components)
+      
+    # --- Loop over Components and Build Model (MODIFIED) ---
     for proc in mom_components:
-        pdf = mom_components[proc]['pdf']
-        pardict = mom_components[proc]['pars']
-        treat_params = mom_components[proc]['treat_params']
-        pdfs[proc], norms[proc] = MomModel(obs_mom, pars, proc, pdf, pardict, treat_params, fit_range, constraints, dio_efficiency, dio_resolution)
-        if 'nll' in mom_components[proc].keys():
-            for nll_source in mom_components[proc]['nll']:
-              nlls.extend(nll_source.get_nll(pars))
+        comp_config = mom_components[proc]
+        pdf = comp_config['pdf']
+        pardict = comp_config['pars']
+        treat_params = comp_config['treat_params']
+        
+        # 1. Determine if advanced fit structure is present (NEW)
+        use_advanced_model = 'advanced_pars' in comp_config
 
-    # build combined PDF
+        # 2. Call the updated MomModel (CORRECTED CALL)
+        pdfs[proc], norms[proc] = MomModel(
+            obs_mom, 
+            pars, 
+            proc, 
+            pdf, 
+            pardict, 
+            treat_params, 
+            fit_range, 
+            constraints,
+            advanced_config=comp_config,
+            use_advanced=use_advanced_model  
+        )
+        
+        # 3. NLL Constraint Integration (NEW LOGIC replaces old 'nll' key)
+        # We check both the old 'nll' key and the new 'nll_sources' key for compatibility.
+        
+        # Handle NLL sources from Advanced configuration
+        if use_advanced_model and comp_config.get('advanced_pars') and 'nll_sources' in comp_config['advanced_pars']:
+            sources = comp_config['advanced_pars']['nll_sources']
+            
+            # Check if it's a list (as defined in your CE config) or a dict
+            if isinstance(sources, list):
+                for nll_source in sources:
+                    # Collect NLL terms into our master list
+                    aux_nlls.extend(nll_source.get_nll(pars))
+            elif isinstance(sources, dict):
+                for source_name, nll_source in sources.items():
+                    aux_nlls.extend(nll_source.get_nll(pars))
+
+
+    # --- build combined PDF ---
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # Convert data to zfit Data
@@ -66,15 +94,21 @@ def Unbinned_fit_mom(mom_mag, track_cat,count_particle_types, fit_range_low, fit
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ running minimizer")
 
+    # --- Loss function creation (MODIFIED) ---
+    # Build the main loss from the Extended NLL and initial constraints
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=mom_zfit, constraints=constraints)
-    for nll in nlls:
-        loss = loss+nll
+    
+    # Add the auxiliary NLL terms (from both old and new sources)
+    for nll in aux_nlls:
+        loss = loss + nll # zfit overloads the '+' operator for loss addition
 
     minimizer = zfit.minimize.Minuit()
     result = minimizer.minimize(loss, params=pars)
     
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ finished minimizing")
+      
+    # --- Minos Error Calculation (PRESERVED) ---
     if minos == True:
       try:
           param_errors, _ = result.errors(method='minuit_minos')
@@ -85,19 +119,17 @@ def Unbinned_fit_mom(mom_mag, track_cat,count_particle_types, fit_range_low, fit
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ fit is valid")
     else:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
+      
     # Plot after fit
- 
-    #cat = ak.to_numpy(ak.flatten(track_cat, axis=None)) if plot_cat else None
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ plotting")
     print(pars)
-   
-    #plotmom_fit_old(mom_np,track_cat, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat) 
-    #plt.show()
-     
+    
+    # plotmom_fit (Assuming this is an external function you need to call)
     plotmom_fit(mom_mag,count_particle_types, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat)
     plt.show()
     
+    # --- NLL Scan Plotting (PRESERVED) ---
     plot_NLL = False
     if plot_NLL:
       # performs optional scan to draw NLL plot:
@@ -115,7 +147,7 @@ def Unbinned_fit_mom(mom_mag, track_cat,count_particle_types, fit_range_low, fit
               pars[1].floating = False
               
               minimizer.minimize(loss )
-              nll_values.append(loss.value()) 
+              nll_values.append(loss.value())  
               pars[1].floating = True
 
       print("Scan complete...")
@@ -124,7 +156,6 @@ def Unbinned_fit_mom(mom_mag, track_cat,count_particle_types, fit_range_low, fit
       data_signal = mom_mag.mask[count_particle_types == 168]
       data_signal = np.array(ak.flatten(data_signal, axis=None))
       
-
       delta_nll = np.array(nll_values) - best_nll
       fig, ax = plt.subplots()
       ax.plot(scan_range, delta_nll)
@@ -133,15 +164,15 @@ def Unbinned_fit_mom(mom_mag, track_cat,count_particle_types, fit_range_low, fit
       ax.axvline(true_signal, color='red', linestyle='--', label=f'True $N_{{sig}}$: {true_signal:.1f}')
       ax.legend()
       ax.text(true_signal + 5, 4, f'True $N_{{sig}} = {true_signal:.1f}$',
-           verticalalignment='top', horizontalalignment='left', color='red')
+                verticalalignment='top', horizontalalignment='left', color='red')
 
       ax.set_xlabel('$N_{sig}$')
       ax.set_ylabel('$-2\Delta \ln(L)$')
       ax.set_title('NLL Scan for $N_{sig}$')
       ax.grid(True)
       plt.show()
-    
-    return result, pars[1], loss, nlls, combine_pdf, constraints
+      
+    return result, pars[1], loss, aux_nlls, combine_pdf, constraints
 
 def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
     """

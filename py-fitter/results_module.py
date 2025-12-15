@@ -11,7 +11,6 @@ from hepstats.hypotests import Discovery
 from hepstats.hypotests import UpperLimit
 from hepstats.hypotests.parameters import POIarray
 from hepstats.hypotests import ConfidenceInterval
-from utils import plotfitresult, plotlimit, pltdist
 
 class ResultsClass:
   """Class to interpret results: provide discovery tests and limits, print to BAT.jl readable file etc.
