@@ -21,8 +21,8 @@ lineshapes_in_CE_BASE = {
     'eff': EFFICIENCY_PATH
 }
 
-
-# Load the data required for the resolution/loss likelihood terms
+#------------ For a simultaneous fit ------------------#
+# Load the data required for the resolution/loss likelihood terms (for simultaneous fit)
 dict_flat = pkl.load(open('../common/skimmed_flat_mom_v2.pkl','rb'))
 
 # Pass the tuple (gen, mc) to simul_source so get_nll() can unpack it
@@ -40,10 +40,20 @@ flat_loss = res_components(
     simul_source = (dict_flat['entrance']['mc'], dict_flat['entrance']['reco'])
 )
 
+#------------ For a fixed input fit ------------------#
+# No simul_source provided -> get_nll() will be skipped by fit_module
+flat_res_fixed  = res_components(params = '../common/fitpars_flat_res_entrance_gcb.pkl', 
+                           res_type = 'res',  pdf = 'gcb')
+flat_loss_fixed = res_components(
+    params = '../common/fitpars_flat_loss_entrance_landau_unbinned.pkl',
+    res_type = 'loss', 
+    pdf = 'landau')
+    
 fitpars_in = {
     'res': {'params': flat_res.get_params()}, 
     'loss': {'params': flat_loss.get_params()}
 }
+########################################################
 
 # Generate structured pars and merge convolution objects
 theo_exp_pars = gen_theo_exp(fitpars_in, lineshapes_in_CE_BASE) 
@@ -63,7 +73,7 @@ theo_exp_pars.update({
 # --- Component Dictionary ---
 mom_components = {
 
-    'Cosmic' : {'pdf' : 'uniform',
+    'Cosmic' : {'pdf' : 'uniform', # Default: no assumptions of res+eff+loss yet
                 'pars' : None,
                 'treat_params' : 'float',
                 'startCode' : [None],
@@ -107,7 +117,7 @@ mom_components = {
     },
     
     'RPC': { # Radiative Pion Background (Internal + External)
-        'pdf': 'Gauss',
+        'pdf': 'Gauss', # <-- Default: assumes res+eff+loss already
         'pars': {'mu': (100, 98, 102), 'sigma': (11, 5, 25)},
         'treat_params': 'float',
         'startCode': [178, 179],

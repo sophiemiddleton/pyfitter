@@ -54,6 +54,10 @@ class res_components:
         """
         Get the nll associated with resolution
         """
+       
+        if self.simul_source is None:
+            return []
+        
         nlls = []
         plane = 'entrance' # TODO this should be dynamic, match sid in cut_module.py. Flag when calling main.py?
         true_mom, reco_mom = self.simul_source

@@ -14,7 +14,7 @@ from recoplot_module import plotmom_fit, plottime_fit, plotmom_fit_old, plot_var
 from mom_components import mom_components
 from time_components import time_components
 
-def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, dio_efficiency=None, dio_resolution=None):
+def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, dio_efficiency=None, dio_resolution=None, plot_NLL= False):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
 
@@ -65,22 +65,23 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
             use_advanced=use_advanced_model  
         )
         
-        # 3. NLL Constraint Integration (NEW LOGIC replaces old 'nll' key)
-        # We check both the old 'nll' key and the new 'nll_sources' key for compatibility.
-        
-        # Handle NLL sources from Advanced configuration
-        if use_advanced_model and comp_config.get('advanced_pars') and 'nll_sources' in comp_config['advanced_pars']:
+        if use_advanced_model  and comp_config.get('advanced_pars') and 'nll_sources' in comp_config['advanced_pars']:
             sources = comp_config['advanced_pars']['nll_sources']
+            if not isinstance(sources, list): 
+                sources = [sources]
             
-            # Check if it's a list (as defined in your CE config) or a dict
-            if isinstance(sources, list):
-                for nll_source in sources:
-                    # Collect NLL terms into our master list
+            for nll_source in sources:
+                # Use getattr to safely check for 'simul_source' without crashing
+                sim_data = getattr(nll_source, 'simul_source', None)
+                
+                if sim_data is not None:
+                    if verbose > 0:
+                        print(f"[py-fitter] 🔗 Activating simultaneous fit for: {proc}")
+                    # Only call get_nll if data is actually present to unpack
                     aux_nlls.extend(nll_source.get_nll(pars))
-            elif isinstance(sources, dict):
-                for source_name, nll_source in sources.items():
-                    aux_nlls.extend(nll_source.get_nll(pars))
-
+                else:
+                    if verbose > 0:
+                        print(f"[py-fitter] 📌 Using fixed resolution/loss for: {proc}")
 
     # --- build combined PDF ---
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
@@ -130,7 +131,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     plt.show()
     
     # --- NLL Scan Plotting (PRESERVED) ---
-    plot_NLL = False
+    #plot_NLL = False
     if plot_NLL:
       # performs optional scan to draw NLL plot:
       best_nll = result.fmin

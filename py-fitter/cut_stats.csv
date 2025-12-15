@@ -1,12 +1,12 @@
 Cut,Active,Events Passing,Absolute Frac. [%],Relative Frac. [%],Description
-No cuts,N/A,214795,100.00,100.00,No selection applied
-is_reco_electron,True,204929,95.41,95.41,Tracks are assumed to be electrons (trk)
-has_downstream,True,136455,63.53,66.59,Downstream tracks (p_z > 0 through tracker)
-good_trkqual,True,75513,35.16,55.34,Track quality (quality > 0.2)
-has_hits,True,74608,34.73,98.80,Minimum of 20 active hits in the tracker
-within_t0,True,70215,32.69,94.11,t0 at tracker ent (475 < t_0 < 1650 ns)
-within_t0err,True,61874,28.81,88.12,t0err < 0.9
-no_crv_veto,True,18389,8.56,29.72,No crv-trk veto: |dt| >= 150 ns
-has_st,True,13471,6.27,73.26,has Nst > 0
-no_opa,True,13468,6.27,99.98,has N_opa == 0
-in_mom_range,True,4273,1.99,31.73,95< mom < 110
+No cuts,N/A,43744,100.00,100.00,No selection applied
+is_reco_electron,True,41732,95.40,95.40,Tracks are assumed to be electrons (trk)
+has_downstream,True,27618,63.14,66.18,Downstream tracks (p_z > 0 through tracker)
+good_trkqual,True,15146,34.62,54.84,Track quality (quality > 0.2)
+has_hits,True,14989,34.27,98.96,Minimum of 20 active hits in the tracker
+within_t0,True,14060,32.14,93.80,t0 at tracker ent (475 < t_0 < 1650 ns)
+within_t0err,True,12412,28.37,88.28,t0err < 0.9
+no_crv_veto,True,3634,8.31,29.28,No crv-trk veto: |dt| >= 150 ns
+has_st,True,2620,5.99,72.10,has Nst > 0
+no_opa,True,2619,5.99,99.96,has N_opa == 0
+in_mom_range,True,772,1.76,29.48,95< mom < 110
