@@ -16,11 +16,23 @@ from time_components import time_components
 
 def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, dio_efficiency=None, dio_resolution=None, plot_NLL= False):
     """
+    ----------
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
 
     Parameters
     ----------
-    ... (Docstrings remain unchanged) ...
+    mom_mag : awkward array of floats
+        magnitude of momenta at chosen SID
+    track_cat : awkward array of floats
+        gives track catagory (corresponds to index in component list)
+    fit_range_low, fit_range_hi : float, float
+        min and max of fit range (args in the main function)
+    plot_cat: bool
+        show the MC truth processes on the histogram
+    verbose : 1
+        print progress statements and debug printouts
+    minos : bool
+        set true to evaluate minos errors
     """
 
     if verbose > 0:
@@ -41,17 +53,17 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ components", mom_components)
       
-    # --- Loop over Components and Build Model (MODIFIED) ---
+    # --- Loop over Components and Build Model ---
     for proc in mom_components:
         comp_config = mom_components[proc]
         pdf = comp_config['pdf']
         pardict = comp_config['pars']
         treat_params = comp_config['treat_params']
         
-        # 1. Determine if advanced fit structure is present (NEW)
+        # Determine if advanced fit structure is present
         use_advanced_model = 'advanced_pars' in comp_config
 
-        # 2. Call the updated MomModel (CORRECTED CALL)
+        # Call the updated MomModel
         pdfs[proc], norms[proc] = MomModel(
             obs_mom, 
             pars, 
@@ -99,7 +111,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     # Build the main loss from the Extended NLL and initial constraints
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=mom_zfit, constraints=constraints)
     
-    # Add the auxiliary NLL terms (from both old and new sources)
+    # Add the auxiliary NLL terms 
     for nll in aux_nlls:
         loss = loss + nll # zfit overloads the '+' operator for loss addition
 
@@ -109,7 +121,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ finished minimizing")
       
-    # --- Minos Error Calculation (PRESERVED) ---
+    # --- Minos Error Calculation  ---
     if minos == True:
       try:
           param_errors, _ = result.errors(method='minuit_minos')
@@ -130,8 +142,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     plotmom_fit(mom_mag,count_particle_types, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat)
     plt.show()
     
-    # --- NLL Scan Plotting (PRESERVED) ---
-    #plot_NLL = False
+    # --- NLL Scan Plotting  ---
     if plot_NLL:
       # performs optional scan to draw NLL plot:
       best_nll = result.fmin
@@ -153,7 +164,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
 
       print("Scan complete...")
 
-      # find true number:
+      # Find true number:
       data_signal = mom_mag.mask[count_particle_types == 168]
       data_signal = np.array(ak.flatten(data_signal, axis=None))
       
