@@ -37,25 +37,58 @@ class trunc_landau(zfit.pdf.ZPDF):
          [1., 3.01847536766892219351e-1, 3.63152433272831196527e-2, 2.20938897517130866817e-3, 7.05424834024833384294e-5, 1.09010608366510938768e-6, 6.08711307451776092405e-9],
          [1., 1.23722380864018634550e-1, 6.05800403141772433527e-3, 1.47809654123655473551e-4, 1.84909364620926802201e-6, 1.08158235309005492372e-8, 2.16335841791921214702e-11]
          ]
-    
+
     def polyval(self, p, t):
-        tot = p[-1]*tf.ones_like(t)
-        for i in range(len(p)-1):
-            tot = tot*t + p[-2-i]
-        return tot
+      """
+      Evaluates a polynomial using Horner's Method for numerical stability 
+      and computational efficiency.
+      - p: list of coefficients
+      - t: variable (tensor)
+      """
+      # Initialize with the highest degree coefficient
+      tot = p[-1] * tf.ones_like(t)
+      
+      # Iterate backwards through coefficients: p[n-1] + t*(p[n])
+      for i in range(len(p) - 1):
+          tot = tot * t + p[-2 - i]
+      return tot
     
     def _unnormalized_pdf(self, x):
-        x = zfit.z.unstack_x(x)
-        loc   = self.params['loc']
-        scale = self.params['scale']
-        y = (loc-x)/scale
-        result = tf.zeros_like(y)
+      """
+      Core logic for the truncated Landau PDF implementation.
+      Uses piecewise polynomial approximations across 11 defined boundary segments.
+      """
+      LOG_PI_FACTOR = -1.45158270528945486473
+      x = zfit.z.unstack_x(x)
+      loc = self.params['loc']
+      scale = self.params['scale']
+      
+      # Standardize the variable
+      y = (loc - x) / scale
+      result = tf.zeros_like(y)
 
-        for i in range(11):
-            t = self.bounds[i+1]-y if i < 2 else y-self.bounds[i]
-            sigma = tf.exp(-y * math.pi / 2 - 1.45158270528945486473)
-            s = tf.math.exp(-sigma)*tf.math.sqrt(sigma) if i < 2 else 1.
-            result = result + s * tf.where(((y >= self.bounds[i]) & (y < self.bounds[i+1])), self.polyval(p=self.P[i], t=t) / self.polyval(p=self.Q[i], t=t), 0)
-            
-        return result
+      # Iterate through the 11 polynomial segments
+      for i in range(11):
+          # 1. Calculate the local variable 't' for the current segment
+          # Segments 0-1 are lead-in; 2-10 are the main distribution
+          t = self.bounds[i + 1] - y if i < 2 else y - self.bounds[i]
+
+          # 2. Calculate the exponential suppression factors for the tails
+          # sigma = exp(-y * pi / 2 - constant)
+          sigma = tf.exp(-y * math.pi / 2.0 + LOG_PI_FACTOR)
+          
+          # Apply lead-in suppression for the first two segments (i < 2)
+          s = tf.math.exp(-sigma) * tf.math.sqrt(sigma) if i < 2 else 1.0
+
+          # 3. Calculate rational polynomial segment: P(t) / Q(t)
+          poly_ratio = self.polyval(p=self.P[i], t=t) / self.polyval(p=self.Q[i], t=t)
+
+          # 4. Check if 'y' falls within the current segment bounds
+          is_in_segment = (y >= self.bounds[i]) & (y < self.bounds[i + 1])
+
+          # 5. Accumulate the result using conditional masking
+          segment_contribution = s * poly_ratio
+          result = result + tf.where(is_in_segment, segment_contribution, 0.0)
+
+      return result
 
