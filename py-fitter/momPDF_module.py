@@ -57,7 +57,7 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
     Builds momentum fit model with a toggle for Advanced Configuration
     """
     
-    # 1. Handle the Normalization (N)
+    # Handle the Normalization (N)
     if isinstance(pardict, dict) and 'N' in pardict:
         N = zfit.Parameter('N_'+process, pardict['N'][0], pardict['N'][1], pardict['N'][2])
     elif process in default_norms:
@@ -66,7 +66,7 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
         N = zfit.Parameter('N_'+process, 10, 0, 1e6)
     params_tot.append(N)
 
-    # 2. Branching Logic: Advanced Model (Theo_Exp) vs Simple Model (DSCB/Gauss)
+    # Branching Logic: Advanced Model (Theo_Exp) vs Simple Model (DSCB/Gauss)
     if use_advanced and advanced_config:
         # --- ADVANCED PATH ---
         adv_model = advanced_config.get('pdf_theo')
@@ -101,7 +101,7 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
             PDF.set_yield(N)
             return PDF, N
 
-    # --- SIMPLE PATH (Your original logic) ---
+    # --- SIMPLE PATH  ---
     params = default_model_params.get(model, {}).copy()
     if pardict is not None:
         for par in pardict.keys(): 
