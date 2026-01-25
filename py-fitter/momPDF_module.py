@@ -51,8 +51,7 @@ default_model_params = {
 
 default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 200, 'RPC' : 1}
 
-def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_range, constraints, 
-             dio_efficiency=None, dio_resolution=None, advanced_config=None, use_advanced=False):
+def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_range, constraints, advanced_config=None, use_advanced=False):
     """
     Builds momentum fit model with a toggle for Advanced Configuration
     """

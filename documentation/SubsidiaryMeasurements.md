@@ -1,4 +1,4 @@
-# 🚀 Momentum Fit Framework Documentation (2025)
+# 🚀 Full Fit Framework with Subsidiary Measurement Defintions
 
 ## 1. Core Architecture Overview
 The codebase is structured to allow a **Simple Baseline Fit** (fast, standard shapes) and an **Advanced Physics Fit** (computationally intensive, convolution-based) to coexist in the same dictionary.
@@ -142,8 +142,8 @@ These describe the Landau distribution of energy lost by the electron as it trav
 | `N_` | 	Yield (Number of events)	| N_CE |
 | `mu_` |	Mean / Peak Position |	`mu_CE`|
 |`sigma_`|	Core Width	| `sigma_CE`|
-|`loc_`	Landau Peak (Most Probable)|	`loc0_loss` |
-|`scale_`	Landau Width	|`scale0_loss` |
+|`loc_`	|Landau Peak (Most Probable)|	`loc0_loss` |
+|`scale_`|	Landau Width	|`scale0_loss` |
 | `0, 1, 2, 3, 4`|	Momentum Bin Index	|`mu2_res` |
 | `_res`	|Experimental Resolution |	`alphaL0_res` |
 | `_loss`	|Energy Loss Component |	`scale3_loss` |
