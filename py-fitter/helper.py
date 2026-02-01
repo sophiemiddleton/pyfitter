@@ -5,6 +5,13 @@ import numpy as np
 import tensorflow as tf
 import pickle as pkl
 from landau_pdf import trunc_landau
+from pyutils.pylogger import Logger
+
+# Module-level logger
+try:
+    logger = Logger(print_prefix='[helper] ', verbosity=2)
+except Exception:
+    logger = None
 
 # =============================================================================
 # Helper Module for Theoretical and Experimental PDF Generation
@@ -23,7 +30,10 @@ def load_lineshape(lineshape_in, name, binedges=None):
         if lineshape_in.endswith('.pkl'):
             with open(lineshape_in, 'rb') as f:
                 lineshape = pkl.load(f)
-            print(f'Loaded lineshape for {name} as pickle!')
+            if logger:
+                logger.log(f'Loaded lineshape for {name} as pickle!', 'info')
+            else:
+                print(f'Loaded lineshape for {name} as pickle!')
             
             if isinstance(lineshape, tuple):
                 return lineshape
@@ -41,7 +51,10 @@ def load_lineshape(lineshape_in, name, binedges=None):
                     cents.append(float(parts[0]))
                     vals.append(float(parts[1]))
             
-            print(f'Loaded lineshape for {name} as .txt/tbl file!')
+            if logger:
+                logger.log(f'Loaded lineshape for {name} as .txt/tbl file!', 'info')
+            else:
+                print(f'Loaded lineshape for {name} as .txt/tbl file!')
             
             # Calculate bin edges from centers
             cents = np.array(cents)
@@ -93,7 +106,10 @@ def gen_theo_exp(fitpars_in, lineshapes_in) -> dict:
         edges = e_all
     
     else:
-        print("Error: Unsupported lineshape combination. Exiting...")
+        if logger:
+            logger.log('Unsupported lineshape combination', 'error')
+        else:
+            print("Error: Unsupported lineshape combination. Exiting...")
         exit()
 
     # Consolidate experimental parameters and info dictionary
@@ -190,7 +206,10 @@ def doConv(true_pdf, obs_gen, obs_res, name, info, zpars):
                                              nl=zpars[f'nL{ip}_{name}'], 
                                              nr=zpars[f'nR{ip}_{name}'])
         else:
-            print(f'ERROR: {pdf_type} is not supported for experimental effects. Exiting...')
+            if logger:
+                logger.log(f'ERROR: {pdf_type} is not supported for experimental effects.', 'error')
+            else:
+                print(f'ERROR: {pdf_type} is not supported for experimental effects. Exiting...')
             exit()
 
         # Perform FFT Convolution

@@ -4,6 +4,8 @@ import csv
 import pickle
 import zfit
 import matplotlib.pyplot as plt
+import traceback
+from pyutils.pylogger import Logger
 from hepstats.hypotests.parameters import POI
 from hepstats.hypotests.calculators import AsymptoticCalculator
 from hepstats.hypotests.calculators import FrequentistCalculator
@@ -32,6 +34,10 @@ class ResultsClass:
         self.rmue = 0
         self.pvalue = 0
         self.sigma = 0
+        try:
+          self.logger = Logger(print_prefix="[Results] ", verbosity=self.verbose)
+        except Exception:
+          self.logger = None
         
   def CalculateRmue(self, n_ce, n_dio):#FIXME requires work
     """ we need to understand how to normalize our signal note: use asym option for quick fit"""
@@ -195,24 +201,39 @@ class ResultsClass:
       calculator = AsymptoticCalculator(input=self.result, minimizer=minimizer) # asimov_bins=100
 
     else:
-      print('[py-fitter/results_module/GetSignificance] ❌ ERROR! Invalid calculator chosen')
+      if self.logger:
+        self.logger.log('Invalid calculator chosen', 'error')
+      else:
+        print('[py-fitter/results_module/GetSignificance] ❌ ERROR! Invalid calculator chosen')
+      return
       return
     
     #calculate significance
     if self.verbose > 0:
-      print('[py-fitter/results_module/GetSignificance] ✅  calculating significance')
-      print('[py-fitter/results_module/GetSignificance] ❌ CHECK: if signficance is inf this means that the numerical precision is not high enough or that the number of toys is not large enough. For example if all toys are rejected, the result is (0.0, inf)')
+      if self.logger:
+        self.logger.log('Calculating significance', 'info')
+        self.logger.log('If significance is inf this means numerical precision or too few toys', 'info')
+      else:
+        print('[py-fitter/results_module/GetSignificance] ✅  calculating significance')
+        print('[py-fitter/results_module/GetSignificance] ❌ CHECK: if signficance is inf this means that the numerical precision is not high enough or that the number of toys is not large enough. For example if all toys are rejected, the result is (0.0, inf)')
     discovery = Discovery(calculator=calculator, poinull=sig_yield_poi)
     significance = discovery.result()
 
     if self.verbose > 0:
-      print('[py-fitter/results_module/GetSignificance] ✅  result signal significance', significance)
-      
+      if self.logger:
+        self.logger.log(f'Result signal significance: {significance}', 'info')
+      else:
+        print('[py-fitter/results_module/GetSignificance] ✅  result signal significance', significance)
+    
     self.pvalue = significance[0]
     self.sigma = significance[1]
     if self.verbose > 0:
-      print("p-value", self.pvalue)
-      print(self.sigma,"sigma")
+      if self.logger:
+        self.logger.log(f'p-value: {self.pvalue}', 'info')
+        self.logger.log(f'{self.sigma} sigma', 'info')
+      else:
+        print("p-value", self.pvalue)
+        print(self.sigma,"sigma")
     
     return significance
 
@@ -235,8 +256,8 @@ class ResultsClass:
     zfit.param.set_values(loss.get_params(), self.result)
 
     # Creates a sampler that will draw events from the model
-    if self.verbose > 0:
-      print("[py-fitter/fit_module/GetUL] ✅ creating sampler")
+    if self.verbose > 0 and self.logger:
+      self.logger.log('Creating sampler', 'info')
     sampler = combine_pdf.create_sampler()
 
     # Creates new loss
@@ -250,7 +271,10 @@ class ResultsClass:
 
     # Samples with sig_yield. Since the model is extended the number of signal generated is drawn from a poisson distribution with lambda = sig_yield.
     if self.verbose > 0:
-      print(f'[py-fitter/results_module/GetUL] ✅ resampling with N_CE = {sig_yield} as mean')
+      if self.logger:
+        self.logger.log(f'Resampling with N_CE = {sig_yield} as mean', 'info')
+      else:
+        print(f'[py-fitter/results_module/GetUL] ✅ resampling with N_CE = {sig_yield} as mean')
     sampler.resample({par: sig_yield})
 
     if opt == 'asym':
@@ -259,17 +283,31 @@ class ResultsClass:
       calculator_low_sig = FrequentistCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer, ntoysnull=1000,ntoysalt=1000)
       # see https://github.com/scikit-hep/hepstats/blob/main/src/hepstats/hypotests/calculators/frequentist_calculator.py for details
     else:
-      print('[py-fitter/results_module/GetUL] ❌ ERROR! Invalid limit calculator chosen')
+      if self.logger:
+        self.logger.log('Invalid limit calculator chosen', 'error')
+      else:
+        print('[py-fitter/results_module/GetUL] ❌ ERROR! Invalid limit calculator chosen')
       return
       
     if self.verbose > 0:
-      print('[py-fitter/results_module/GetUL] ✅  calculating significance')
-      print('[py-fitter/results_module/GetUL] ❌ CHECK: if signficance is inf this means that the numerical precision is not high enough or that the number of toys is not large enough. For example if all toys are rejected, the result is (0.0, inf)')
+      if self.logger:
+        self.logger.log('Calculating significance for UL', 'info')
+        self.logger.log('If significance is inf this means numerical precision or too few toys', 'info')
+      else:
+        print('[py-fitter/results_module/GetUL] ✅  calculating significance')
+        print('[py-fitter/results_module/GetUL] ❌ CHECK: if signficance is inf this means that the numerical precision is not high enough or that the number of toys is not large enough. For example if all toys are rejected, the result is (0.0, inf)')
     discovery_low_sig = Discovery(calculator=calculator_low_sig, poinull=sig_yield_poi)
     discovery_low_sig.result()
     if self.verbose > 0:
-      print("[py-fitter/fit_module/GetUL] ✅ discovery result",discovery_low_sig.result())
-      print(f'[py-fitter/results_module/GetUL] ✅ best fit params {calculator_low_sig.bestfit.params}')
+      if self.logger:
+        self.logger.log(f'discovery result: {discovery_low_sig.result()}', 'info')
+        try:
+          self.logger.log(f'best fit params: {calculator_low_sig.bestfit.params}', 'max')
+        except Exception:
+          pass
+      else:
+        print("[py-fitter/fit_module/GetUL] ✅ discovery result",discovery_low_sig.result())
+        print(f'[py-fitter/results_module/GetUL] ✅ best fit params {calculator_low_sig.bestfit.params}')
     
     #Background only hypothesis.
     bkg_only = POI(par, 0)
@@ -286,8 +324,12 @@ class ResultsClass:
     plt.xlabel("Nsig");
     plt.show()
     if self.verbose > 0:
-      print(ul)
-      print(f'[py-fitter/results_module/GetUL] ✅  result upper limit at {CL} % CL {ul}')
+      if self.logger:
+        self.logger.log(str(ul), 'info')
+        self.logger.log(f'Result upper limit at {CL} % CL {ul}', 'success')
+      else:
+        print(ul)
+        print(f'[py-fitter/results_module/GetUL] ✅  result upper limit at {CL} % CL {ul}')
     #plotlimit(ul, CLs=False)
     
     return ul
@@ -310,7 +352,10 @@ class ResultsClass:
             csv_writer.writerow([item])
 
     if self.verbose > 0:
-      print(f"[py-fitter/results_module/WriteFittedData] ✅ Data written to {file_path}")
+      if self.logger:
+        self.logger.log(f"Data written to {file_path}", 'success')
+      else:
+        print(f"[py-fitter/results_module/WriteFittedData] ✅ Data written to {file_path}")
     
   def WriteResult(self):
     """ Write result to csv file for safe keeping """
@@ -323,7 +368,10 @@ class ResultsClass:
 
     
     if self.verbose > 0:
-      print(f"[py-fitter/results_module/WriteFittedData] ✅ Result written to {file_path}")
+      if self.logger:
+        self.logger.log(f"Result written to {file_path}", "success")
+      else:
+        print(f"[py-fitter/results_module/WriteFittedData] ✅ Result written to {file_path}")
 
   def WritePkl(self):
     """Outputs zfit result to a pkl file
@@ -334,14 +382,21 @@ class ResultsClass:
     for i, par in enumerate(self.result.params):
       my_data[0]['Param'].append(par.name)
       my_data[0]['Value'].append(par.value().numpy())
-    print(my_data)
     # Save the list to the .pkl file
     try:
-        with open(filename, 'wb') as file:
-            pickle.dump(my_data, file)
+      with open(filename, 'wb') as file:
+        pickle.dump(my_data, file)
+      if self.logger:
+        self.logger.log(f"List successfully saved to {filename}", "success")
+      else:
         print(f"List successfully saved to {filename}")
     except Exception as e:
+      if self.logger:
+        self.logger.log(f"Error saving list: {e}", "error")
+        self.logger.log(traceback.format_exc(), "max")
+      else:
         print(f"Error saving list: {e}")
+        print(traceback.format_exc())
 
   def ReadPkl(self, filename):
     """test to read in a zfit result (e.g. to compare to a previous result)
@@ -350,11 +405,20 @@ class ResultsClass:
     loaded_data = None
     my_data = self.result
     try:
-        with open(filename, 'rb') as file:
-            loaded_data = pickle.load(file)
+      with open(filename, 'rb') as file:
+        loaded_data = pickle.load(file)
+      if self.logger:
+        self.logger.log(f"List successfully loaded from {filename}", "success")
+        self.logger.log(str(loaded_data), "max")
+      else:
         print(f"\nList successfully loaded from {filename}:")
         print(loaded_data)
         print(f"Type of loaded data: {type(loaded_data)}")
         print(f"Is loaded_data equal to my_data? {loaded_data == my_data}")
     except Exception as e:
+      if self.logger:
+        self.logger.log(f"Error loading list: {e}", "error")
+        self.logger.log(traceback.format_exc(), "max")
+      else:
         print(f"Error loading list: {e}")
+        print(traceback.format_exc())

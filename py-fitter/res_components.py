@@ -1,6 +1,13 @@
 import zfit
 import pickle as pkl
 from landau_pdf import trunc_landau
+from pyutils.pylogger import Logger
+
+# Module-level logger
+try:
+    logger = Logger(print_prefix='[res_components] ', verbosity=2)
+except Exception:
+    logger = None
 
 class res_components:
     """
@@ -34,7 +41,10 @@ class res_components:
                     self.fitpars[f"loc{ip}_{res_type}"]   = zfit.Parameter(f"loc{ip}_{res_type}",   0.0, -5.0, 5.0)
                     self.fitpars[f"scale{ip}_{res_type}"] = zfit.Parameter(f"scale{ip}_{res_type}", 1.0,  0.0, 5.0)
                 else:
-                    print("ERROR: res_components only supports gcb or landau pdfs. Exiting...")
+                    if logger:
+                        logger.log("res_components only supports gcb or landau pdfs", 'error')
+                    else:
+                        print("ERROR: res_components only supports gcb or landau pdfs. Exiting...")
                     exit()
         else:
             if isinstance(params,str):

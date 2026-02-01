@@ -10,6 +10,9 @@ import dill as pickle
 # DIO models
 m_mu = 105.194 # mass of the muon [MeV]
 
+# Shared time parameters cache for MomTimeModel
+_shared_time_params = {}
+
 class poly58(zfit.pdf.ZPDF):
     _N_OBS = 1
     _PARAMS = ['a5', 'a6', 'a7', 'a8']
@@ -43,13 +46,14 @@ class DIO_custom_model_2025(zfit.pdf.ZPDF):
         return tf.where(is_valid, pdf_val, 0.0)
 
 default_model_params = {
+    'poly2' : { 'c1' : (0.47, 0.46, 0.48),'c2' : (0.011,0.0018,0.0202)},
     'dscb'   : {'mu': (104, 103, 107), 'sigma': (0.5, 0.08, 2.0), 'alphaL': (0.422, 0, 10), 
                 'nL': (25.1, 0, 100), 'alphaR': (2.227, 0, 100), 'nR': (5.954, 0, 100)},
-    'Gauss'  : {'mu': (100, 95, 115), 'sigma': (0.5, 1e-3, 1e3)},
+    'Gauss'  : {'mu'     : (100,           95,    115),'sigma'  : (0.5,           1e-3,  1e3)},
     'uniform': {}
 }
 
-default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 200, 'RPC' : 1}
+default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 35, 'RPC' : 38}
 
 def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_range, constraints, advanced_config=None, use_advanced=False):
     """
@@ -63,6 +67,10 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
         N = zfit.Parameter('N_'+process, default_norms[process], 0, 1e6)
     else:
         N = zfit.Parameter('N_'+process, 10, 0, 1e6)
+    if process == 'Cosmic':
+      N = zfit.Parameter('N_'+process, default_norms[process], 0, 37)
+    if process == 'RPC':
+      N = zfit.Parameter('N_'+process, default_norms[process], 0, 42)
     params_tot.append(N)
 
     # Branching Logic: Advanced Model (Theo_Exp) vs Simple Model (DSCB/Gauss)
@@ -127,8 +135,74 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
         PDF = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_mom, extended=N)
     elif model == 'DIO_custom_model_2025':
         PDF = DIO_custom_model_2025(obs=obs_mom, DIO_endpoint=zpars.get('endpoint', 104.97), beta=zpars.get('beta', -0.002), degree_shift=zpars.get('degree_shift', 0), extended=N)
+    elif model == 'poly2': # Cheb. poly order 2
+        c1 = zfit.Parameter("c1", zpars['c1'], floating=False)
+        c2 = zfit.Parameter("c2", zpars['c2'], floating=False)
+        coeffs = [c1, c2]
+
+        # Create a Chebyshev polynomial PDF
+        PDF = zfit.pdf.Chebyshev(obs=obs_mom, coeffs=coeffs, extended=N)
     else:
         raise ValueError(f"Model {model} not recognized in Simple Path")
 
     return PDF, N
+
+
+def MomTimeModel(obs_mom, obs_time, mom_params_tot, time_params_tot, process, mom_model, time_model, pardict, treat_params, fit_range, constraints):
+    """
+    Combined momentum × time PDF. Momentum part is built by `MomModel` (extended with yield N).
+    Time part uses fixed/shared decay rates:
+      - DIO and CE: exponential with exponent -1/864 (shared)
+      - RPC: exponential with exponent -1/26
+      - Cosmic: uniform between 400 and 1695 ns
+
+    Returns (pdf_2d, N, mom_pdf, time_pdf)
+    """
+    mom_pdf, N = MomModel(obs_mom, mom_params_tot, process, mom_model, pardict, treat_params, fit_range, constraints)
+
+    # Ensure shared/fixed decay parameters exist
+    if 'decay_shared_CE_DIO' not in _shared_time_params:
+        _shared_time_params['decay_shared_CE_DIO'] = zfit.Parameter('decay_shared_CE_DIO', -1.0/864.0, floating=False)
+    if 'decay_rpc' not in _shared_time_params:
+        _shared_time_params['decay_rpc'] = zfit.Parameter('decay_rpc', -1.0/26.0, floating=False)
+
+    # Select time PDF for each process
+    if process in ('DIO', 'CE'):
+        lam = _shared_time_params['decay_shared_CE_DIO']
+        time_pdf = zfit.pdf.Exponential(lam, obs=obs_time)
+    elif process == 'RPC':
+        lam = _shared_time_params['decay_rpc']
+        time_pdf = zfit.pdf.Exponential(lam, obs=obs_time)
+    elif process == 'Cosmic':
+        time_pdf = zfit.pdf.Uniform(low=400.0, high=1695.0, obs=obs_time)
+    else:
+        # Fallback: try to use TimeModel if available
+        try:
+            time_pdf, N_time = TimeModel(obs_time, time_params_tot, process, time_model, pardict, fit_range)
+        except Exception:
+            time_pdf = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_time)
+
+    # Append fixed params to the time_params_tot list if not already present
+    try:
+        if process in ('DIO', 'CE'):
+            if _shared_time_params['decay_shared_CE_DIO'] not in time_params_tot:
+                time_params_tot.append(_shared_time_params['decay_shared_CE_DIO'])
+        elif process == 'RPC':
+            if _shared_time_params['decay_rpc'] not in time_params_tot:
+                time_params_tot.append(_shared_time_params['decay_rpc'])
+    except Exception:
+        pass
+
+    obs_2d = obs_mom * obs_time
+    pdf_2d = zfit.pdf.ProductPDF([mom_pdf, time_pdf], obs=obs_2d)
+    try:
+        pdf_2d.set_yield(N)
+    except Exception:
+        # Fall back to wrapping in a TruncatedPDF with extended yield
+        try:
+            pdf_2d = zfit.pdf.TruncatedPDF(pdf_2d, limits=obs_2d, obs=obs_2d, extended=N)
+        except Exception:
+            pass
+
+    return pdf_2d, N, mom_pdf, time_pdf
 

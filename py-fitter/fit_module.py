@@ -7,14 +7,23 @@ import tensorflow as tf
 import zfit
 from typing import List, Tuple, Optional, Any
 from zfit.result import FitResult
+import traceback
+from pyutils.pylogger import Logger
+import time
 
-from momPDF_module import MomModel, poly58
+# Module-level logger with fallback
+try:
+  logger = Logger(print_prefix='[fit_module] ', verbosity=2)
+except Exception:
+  logger = None
+
+from momPDF_module import MomModel, MomTimeModel, poly58
 from timePDF_module import TimeModel
 from recoplot_module import plotmom_fit, plottime_fit, plotmom_fit_old, plot_variable
 from mom_components import mom_components
 from time_components import time_components
 
-def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, dio_efficiency=None, dio_resolution=None, plot_NLL= False):
+def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, plot_NLL= False):
     """
     ----------
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
@@ -36,7 +45,10 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     """
 
     if verbose > 0:
-      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ initializing fit")
+      if logger:
+        logger.log("Initializing fit", "info")
+      else:
+        print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ initializing fit")
 
     fit_range = (fit_range_low, fit_range_hi)
     obs_mom = zfit.Space('x', limits=fit_range)
@@ -51,7 +63,10 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     aux_nlls = [] 
     
     if verbose > 0:
-      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ components", mom_components)
+      if logger:
+        logger.log(f"components {list(mom_components.keys())}", "info")
+      else:
+        print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ components", mom_components)
       
     # --- Loop over Components and Build Model ---
     for proc in mom_components:
@@ -88,11 +103,17 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
                 
                 if sim_data is not None:
                     if verbose > 0:
+                      if logger:
+                        logger.log(f"Activating simultaneous fit for: {proc}", "info")
+                      else:
                         print(f"[py-fitter] 🔗 Activating simultaneous fit for: {proc}")
                     # Only call get_nll if data is actually present to unpack
                     aux_nlls.extend(nll_source.get_nll(pars))
                 else:
                     if verbose > 0:
+                      if logger:
+                        logger.log(f"Using fixed resolution/loss for: {proc}", "info")
+                      else:
                         print(f"[py-fitter] 📌 Using fixed resolution/loss for: {proc}")
 
     # --- build combined PDF ---
@@ -105,7 +126,10 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     mom_zfit = zfit.Data.from_numpy(array=mom_np, obs=obs_mom)
 
     if verbose > 0:
-      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ running minimizer")
+      if logger:
+        logger.log("Running minimizer", "info")
+      else:
+        print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ running minimizer")
 
     # --- Loss function creation (MODIFIED) ---
     # Build the main loss from the Extended NLL and initial constraints
@@ -119,40 +143,79 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     result = minimizer.minimize(loss, params=pars)
     
     if verbose > 0:
-      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ finished minimizing")
+      if logger:
+        logger.log("Finished minimizing", "info")
+      else:
+        print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ finished minimizing")
       
     # --- Minos Error Calculation  ---
     if minos == True:
       try:
-          param_errors, _ = result.errors(method='minuit_minos')
-      except:
+        param_errors, _ = result.errors(method='minuit_minos')
+      except Exception as e:
+        if logger:
+          logger.log('Invalid fit, postfit parameters may not be optimal', 'error')
+          logger.log(traceback.format_exc(), 'max')
+        else:
           print('[py-fitter/fit_module/Unbinned_fit_mom] ❌ ERROR! Invalid fit, postfit parameters may not be optimal')
 
     if result.valid == True:
-      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ fit is valid")
+      if logger:
+        logger.log('fit is valid', 'success')
+      else:
+        print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ fit is valid")
     else:
-      print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
+      if logger:
+        logger.log('fit is not valid', 'info')
+      else:
+        print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
       
     # Plot after fit
     if verbose > 0:
-      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ plotting")
-    print(pars)
+      if logger:
+        logger.log('Plotting results', 'info')
+      else:
+        print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ plotting")
+    if logger:
+      logger.log(str(pars), 'max')
+    else:
+      print(pars)
     
     # plotmom_fit (Assuming this is an external function you need to call)
     plotmom_fit(mom_mag,count_particle_types, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat)
-    plt.show()
+    ts = int(time.time())
+    fname = f"fit_mom_{ts}.png"
+    try:
+      plt.savefig(fname)
+      if logger:
+        logger.log(f"Saved fit figure to {fname}", "info")
+      else:
+        print(f"Saved fit figure to {fname}")
+    except Exception as e:
+      if logger:
+        logger.log(f"Failed to save fit figure: {e}", "error")
+      else:
+        print(f"Failed to save fit figure: {e}")
+    plt.close()
     
     # --- NLL Scan Plotting  ---
     if plot_NLL:
       # performs optional scan to draw NLL plot:
       best_nll = result.fmin
-      print(f"Best fit nsig: {result.params[pars[1]]['value']:.2f}")
-      print(f"Minimum NLL: {best_nll:.2f}")
+      if logger:
+        logger.log(f"Best fit nsig: {result.params[pars[1]]['value']:.2f}", 'info')
+        logger.log(f"Minimum NLL: {best_nll:.2f}", 'info')
+      else:
+        print(f"Best fit nsig: {result.params[pars[1]]['value']:.2f}")
+        print(f"Minimum NLL: {best_nll:.2f}")
 
       scan_range = np.linspace(0,float(pars[1].value())+float(pars[1].value())*0.5, 41)
       nll_values = []
 
-      print("Starting NLL scan...")
+      if logger:
+        logger.log('Starting NLL scan...', 'info')
+      else:
+        print("Starting NLL scan...")
       # Loop over the scan range for the signal yield
       for n in scan_range:
           with pars[1].set_value(n):
@@ -162,10 +225,13 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
               nll_values.append(loss.value())  
               pars[1].floating = True
 
-      print("Scan complete...")
+      if logger:
+        logger.log('Scan complete', 'info')
+      else:
+        print("Scan complete...")
 
       # Find true number:
-      data_signal = mom_mag.mask[count_particle_types == 168]
+      data_signal = ak.mask(mom_mag, count_particle_types == 168)
       data_signal = np.array(ak.flatten(data_signal, axis=None))
       
       delta_nll = np.array(nll_values) - best_nll
@@ -182,7 +248,20 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
       ax.set_ylabel('$-2\Delta \ln(L)$')
       ax.set_title('NLL Scan for $N_{sig}$')
       ax.grid(True)
-      plt.show()
+      ts = int(time.time())
+      fname_nll = f"fit_mom_nll_{ts}.png"
+      try:
+        plt.savefig(fname_nll)
+        if logger:
+            logger.log(f"Saved NLL scan to {fname_nll}", "info")
+        else:
+            print(f"Saved NLL scan to {fname_nll}")
+      except Exception as e:
+        if logger:
+            logger.log(f"Failed to save NLL scan: {e}", "error")
+        else:
+            print(f"Failed to save NLL scan: {e}")
+      plt.close()
       
     return result, pars[1], loss, aux_nlls, combine_pdf, constraints
 
@@ -203,7 +282,10 @@ def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit
 
     """
     if verbose > 0:
-      print("[py-fitter/fit_module/Unbinned_fit_time] ✅ initializing fit")
+      if logger:
+        logger.log('Initializing time fit', 'info')
+      else:
+        print("[py-fitter/fit_module/Unbinned_fit_time] ✅ initializing fit")
     fit_range = (fit_range_low, fit_range_hi)
     obs_time = zfit.Space('time', limits=fit_range)
     
@@ -230,24 +312,53 @@ def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit
     minimizer = zfit.minimize.Minuit()
     result = minimizer.minimize(loss, params=pars)
     if verbose > 0:
-      print("[py-fitter/fit_module/Unbinned_fit_time] ✅ finished minimizing")
+      if logger:
+        logger.log('Finished minimizing time fit', 'info')
+      else:
+        print("[py-fitter/fit_module/Unbinned_fit_time] ✅ finished minimizing")
     try:
         param_errors, _ = result.errors(method='minuit_minos')
-    except:
+    except Exception as e:
+      if logger:
+        logger.log('Invalid fit, postfit parameters may not be optimal', 'error')
+        logger.log(traceback.format_exc(), 'max')
+      else:
         print('[py-fitter/fit_module] ❌ WARNING! Invalid fit, postfit parameters may not be optimal')
     if result.valid == True:
-      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ fit is valid")
+      if logger:
+        logger.log('fit is valid', 'success')
+      else:
+        print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ fit is valid")
     else:
-      print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
+      if logger:
+        logger.log('fit is not valid', 'info')
+      else:
+        print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
     # Plot after fit
 
     if verbose > 0:
-      print("[py-fitter/fit_module/Unbinned_fit_time] ✅ plotting")
+      if logger:
+        logger.log('Plotting time fit', 'info')
+      else:
+        print("[py-fitter/fit_module/Unbinned_fit_time] ✅ plotting")
     plottime_fit(times, count_particle_types, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in time_components.keys()], True)
-    plt.show()
+    ts = int(time.time())
+    fname_t = f"fit_time_{ts}.png"
+    try:
+      plt.savefig(fname_t)
+      if logger:
+        logger.log(f"Saved time-fit figure to {fname_t}", "info")
+      else:
+        print(f"Saved time-fit figure to {fname_t}")
+    except Exception as e:
+      if logger:
+        logger.log(f"Failed to save time-fit figure: {e}", "error")
+      else:
+        print(f"Failed to save time-fit figure: {e}")
+    plt.close()
     return result, pars[1], loss, combine_pdf
 
-def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, fit_range_mom, fit_range_time, plot_cat=False, verbose=0, dio_efficiency = None, dio_resolution = None):
+def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fit_range_mom, fit_range_time, plot_cat=False, verbose=0):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum and time using zfit
 
@@ -270,23 +381,49 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, fit_range_mom, fit_range
 
     mompars = []
     mompdfs = {}
+    pdfs = {}
     timepars = []
     timepdfs = {}
     norms = {}
     constraints = []
     nlls = []
+    nll_sources = []
     
     
     # loop over mom components
     for proc in mom_components:
-        mompdf = mom_components[proc]['pdf']
-        pardict = (mom_components[proc]['pars'])
-        treat_params = mom_components[proc]['treat_params']
-        timepdf = mom_components[proc]['timepdf']
+      mompdf = mom_components[proc]['pdf']
+      pardict = mom_components[proc]['pars']
+      treat_params = mom_components[proc]['treat_params']
+      # time model name may be defined in time_components; fall back to None
+      timepdf = time_components.get(proc, {}).get('pdf', None)
 
-        pdfs[proc], norms[proc] = MomTimeModel(obs_mom, obs_time, mompars,timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints, dio_efficiency, dio_resolution)
-        if 'nll' in mom_components[proc].keys():
-            nlls.extend(mom_components[proc]['nll'].get_nll(pars))
+      # MomTimeModel now returns (pdf_2d, N, mom_pdf, time_pdf)
+      try:
+        pdf2d, N, mom_subpdf, time_subpdf = MomTimeModel(obs_mom, obs_time, mompars, timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints)
+      except TypeError:
+        # backward-compatible: older MomTimeModel returned (pdf_2d, N)
+        pdf2d, N = MomTimeModel(obs_mom, obs_time, mompars, timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints)
+        mom_subpdf = mompdf
+        time_subpdf = time_components.get(proc, {}).get('pdf', zfit.pdf.Uniform(low=fit_range_time[0], high=fit_range_time[1], obs=obs_time))
+
+      pdfs[proc] = pdf2d
+      norms[proc] = N
+      mompdfs[proc] = mom_subpdf
+      if 'nll' in mom_components[proc].keys():
+        nll_sources.append(mom_components[proc]['nll'])
+
+      # also build a time-only (non-extended) PDF for plotting
+      if proc in ('DIO', 'CE'):
+        timepdfs[proc] = zfit.pdf.Exponential(zfit.Parameter(f'decay_shared_CE_DIO_plot', -1.0/864.0, floating=False), obs=obs_time)
+      elif proc == 'RPC':
+        timepdfs[proc] = zfit.pdf.Exponential(zfit.Parameter(f'decay_rpc_plot', -1.0/26.0, floating=False), obs=obs_time)
+      elif proc == 'Cosmic':
+        # use requested cosmic window for plotting
+        timepdfs[proc] = zfit.pdf.Uniform(low=fit_range_time[0], high=fit_range_time[1], obs=obs_time)
+      else:
+        # fallback to a uniform over the time fit range
+        timepdfs[proc] = zfit.pdf.Uniform(low=fit_range_time[0], high=fit_range_time[1], obs=obs_time)
 
     
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
@@ -295,8 +432,20 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, fit_range_mom, fit_range
     data_np_mom = ak.to_numpy(ak.flatten(mom_mag, axis=None))
     data_zfit = zfit.Data.from_numpy(array=np.column_stack((data_np_mom, data_np_time)), obs=obs_2D)
 
+    # Combine parameter lists (momentum + time)
+    pars = mompars + timepars
+
+    # Now collect auxiliary NLL terms from any sources that needed the full param list
+    for src in nll_sources:
+      try:
+        nlls.extend(src.get_nll(pars))
+      except Exception:
+        pass
+
     # Loss function and minimizer
-    loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit)
+    loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit, constraints=constraints)
+    for nll in nlls:
+      loss = loss + nll
     minimizer = zfit.minimize.Minuit()
     result = minimizer.minimize(loss, params=pars)
     
@@ -315,10 +464,40 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, fit_range_mom, fit_range
     if verbose > 0:
       print("[py-fitter/fit_module/Unbinned_fit_time] ✅ plotting")
       
-    # plot time fit
-    plottime_fit(times, count_particle_types, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in time_components.keys()], True)
+    # plot time fit — pass the time-only PDFs (projection of 2D) and yields
+    plottime_fit(times, count_particle_types, fit_range_time, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_cat)
+
     
-    # plot mom fit
-    plotmom_fit(data_zfit,track_cat, fit_range_mom, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat) 
-    plt.show()
+    ts = int(time.time())
+    fname_time_2d = f"fit_2d_time_{ts}.png"
+    try:
+      plt.savefig(fname_time_2d)
+      if logger:
+        logger.log(f"Saved 2D-fit figure to {fname_time_2d}", "info")
+      else:
+        print(f"Saved 2D-fit figure to {fname_time_2d}")
+    except Exception as e:
+      if logger:
+        logger.log(f"Failed to save 2D-fit figure: {e}", "error")
+      else:
+        print(f"Failed to save 2D-fit figure: {e}")
+    plt.close()
+
+    # plot mom fit using the 1D momentum sub-PDFs (projections)
+    plotmom_fit(mom_mag, count_particle_types, fit_range_mom, [(proc, mompdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_cat)
+    fname_mom_2d = f"fit_2d_mom_{ts}.png"
+    try:
+      plt.savefig(fname_mom_2d)
+      if logger:
+        logger.log(f"Saved 2D-fit figure to {fname_mom_2d}", "info")
+      else:
+        print(f"Saved 2D-fit figure to {fname_mom_2d}")
+    except Exception as e:
+      if logger:
+        logger.log(f"Failed to save 2D-fit figure: {e}", "error")
+      else:
+        print(f"Failed to save 2D-fit figure: {e}")
+    plt.close()
+
+
     return result, pars[1], loss, combine_pdf

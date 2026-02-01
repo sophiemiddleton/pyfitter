@@ -96,16 +96,17 @@ theo_exp_pars_DIO.update({
 # --- Component Dictionary ---
 mom_components = {
 
-    'Cosmic' : {'pdf' : 'uniform', # Default: no assumptions of res+eff+loss yet
-                'pars' : None,
-                'treat_params' : 'float',
+    # Cosmics assumes eff+res+loss included from control region (Off spill)
+    'Cosmic' : {'pdf' : 'poly2',
+                'pars' : { 'c1' : (0.47, 0.46, 0.48),
+                           'c2' : (0.011,0.0018,0.0202)},
+                'treat_params' : 'fix',
                 'startCode' : [None],
                 'genCode' : [44,38],
                 'lineColor' : 'm',
                 'lineStyle' : '-.',
                 'catColor' : 'violet',
-                'advanced_pars': None
-                }, # No advanced model for Cosmics yet
+                'advanced_pars': None},
 
     'CE': {
         'pdf': 'dscb',  # Default: simple double sided crystal ball
@@ -120,12 +121,7 @@ mom_components = {
         'lineColor': 'b',
         'lineStyle': '--',
         'catColor': 'lightskyblue',
-        'advanced_pars': {
-            'pdf_theo': 'theo_exp',
-            'treat_params_adv': 'param',
-            'fitpars_in_formatted': theo_exp_pars,
-            'nll_sources': [flat_res, flat_loss]
-        }
+        'advanced_pars': None
     },
     'DIO': { # Decay in Orbit Background From Target
         'pdf': 'DIO_custom_model_2025', # Default: custom theory model
@@ -136,25 +132,21 @@ mom_components = {
         'lineColor': 'g',
         'lineStyle': ':',
         'catColor': 'lightgreen',
-        'advanced_pars': {
-          'pdf_theo': 'theo_exp',
-          'treat_params_adv': 'simul', # Use 'simul' to share parameters with CE
-          'fitpars_in_formatted': theo_exp_pars_DIO,
-          'nll_sources': None 
-        }
+        'advanced_pars': None
+        
     },
     
-
+    # Radiative Pion Background (Internal + External) 
+    'RPC'    : {'pdf' : 'Gauss', # Default: assumes res+eff+loss already included from e+ control region
+                'pars' : {'mu'    : (100.26, 100.0,100.5),
+                          'sigma' : (11.96, 11.5,12.0),
+                          'decay_rate_pi'    : (-0.03846,  -0.04, -0.01)},
+                'treat_params' : 'float',
+                'startCode' : [178,179],
+                'genCode' : [None],
+                'lineColor' : 'black',
+                'lineStyle' : (0, (3, 5, 1, 5)),
+                'catColor' : 'black',
+                'advanced_pars': None } # No advanced model for RPC
     
-    'RPC': { # Radiative Pion Background (Internal + External)
-        'pdf': 'Gauss', # Default: assumes res+eff+loss already
-        'pars': {'mu': (100, 98, 102), 'sigma': (11, 5, 25)},
-        'treat_params': 'float',
-        'startCode': [178, 179],
-        'genCode': [None],
-        'lineColor': 'darkorange',
-        'lineStyle': (0, (3, 5, 1, 5)),
-        'catColor': 'orange',
-        'advanced_pars': None # No advanced model for RPC
-    }
 }
