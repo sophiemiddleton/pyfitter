@@ -53,7 +53,7 @@ default_model_params = {
     'uniform': {}
 }
 
-default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 35, 'RPC' : 38}
+default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 5000, 'RPC' : 20}
 
 def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_range, constraints, advanced_config=None, use_advanced=False):
     """
@@ -67,10 +67,7 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
         N = zfit.Parameter('N_'+process, default_norms[process], 0, 1e6)
     else:
         N = zfit.Parameter('N_'+process, 10, 0, 1e6)
-    if process == 'Cosmic':
-      N = zfit.Parameter('N_'+process, default_norms[process], 0, 37)
-    if process == 'RPC':
-      N = zfit.Parameter('N_'+process, default_norms[process], 0, 42)
+    
     params_tot.append(N)
 
     # Branching Logic: Advanced Model (Theo_Exp) vs Simple Model (DSCB/Gauss)

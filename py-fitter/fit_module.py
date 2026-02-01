@@ -19,7 +19,7 @@ except Exception:
 
 from momPDF_module import MomModel, MomTimeModel, poly58
 from timePDF_module import TimeModel
-from recoplot_module import plotmom_fit, plottime_fit, plotmom_fit_old, plot_variable
+from recoplot_module import plotmom_fit, plottime_fit, plot_variable
 from mom_components import mom_components
 from time_components import time_components
 
@@ -500,4 +500,72 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
     plt.close()
 
 
-    return result, pars[1], loss, combine_pdf
+    return result, pars[1], loss, combine_pdf, norms
+
+def stability_scan(axis, slices, mom_mag, times, track_cat, count_particle_types, fit_range_mom, fit_range_time, plot_cat=False, verbose=0):
+    """Run Unbinned_2d_fit_mom_time across a series of slices and plot fitted yields vs slice.
+
+    axis: 'time' or 'mom' -- which axis to slice
+    slices: iterable of (low, high) tuples for the chosen axis
+    Other args forwarded to the 2D fitter.
+    Saves `yield_stability_{axis}_{timestamp}.png`.
+    Returns: dict mapping process -> list of fitted yields (per slice)
+    """
+    import time as _time
+    results = {}
+    slice_centers = []
+    for low, high in slices:
+      if axis == 'time':
+        fr_time = [low, high]
+        fr_mom = fit_range_mom
+      else:
+        fr_mom = [low, high]
+        fr_time = fit_range_time
+
+      try:
+        res, par, loss, combine_pdf, norms = Unbinned_2d_fit_mom_time(
+          mom_mag, times, track_cat, count_particle_types, fr_mom, fr_time, plot_cat, verbose
+        )
+      except Exception:
+        # on failure, append zeros
+        norms = {p: 0.0 for p in mom_components.keys()}
+
+      # record center
+      slice_centers.append(0.5 * (low + high))
+      for p in norms:
+        try:
+          val = norms[p].numpy() if hasattr(norms[p], 'numpy') else float(norms[p])
+        except Exception:
+          try:
+            val = float(norms[p].value())
+          except Exception:
+            val = 0.0
+        results.setdefault(p, []).append(val)
+
+    # plot results
+    import matplotlib.pyplot as plt
+    ts = int(_time.time())
+    fig, ax = plt.subplots(figsize=(8, 4))
+    for p, vals in results.items():
+      errs = [np.sqrt(abs(v)) for v in vals]
+      ax.errorbar(slice_centers, vals, yerr=errs, marker='o', label=p)
+    ax.set_xlabel(f'{axis} slice center')
+    ax.set_ylabel('Fitted yield')
+    ax.set_title(f'Yield stability vs {axis}')
+    ax.legend()
+    ax.grid(True, linestyle=':')
+    fname = f'yield_stability_{axis}_{ts}.png'
+    try:
+      plt.tight_layout()
+      plt.savefig(fname)
+      if logger:
+        logger.log(f'Saved stability plot to {fname}', 'info')
+      else:
+        print(f'Saved stability plot to {fname}')
+    except Exception as e:
+      if logger:
+        logger.log(f'Failed to save stability plot: {e}', 'error')
+      else:
+        print(f'Failed to save stability plot: {e}')
+    plt.close(fig)
+    return results, slice_centers

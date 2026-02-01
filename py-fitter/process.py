@@ -568,7 +568,7 @@ def main(args):
             print('[py-fitter/main] ✅ Fit result: ', fitresult, '\n', 'for ', args.fittype, ' fit')
 
     elif args.fittype == "2D":
-        fitresult, par, loss, combine_pdf = Unbinned_2d_fit_mom_time(
+        fitresult, par, loss, combine_pdf, norms = Unbinned_2d_fit_mom_time(
             mom_mag,
             time,
             track_cat,
@@ -582,6 +582,29 @@ def main(args):
             module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')
         else:
             print('[py-fitter/main]✅  Fit result: ', fitresult, '\n', 'for ', args.fittype, ' fit')
+
+        # optionally run a momentum stability scan across N slices
+        try:
+            scan_N = int(getattr(args, 'scan_mom', 0))
+        except Exception:
+            scan_N = 0
+        if scan_N and scan_N > 0:
+            mom_lo = float(args.fitrange_low[0])
+            mom_hi = float(args.fitrange_hi[0])
+            edges = np.linspace(mom_lo, mom_hi, scan_N + 1)
+            slices = [(float(edges[i]), float(edges[i+1])) for i in range(len(edges)-1)]
+            try:
+                if module_logger:
+                    module_logger.log(f'Running momentum stability scan with {scan_N} slices', 'info')
+                else:
+                    print(f'Running momentum stability scan with {scan_N} slices')
+                from fit_module import stability_scan
+                stability_scan('mom', slices, mom_mag, time, track_cat, mc_count, [mom_lo, mom_hi], [args.fitrange_low[1], args.fitrange_hi[1]], bool(args.cat), args.verbose)
+            except Exception:
+                if module_logger:
+                    module_logger.log('Momentum stability scan failed', 'error')
+                else:
+                    print('Momentum stability scan failed')
 
     else:
         raise Exception(
@@ -633,6 +656,7 @@ if __name__ == "__main__":
     parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")
     parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")
     parser.add_argument("--verbose", default=1, help="verbose")
+    parser.add_argument("--scan_mom", type=int, default=0, help="number of momentum slices to scan for stability (0=off)")
     parser.add_argument("--loc", type=str, required=False, default='disk', help="location of files")
     args = parser.parse_args()
 
