@@ -47,15 +47,90 @@ class ControlRegion:
     """
 
     def __init__(self, mom_mag, times=None, verbose: int = 0):
-        self.mom_mag = mom_mag
+        # Accept either a direct mom array or a structured awkward array
+        self.raw_input = mom_mag
+        self.mom_mag = self._extract_mom(mom_mag)
         self.times = times
         self.verbose = verbose
+
+    def _extract_mom(self, arr):
+        """Robustly extract a 1D momentum array from various input shapes.
+
+        - If `arr` is a simple numeric/awkward array of floats, return flattened numpy.
+        - If `arr` is an awkward record containing fields named 'mom' (e.g. 'trk','trkfit'),
+          attempt to find and flatten the first matching field.
+        - Otherwise return the result of `_to_numpy_flat(arr)` which will raise or return empty.
+        """
+        # If it's already a numeric array, _to_numpy_flat will handle it
+        try:
+            a_try = _to_numpy_flat(arr)
+            if a_try.size:
+                return a_try
+        except Exception:
+            pass
+
+        # If it's an awkward record, search for 'mom' fields
+        try:
+            if isinstance(arr, ak.Array) or hasattr(arr, 'layout'):
+                # breadth-first search in fields
+                fields = ak.fields(arr)
+                candidates = []
+                for f in fields:
+                    if f.lower() == 'mom' or 'mom' in f.lower():
+                        candidates.append(f)
+                # check nested levels as well
+                if not candidates:
+                    for f in fields:
+                        try:
+                            sub = arr[f]
+                            sub_fields = ak.fields(sub) if isinstance(sub, ak.Array) else []
+                            for sf in sub_fields:
+                                if sf.lower() == 'mom' or 'mom' in sf.lower():
+                                    candidates.append((f, sf))
+                        except Exception:
+                            continue
+
+                # try candidates
+                for c in candidates:
+                    try:
+                        if isinstance(c, tuple):
+                            val = arr[c[0]][c[1]]
+                        else:
+                            val = arr[c]
+                        flat = ak.to_numpy(ak.flatten(ak.drop_none(val), axis=None))
+                        flat = flat[~np.isnan(flat)] if flat.size else flat
+                        if flat.size:
+                            return flat.astype(float)
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
+        # Last resort: try to find a numeric field anywhere
+        try:
+            if isinstance(arr, ak.Array):
+                for f in ak.fields(arr):
+                    try:
+                        val = arr[f]
+                        flat = ak.to_numpy(ak.flatten(ak.drop_none(val), axis=None))
+                        flat = flat[~np.isnan(flat)] if flat.size else flat
+                        if flat.size:
+                            return flat.astype(float)
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
+        # fallback to converting directly (may raise)
+        return _to_numpy_flat(arr)
 
     def fit_cosmic(self,
                    fit_range: Tuple[float, float] = (80.0, 150.0),
                    degree: int = 4,
                    init_N: Optional[float] = None,
                    plot: bool = False,
+                   save_plot: Optional[str] = None,
+                   print_params: bool = True,
                    bins: int = 50) -> Dict[str, Any]:
         """Fit a Chebyshev polynomial (extended) to `mom_mag`.
 
@@ -140,6 +215,28 @@ class ControlRegion:
             out['hist'] = (hist_vals, edges)
             out['figure'] = fig
 
+        # optionally save and/or print parameters
+        if print_params:
+            print('[ControlRegion.fit_cosmic] Fitted parameters:')
+            for k, v in params_out.items():
+                # try to extract hesse error
+                err = None
+                try:
+                    err = hesse.get(next(iter([p for p in hesse.keys() if getattr(p, 'name', p) == k]), None), None)
+                except Exception:
+                    err = None
+                if isinstance(err, dict) and 'error' in err:
+                    print(f'  {k}: {v} ± {err["error"]}')
+                else:
+                    print(f'  {k}: {v}')
+
+        if save_plot is not None and out.get('figure', None) is not None:
+            try:
+                out['figure'].savefig(save_plot)
+                print(f'[ControlRegion.fit_cosmic] Saved fit figure to {save_plot}')
+            except Exception as e:
+                print(f'[ControlRegion.fit_cosmic] Failed to save figure: {e}')
+
         return out
 
     def fit_rpc(self,
@@ -148,6 +245,8 @@ class ControlRegion:
                 init_sigma: Optional[float] = None,
                 init_N: Optional[float] = None,
                 plot: bool = False,
+                save_plot: Optional[str] = None,
+                print_params: bool = True,
                 bins: int = 50) -> Dict[str, Any]:
         """Fit a Gaussian (extended) to RPC momentum band.
 
@@ -217,6 +316,22 @@ class ControlRegion:
             plt.tight_layout()
             out['hist'] = (hist_vals, edges)
             out['figure'] = fig
+
+        if print_params:
+            print('[ControlRegion.fit_rpc] Fitted parameters:')
+            try:
+                print(f"  mean: {out['mean']} ± {out.get('mean_err', 'N/A')}")
+                print(f"  sigma: {out['sigma']} ± {out.get('sigma_err', 'N/A')}")
+                print(f"  norm: {out['norm']}")
+            except Exception:
+                print('  (unable to format parameters)')
+
+        if save_plot is not None and out.get('figure', None) is not None:
+            try:
+                out['figure'].savefig(save_plot)
+                print(f'[ControlRegion.fit_rpc] Saved fit figure to {save_plot}')
+            except Exception as e:
+                print(f'[ControlRegion.fit_rpc] Failed to save figure: {e}')
 
         return out
 

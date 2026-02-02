@@ -7,6 +7,7 @@ import awkward as ak
 import argparse
 import csv
 import traceback
+import os
 from pyutils.pylogger import Logger
 
 # Module-level logger
@@ -157,7 +158,7 @@ class AnaProcessor(Skeleton):
                     print(traceback.format_exc())
             return None
             
-def combine_cut_flows( cut_flow_list):
+def combine_cut_flows( cut_flow_list, csv_basename: str = None):
     """Combine a list of cut flows after multiprocessing 
     
     Args:
@@ -216,7 +217,36 @@ def combine_cut_flows( cut_flow_list):
         except Exception:
             print("================== Total Cut Flow =======================")
 
-        cut_manager.print_cut_stats(stats=combined_cut_flow, active_only=True, csv_name="cut_stats.csv")
+        # Print combined cut flow to terminal
+        try:
+            cut_manager.print_cut_stats(stats=combined_cut_flow, active_only=True, csv_name=None)
+        except Exception as e_print:
+            print(f'[combine_cut_flows] Failed to print combined cut flow: {e_print}')
+
+        # If a basename was provided, derive filename; otherwise default
+        csv_name = "cut_stats.csv" if not csv_basename else f"{csv_basename}.csv"
+
+        # Write the combined_cut_flow to a CSV file (only the final combined flow)
+        try:
+            # Determine fieldnames from the keys of the first entry
+            if combined_cut_flow:
+                fieldnames = list(combined_cut_flow[0].keys())
+            else:
+                fieldnames = ["name", "events_passing", "absolute_frac", "relative_frac"]
+            with open(csv_name, 'w', newline='') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                for row in combined_cut_flow:
+                    # Ensure all keys present
+                    out_row = {k: row.get(k, "") for k in fieldnames}
+                    writer.writerow(out_row)
+            if module_logger:
+                module_logger.log(f'Wrote combined cut flow to {csv_name}', 'info')
+            else:
+                print(f'Wrote combined cut flow to {csv_name}')
+        except Exception as e_csv:
+            print(f'Failed to write combined cut flow to {csv_name}: {e_csv}')
+
         return combined_cut_flow
     
     except Exception as e:
@@ -240,6 +270,202 @@ def combine_arrays(results):
         # Concatenate arrays
         arrays_to_combine.append(result["filtered_data"])
     return ak.concatenate(arrays_to_combine)
+
+
+def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
+                             out_prefix: str = 'offspill_control',
+                             location: str = 'local',
+                             cuts=None,
+                             mom_lo: float = 95.0,
+                             mom_hi: float = 115.0,
+                             jobs: int = 1):
+    """Process a text file listing OffSpill files and save combined filtered results.
+
+    The function will instantiate `AnaProcessor` (with `location`), call
+    `process_file` for each entry in `filelist_path`, combine results using
+    `combine_arrays`, and write a pickle of the combined filtered data.
+
+    It will also attempt to extract a flattened `mom_mag` array and save it
+    as a small `.npz` file for downstream control-region fits.
+    """
+    try:
+        # read file list
+        with open(filelist_path, 'r') as f:
+            files = [l.strip() for l in f if l.strip() and not l.startswith('#')]
+    except Exception as e:
+        print(f'[process_offspill_filelist] Failed to read {filelist_path}: {e}')
+        return None
+
+    if len(files) == 0:
+        print(f'[process_offspill_filelist] No files found in {filelist_path}')
+        return None
+
+    # Create AnaProcessor with the same selection/cuts as main analysis
+    ana = AnaProcessor(file_list_path=filelist_path, jobs=jobs, cuts=cuts, location=location, mom_lo=mom_lo, mom_hi=mom_hi)
+
+    results = []
+    for fn in files:
+        try:
+            r = ana.process_file(fn)
+            if r is not None:
+                results.append(r)
+        except Exception as e:
+            print(f'[process_offspill_filelist] Error processing {fn}: {e}')
+
+    if len(results) == 0:
+        print('[process_offspill_filelist] No results produced')
+        return None
+
+    # Combine filtered arrays and save
+    try:
+        combined = combine_arrays(results)
+        cutlist = []
+        for i, result in enumerate(results):
+            cutlist.append(result["cut_stats"])
+        # For offspill processing, name the CSV after the output prefix
+        combine_cutflows = combine_cut_flows(cutlist, csv_basename=out_prefix)
+
+    except Exception as e:
+        print(f'[process_offspill_filelist] Failed to combine arrays: {e}')
+        combined = None
+
+    import pickle
+    try:
+        with open(out_prefix + '_filtered.pkl', 'wb') as pf:
+            pickle.dump({'results': results, 'combined_filtered': combined}, pf)
+        print(f'[process_offspill_filelist] Wrote {out_prefix}_filtered.pkl')
+    except Exception as e:
+        print(f'[process_offspill_filelist] Failed to write pickle: {e}')
+
+    # Try to extract a flattened mom_mag for convenience.
+    try:
+        mom_flat = None
+        # Try to extract momentum magnitude the same way as the main analysis:
+        # select track front, mask trksegs, then use Vector.get_mag
+        try:
+            selector = Select()
+            trk_front = selector.select_surface(combined['trkfit'], surface_name='TT_Front')
+            trkfit_ent = ak.mask(combined['trkfit']["trksegs"], trk_front)
+            vector = Vector()
+            mom_per_event = vector.get_mag(trkfit_ent, 'mom')
+            mom_flat = ak.to_numpy(ak.flatten(mom_per_event, axis=None))
+        except Exception as e_primary:
+            # Fallback: try common direct fields without importing pyvector
+            print("Within exception block for mom_mag extraction fallback")
+            mom_flat = None
+            try:
+                mom_arr = None
+                if combined is not None:
+                    if 'trk' in combined.fields:
+                        fld = combined['trk']
+                        if 'mom' in ak.fields(fld):
+                            mom_arr = ak.flatten(fld['mom'], axis=None)
+                    if mom_arr is None and 'trkfit' in combined.fields:
+                        tf = combined['trkfit']
+                        if 'trksegs' in ak.fields(tf):
+                            ts = tf['trksegs']
+                            if 'mom' in ak.fields(ts):
+                                mom_arr = ak.flatten(ts['mom'], axis=None)
+                if mom_arr is not None:
+                    mom_flat = ak.to_numpy(mom_arr)
+            except Exception:
+                mom_flat = None
+            # Last-resort: try pyvector on the raw trkfit (if present)
+            if mom_flat is None:
+                try:
+                    from pyutils.pyvector import Vector as _Vector
+                    _vec = _Vector()
+                    trkfit_ent = combined['trkfit']
+                    mom_per_event = _vec.get_mag(trkfit_ent, 'mom')
+                    mom_flat = ak.to_numpy(ak.flatten(mom_per_event, axis=None))
+                except Exception as e2:
+                    print(f'[process_offspill_filelist] Could not extract mom_mag via primary or fallback methods: {e_primary}; {e2}')
+                    mom_flat = None
+
+        if mom_flat is not None:
+            np.savez(out_prefix + '_mom_mag.npz', mom_mag=mom_flat)
+            print(f'[process_offspill_filelist] Wrote {out_prefix}_mom_mag.npz')
+            # Run the control-region cosmic fit and save diagnostics
+            try:
+                from control_region import ControlRegion
+                cr = ControlRegion(mom_flat)
+                fit_out = cr.fit_cosmic(fit_range=(mom_lo, mom_hi), plot=True)
+
+                # Save figure if produced
+                fig = fit_out.get('figure', None)
+                if fig is not None:
+                    fname_plot = out_prefix + '_cosmic_fit.png'
+                    try:
+                        fig.savefig(fname_plot)
+                        print(f'[process_offspill_filelist] Wrote cosmic fit figure to {fname_plot}')
+                    except Exception as e_save:
+                        print(f'[process_offspill_filelist] Failed to save cosmic fit figure: {e_save}')
+
+                # Print fitted params to terminal
+                params = fit_out.get('params', {})
+                hesse = fit_out.get('hesse', {})
+                print('[process_offspill_filelist] Cosmic fit parameters:')
+                for k, v in params.items():
+                    err = None
+                    try:
+                        err = hesse.get(next(iter([p for p in hesse.keys() if getattr(p, 'name', p) == k]), None), None)
+                    except Exception:
+                        err = None
+                    if isinstance(err, dict) and 'error' in err:
+                        print(f'  {k}: {v} ± {err["error"]}')
+                    else:
+                        print(f'  {k}: {v}')
+
+            except Exception as e_cr:
+                print(f'[process_offspill_filelist] ControlRegion fit failed: {e_cr}')
+                # Provide diagnostics for mom_flat to help debug formatting issues
+                try:
+                    import numpy as _np
+                    print(f'[process_offspill_filelist] mom_flat type: {type(mom_flat)}, shape: {getattr(mom_flat, "shape", None)}')
+                    try:
+                        sample = repr(mom_flat[:50])
+                    except Exception:
+                        sample = str(mom_flat)
+                    print(f'[process_offspill_filelist] mom_flat sample (first 50): {sample}')
+                    arr = _np.asarray(mom_flat)
+                    if arr.size == 0:
+                        print('[process_offspill_filelist] mom_flat is empty')
+                    else:
+                        try:
+                            vmin = _np.nanmin(arr)
+                            vmax = _np.nanmax(arr)
+                            vmean = _np.nanmean(arr)
+                            vstd = _np.nanstd(arr)
+                            print(f'[process_offspill_filelist] mom_flat min/max/mean/std: {vmin:.6g}/{vmax:.6g}/{vmean:.6g}/{vstd:.6g}')
+                        except Exception as e_stat:
+                            print(f'[process_offspill_filelist] Failed computing stats: {e_stat}')
+                        # Save a histogram for visual inspection
+                        try:
+                            import matplotlib.pyplot as _plt
+                            fig_debug = _plt.figure()
+                            # use finite values only
+                            finite = _np.isfinite(arr)
+                            if finite.any():
+                                _plt.hist(arr[finite], bins=80)
+                            else:
+                                _plt.hist(arr, bins=80)
+                            _plt.xlabel('mom_mag')
+                            _plt.ylabel('counts')
+                            _plt.title('Debug: mom_mag distribution')
+                            debug_fname = out_prefix + '_mom_mag_debug.png'
+                            fig_debug.savefig(debug_fname)
+                            print(f'[process_offspill_filelist] Wrote debug histogram to {debug_fname}')
+                            _plt.close(fig_debug)
+                        except Exception as e_plot:
+                            print(f'[process_offspill_filelist] Failed to create debug histogram: {e_plot}')
+                except Exception as e_diag:
+                    print(f'[process_offspill_filelist] Failed to print mom_flat diagnostics: {e_diag}')
+        else:
+            print(f'[process_offspill_filelist] Skipped writing mom_mag: could not extract from combined array')
+    except Exception as e:
+        print(f'[process_offspill_filelist] Could not extract mom_mag: {e}')
+
+    return {'results': results, 'combined_filtered': combined}
 
     
     
@@ -404,7 +630,7 @@ def count_particle_types(data):
 # Create an instance of our custom processor
 def main(args):
     """Main driver function to run analysis."""
-    PrintArgs(args)
+
     # list which cuts to switch on/off (positional):
     # sw(0)=is_reco_electron, sw(1)=has_downstream, sw(2)=good_trkqual, sw(3)=good_trkpid,
     # sw(4)=has_hits, sw(5)=within_t0, sw(6)=within_t0err, sw(7)=within_lhr_max,
@@ -412,6 +638,7 @@ def main(args):
     # sw(12)=no_opa, sw(13)=in_mom_range
 
     new = [True, True, True, True, True, True, True, False, False, False, True, True, True, True]
+    off_spill_cosmics = [True, True, True, True, True, False, True, False, False, False, True, True, True, True]
     nocuts = [False] * 14
 
     # Convert positional list to named switches for robustness
@@ -432,6 +659,19 @@ def main(args):
         "in_mom_range",
     ]
 
+    
+
+    # run control sample analysis:
+    named_switches_offspill = dict(zip(cut_names, off_spill_cosmics))
+    if module_logger:
+        module_logger.log(f"selection cuts to be applied : {named_switches_offspill}", "info")
+    else:
+        print("selection cuts to be applied : ", named_switches_offspill)
+    if bool(getattr(args, 'control_fit', False)):
+        process_offspill_filelist('OffSpill_10.txt', out_prefix='offspill_control', location='local', cuts=named_switches_offspill, mom_lo=args.fitrange_low[0], mom_hi=args.fitrange_hi[0], jobs=1)
+
+
+    # now run main analysis
     named_switches = dict(zip(cut_names, new))
     if module_logger:
         module_logger.log(f"selection cuts to be applied : {named_switches}", "info")
@@ -445,7 +685,18 @@ def main(args):
     cutlist = []
     for i, result in enumerate(results):
         cutlist.append(result["cut_stats"])
-    combine_cutflows = combine_cut_flows(cutlist)
+    # Derive a basename for the CSV from the input filename (nts.mu2e.NAME.version.seq.root -> NAME)
+    try:
+        file_basename = os.path.basename(args.file)
+        parts = file_basename.split('.')
+        if len(parts) >= 3:
+            csv_base = parts[2]
+        else:
+            csv_base = os.path.splitext(file_basename)[0]
+    except Exception:
+        csv_base = None
+
+    combine_cutflows = combine_cut_flows(cutlist, csv_basename=csv_base)
 
     # Categorize tracks if requested
     if int(args.cat) == 1:
@@ -658,6 +909,7 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", default=1, help="verbose")
     parser.add_argument("--scan_mom", type=int, default=0, help="number of momentum slices to scan for stability (0=off)")
     parser.add_argument("--loc", type=str, required=False, default='disk', help="location of files")
+    parser.add_argument("--control-fit", dest='control_fit', action='store_true', help="Run control-region fit for OffSpill (default: off)")
     args = parser.parse_args()
 
     # if verbose print the user input

@@ -101,3 +101,23 @@ python process.py --file MDS2c_1e-13_1month_exp1.txt --loc "local"
 ```
 
 where the `.txt` file is the file list you made above and `--loc` tells the processor to look locally.
+
+## Unit test (quick verification)
+
+We provide a small unit test script to exercise the main processing flow and produce a combined cutflow table and diagnostics plots. The script lives in the `py-fitter` directory and runs `process.py` on a representative file list.
+
+To run the unit test:
+
+```
+cd py-fitter
+python run_unit_test.py
+```
+
+Outputs
+- A log file: `py-fitter/unit_test/process_output.log`
+- Any generated CSV/PNG/PKL/NPZ files will be moved into `py-fitter/unit_test/`
+
+Developer workflow requirement
+- Before submitting a pull request, run the unit test on `HEAD` (the branch you will merge into) and on your feature branch (or with your local changes). Attach the `process_output.log` files and any generated diagnostics (CSV/PNG) to the PR so reviewers can quickly compare behavior and outputs.
+
+This ensures reproducibility and helps reviewers spot unintended changes in cutflow, yields, or fit diagnostics.

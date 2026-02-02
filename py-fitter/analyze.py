@@ -377,7 +377,11 @@ class Analyze:
             stats = self.get_stats_list(result)
 
             combined_stats = cut_manager.combine_cut_stats(stats)
-            cut_manager.print_cut_stats(stats=combined_stats, active_only=True, csv_name="cut_stats.csv")
+            # Print per-file combined cut stats to terminal (do not write CSV here)
+            try:
+                cut_manager.print_cut_stats(stats=combined_stats, active_only=True, csv_name=None)
+            except Exception:
+                self.logger.log('Failed to print per-file combined cut stats', 'error')
             
             return result
             
