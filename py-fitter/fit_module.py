@@ -19,7 +19,7 @@ except Exception:
 
 from momPDF_module import MomModel, MomTimeModel, poly58
 from timePDF_module import TimeModel
-from recoplot_module import plotmom_fit, plottime_fit, plot_variable
+from recoplot_module import plotmom_fit, plottime_fit, plot_variable, bin_by_bin_mom_confusion
 from mom_components import mom_components
 from time_components import time_components
 
@@ -499,6 +499,15 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
         print(f"Failed to save 2D-fit figure: {e}")
     plt.close()
 
+
+    # produce bin-by-bin momentum confusion plot (true vs fitted fractions)
+    try:
+      bin_by_bin_mom_confusion(mom_mag, count_particle_types, [(proc, mompdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range_mom, bin_width=0.5, filename_prefix='mom_confusion_2d')
+    except Exception as e:
+      if logger:
+        logger.log(f'Failed to produce bin-by-bin momentum confusion plot: {e}', 'error')
+      else:
+        print(f'Failed to produce bin-by-bin momentum confusion plot: {e}')
 
     return result, pars[1], loss, combine_pdf, norms
 
