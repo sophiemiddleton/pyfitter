@@ -22,8 +22,9 @@ from timePDF_module import TimeModel
 from recoplot_module import plotmom_fit, plottime_fit, plot_variable, bin_by_bin_mom_confusion
 from mom_components import mom_components
 from time_components import time_components
+from uncertainty_loader import load_constraints_json, build_zfit_constraints_from_specs, load_templates_npz
 
-def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, plot_NLL= False):
+def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, plot_NLL= False, constraints_dir=None):
     """
     ----------
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
@@ -118,6 +119,23 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
 
     # --- build combined PDF ---
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
+
+    # --- optional: load external constraints/templates (standalone uncertainty artifacts)
+    if constraints_dir is not None:
+      try:
+        specs = load_constraints_json(constraints_dir)
+        extra_constraints = build_zfit_constraints_from_specs(pars, specs, logger=logger)
+        # append to existing constraints list used by the loss builder
+        constraints.extend(extra_constraints)
+        # expose loaded templates (not automatically injected; available for later use)
+        templates = load_templates_npz(constraints_dir)
+        if logger and templates:
+          logger.log(f'Loaded templates: {list(templates.keys())}', 'info')
+      except Exception as e:
+        if logger:
+          logger.log(f'Failed to load constraints from {constraints_dir}: {e}', 'error')
+        else:
+          print(f'Failed to load constraints from {constraints_dir}: {e}')
 
     # Convert data to zfit Data
     mom_mag_skim = ak.nan_to_none(mom_mag)

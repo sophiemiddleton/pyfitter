@@ -902,6 +902,7 @@ def main(args):
             args.fitrange_hi[0],
             True,
             args.verbose,
+            constraints_dir='uncertainties/Cosmic_test'
         )
         if module_logger:
             module_logger.log(f'Fit result: {fitresult}', 'success')
