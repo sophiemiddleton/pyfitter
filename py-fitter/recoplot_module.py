@@ -15,25 +15,51 @@ except Exception:
   logger = None
 
 
+def _get_leg_handles_labels(ax):
+  try:
+    handles, labels = ax.get_legend_handles_labels()
+    # filter out empty or matplotlib-internal labels
+    new_handles = []
+    new_labels = []
+    for h, l in zip(handles, labels):
+      if l and (not str(l).startswith('_')):
+        new_handles.append(h)
+        new_labels.append(l)
+    if new_labels:
+      return new_handles, new_labels
+    # fallback: inspect artists for labelled items
+    new_handles = []
+    new_labels = []
+    for a in ax.get_children():
+      if hasattr(a, 'get_label'):
+        lab = a.get_label()
+        if lab and (not str(lab).startswith('_')):
+          new_handles.append(a)
+          new_labels.append(lab)
+    return new_handles, new_labels
+  except Exception:
+    return [], []
+
+
+
 def plot_variable(val_overlay, val_label, filenames, lo, hi, cut_lo, cut_hi, mc_count, columns=[], density=False):
   """
-  Plots distributions of the given parameter (val), splitting by process code
+  Plots distributions of the given parameter (val), splitting by process code.
 
-  Args:
-      val : list of values e.g. rmax
-      val_label : text formated value name e.g. "rmax"
-      lo : plot range lower bound
-      hi : plot range upper bound
-      cut_lo : lower cut choice
-      cut_hi : upper cut choice
-      mc_counts : list of process codes
+  try:
+      handles, labels = _get_leg_handles_labels(ax1)
+    ncol = max(1, min(4, (len(labels) + 1) // 2))
+    if labels:
+      fig.subplots_adjust(right=0.68)
+      fig.legend(handles, labels, loc='center left', bbox_to_anchor=(0.73, 0.5), ncol=1, fontsize=10, frameon=False)
+      leg = None
+    else:
+      leg = ax1.legend(fontsize='large')
+  except Exception:
+    leg = ax1.legend(fontsize='large')
 
   Returns:
-      plots saved as pdfs
-      
-  Useage:
-    columns = ["legend title"]
-    plot_variable(rmax, "rmax", "rmax",300,750, [450,450],[680,680], mc_count,columns)
+      saves a PDF named `<filenames>_selection.pdf`
   """
   sets = []
   cols = ['magenta','orange','orange','black','cyan','grey','green','blue']
@@ -42,7 +68,6 @@ def plot_variable(val_overlay, val_label, filenames, lo, hi, cut_lo, cut_hi, mc_
   lines=["","-","--"]
   alphas = [0.2,1,1]
   for i, val in enumerate(val_overlay):
-    
     val = ak.drop_none(val)
     val_signal = ak.mask(val, mc_count == 168)
     val_signal = np.array(ak.flatten(val_signal, axis=None))
@@ -63,17 +88,36 @@ def plot_variable(val_overlay, val_label, filenames, lo, hi, cut_lo, cut_hi, mc_
     plt.yscale('log')
     sets.append([val_cosmics,val_irpc,val_erpc,val_irmc,val_ermc,val_ipa, val_dio, val_signal])
   for i in range(0,len(sets)):
+    # create dummy handle for legend columns
     dummy_handle = plt.plot([], marker="",color='white', label=columns[i])
     n,bins,patch = plt.hist(sets[i],range=(lo,hi), color=cols, label=labs, bins=50, histtype=styles[i], linestyle=lines[i],alpha=alphas[i], stacked=True, density=density)
   plt.xlabel(str(val_label))
   # draw cuts
   plt.plot(cut_lo, [0,1000], 'k--')
   plt.plot(cut_hi, [0,1000], 'k--')
-  
-  plt.legend(ncol=len(columns),loc='upper center')
 
-  plt.savefig(str(filenames)+"_selection.pdf")
-  plt.show()
+  # place legend in reserved figure space above the axes to avoid overlaying data
+  try:
+    fig = plt.gcf()
+    ncol = max(1, min(6, len(columns)))
+    fig.subplots_adjust(top=0.80)
+    handles, labels = _get_leg_handles_labels(plt.gca())
+    if labels:
+      # reserve space on right for legend and place legend inside reserved margin
+      fig.subplots_adjust(right=0.66)
+      leg = fig.legend(handles, labels, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=1, fontsize=10, frameon=True)
+      if leg is not None:
+        leg.set_frame_on(True)
+        for txt in leg.get_texts():
+          txt.set_color('black')
+          txt.set_alpha(1.0)
+    else:
+      leg = plt.legend(ncol=1, loc='center left', bbox_to_anchor=(0.68, 0.5))
+  except Exception:
+    plt.legend(ncol=len(columns), loc='upper center')
+
+  plt.savefig(str(filenames)+"_selection.pdf", bbox_inches='tight')
+  plt.close()
 
 def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
     """
@@ -152,7 +196,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
             datasets_filled.append(dat)
             colors_filled.append(colors[i])
             labels_filled.append(labs_true[i])
-        dummy_handle1 = ax1.plot([], marker="",color='white', label="Reco. MC")
+          dummy_handle1 = ax1.plot([], marker="",color='white', label="Reco. MC")
         n,bins,patch = ax1.hist(datasets_filled,range=(fit_range[0],fit_range[1]), color=colors_filled, label=labels_filled, bins=50, histtype="bar", stacked=True)
 
         
@@ -184,23 +228,68 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
     # make plot
     combine_plot = np.zeros(len(mom_plot))
     labs_fit = []
-    dummy_handle2 = ax1.plot([], marker="",color='white', label="Fit Components")
+    #dummy_handle2 = ax1.plot([], marker="",color='white', label="Fit Components")
     for name, pdfs, N_pdfs in list_pdfs:
-        pdf_plot = (pdfs.pdf(mom_plot) * N_pdfs * scale).numpy()
-        combine_plot += pdf_plot
-        labs_fit.append(name)
-        ax1.plot(mom_plot, pdf_plot, label=name, color=mom_components[name]['lineColor'],linestyle=mom_components[name]['lineStyle'])
+      pdf_plot = (pdfs.pdf(mom_plot) * N_pdfs * scale).numpy()
+      combine_plot += pdf_plot
+      labs_fit.append(name)
+      style = mom_components.get(name, mom_components.get(name.strip(), {}))
+      color = style.get('lineColor', 'k')
+      ls = style.get('lineStyle', '-')
+      ax1.plot(mom_plot, pdf_plot, label=name, color=color, linestyle=ls)
 
     ax1.plot(mom_plot, combine_plot, '-r', label='Total')
     ax1.grid(True)
     ax1.set_yscale('log')
     ax1.set_xlim(fit_range)
-    ax1.set_ylim([1e-1, max(data_hist)])
+    ax1.set_ylim([1e-1,0.2*max(data_hist) + max(data_hist)])
     ax1.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=16)
     ax1.set_ylabel('# of events per bin', fontsize=16)
-    leg = ax1.legend(fontsize='large')
+    # build explicit proxy legend entries so text appears in reserved white space
+    try:
+      from matplotlib.lines import Line2D
+      from matplotlib.patches import Patch
+      handles0, labels0 = _get_leg_handles_labels(ax1)
+     
+      proxy_handles = []
+      proxy_labels = []
+      # MC truth stacked components (if any)
+      if 'labels_filled' in locals() and len(labels_filled) > 0:
+        for col, lab in zip(colors_filled, labels_filled):
+          proxy_handles.append(Patch(facecolor=col, edgecolor='black'))
+          proxy_labels.append(lab)
+      # Fit components (per-process lines) — ensure these appear in the legend
+      if 'labs_fit' in locals() and len(labs_fit) > 0:
+        for nm in labs_fit:
+          style = mom_components.get(nm, mom_components.get(nm.strip(), {}))
+          color = style.get('lineColor', 'k')
+          ls = style.get('lineStyle', '-')
+          proxy_handles.append(Line2D([0], [0], color=color, linestyle=ls))
+          proxy_labels.append(nm)
+      # Reco MC / Mock Data
+      proxy_handles.append(Line2D([0], [0], marker='+', color='black', linestyle=''))
+      proxy_labels.append('Mock Data')
+      # Fit components heading and Total
+      proxy_handles.append(Patch(facecolor='white', edgecolor='black'))
+      proxy_labels.append('Fit Components')
+      proxy_handles.append(Line2D([0], [0], color='red'))
+      proxy_labels.append('Total')
+      ncol = 1
+      fig.subplots_adjust(right=0.66)
+      
+      leg = fig.legend(proxy_handles, proxy_labels, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=ncol, fontsize=10, frameon=True)
+      if leg is not None:
+        leg.set_frame_on(True)
+        for txt in leg.get_texts():
+          txt.set_color('black')
+          txt.set_alpha(1.0)
+    except Exception:
+      try:
+        leg = ax1.legend(fontsize=10)
+      except Exception:
+        leg = None
     # Make only the 'Reco. MC' and 'Fit Components' legend entries bold; others normal
-    legend_texts = leg.get_texts()
+    legend_texts = leg.get_texts() if leg is not None else []
     for txt in legend_texts:
       t = txt.get_text()
       if t in ('Reco. MC', 'Fit Components'):
@@ -391,7 +480,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
     # make plot
     combine_plot = np.zeros(len(time_plot))
     labs_fit = []
-    dummy_handle2 = ax1.plot([], marker="",color='white', label="Fit Components")
+    #dummy_handle2 = ax1.plot([], marker="",color='white', label="Fit Components")
 
     # combine DIO and CE into a single 'Stopped muon' curve for the fit
     stopped_plot = np.zeros(len(time_plot))
@@ -421,12 +510,48 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
     ax1.grid(True)
     ax1.set_yscale('log')
     ax1.set_xlim(fit_range)
-    ax1.set_ylim([1e-1, max(data_hist)])
+    ax1.set_ylim([1e-1, max(data_hist) + 0.2*max(data_hist)])
     ax1.set_xlabel('Reconstructed Time [ns]', fontsize=16)
     ax1.set_ylabel('# of events per bin', fontsize=16)
-    leg = ax1.legend(fontsize='large')
+    # build explicit proxy legend entries for time plot so text appears
+    try:
+      from matplotlib.lines import Line2D
+      from matplotlib.patches import Patch
+      proxy_handles = []
+      proxy_labels = []
+      if 'labels_filled' in locals() and len(labels_filled) > 0:
+        for col, lab in zip(colors_filled, labels_filled):
+          proxy_handles.append(Patch(facecolor=col, edgecolor='black'))
+          proxy_labels.append(lab)
+      # add per-process fit component proxies
+      if 'labs_fit' in locals() and len(labs_fit) > 0:
+        for nm in labs_fit:
+          style = time_components.get(nm, {})
+          color = style.get('lineColor', 'k')
+          ls = style.get('lineStyle', '-')
+          proxy_handles.append(Line2D([0], [0], color=color, linestyle=ls))
+          proxy_labels.append(nm)
+      proxy_handles.append(Line2D([0], [0], marker='+', color='black', linestyle=''))
+      proxy_labels.append('Mock Data')
+      proxy_handles.append(Patch(facecolor='white', edgecolor='black'))
+      proxy_labels.append('Fit Components')
+      proxy_handles.append(Line2D([0], [0], color='red'))
+      proxy_labels.append('Total')
+      ncol = 1
+      fig.subplots_adjust(right=0.66)
+      leg = fig.legend(proxy_handles, proxy_labels, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=ncol, fontsize=10, frameon=True)
+      if leg is not None:
+        leg.set_frame_on(True)
+        for txt in leg.get_texts():
+          txt.set_color('black')
+          txt.set_alpha(1.0)
+    except Exception:
+      try:
+        leg = ax1.legend(fontsize=10)
+      except Exception:
+        leg = None
     # Make only the 'Reco. MC' and 'Fit Components' legend entries bold; others normal
-    legend_texts = leg.get_texts()
+    legend_texts = leg.get_texts() if leg is not None else []
     for txt in legend_texts:
       t = txt.get_text()
       if t in ('Reco. MC', 'Fit Components'):
@@ -535,8 +660,21 @@ def plot_yield_comparison(data, mc_count, list_pdfs, filename_prefix='yield_comp
     ax.set_title('Expected vs Fitted Yields')
     ax.set_xticks(x)
     ax.set_xticklabels(procs, rotation=45, ha='right')
-    ax.legend()
-    ax.grid(axis='y', linestyle=':', alpha=0.5)
+    try:
+      handles, labels = _get_leg_handles_labels(ax)
+      ncol = max(1, min(4, (len(labels) + 1) // 2))
+      if labels:
+        fig.subplots_adjust(right=0.66)
+        leg = fig.legend(handles, labels, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=1, fontsize=10, frameon=True)
+        if leg is not None:
+          leg.set_frame_on(True)
+          for txt in leg.get_texts():
+            txt.set_color('black')
+            txt.set_alpha(1.0)
+      else:
+        leg = ax.legend(fontsize=10)
+    except Exception:
+      leg = ax.legend(fontsize=10)
 
     # add error bars: expected ~ Poisson sqrt(N); fitted use sqrt(N) as an approximate uncertainty
     expected_errs = [np.sqrt(e) if e >= 0 else 0.0 for e in expected]
@@ -682,7 +820,18 @@ def bin_by_bin_mom_confusion(mom_mag, mc_count, list_pdfs, fit_range, bin_width=
     ax.set_ylabel('Relative fraction in bin')
     ax.set_title('Bin-by-bin true vs fitted relative yields (momentum)')
     ax.set_ylim(0.0, ymax)
-    ax.legend(ncol=2, fontsize='small')
+    try:
+      handles0, labels0 = _get_leg_handles_labels(ax)
+
+      ncol = 1
+      if labels0:
+        fig.subplots_adjust(right=0.66)
+
+        leg = fig.legend(handles0, labels0, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=ncol, fontsize=10, frameon=False)
+      else:
+        leg = ax.legend(fontsize=10)
+    except Exception:
+      leg = ax.legend(fontsize=10)
     ax.grid(True, linestyle=':')
     ts = int(_time.time())
     fname = f"{filename_prefix}_{ts}.png"

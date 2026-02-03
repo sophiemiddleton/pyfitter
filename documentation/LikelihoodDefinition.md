@@ -46,6 +46,42 @@ The fit is conducted in the $\mathbf{95 < p < 115 \text{ MeV/c}}$ momentum regio
 | **Cosmic Induced** | Uniform, $U(a,b)$ with $a=95, b=115$ MeV/c | Uniform, $U(a,b)$ with $a=640, b=1650$ ns | Uniform distribution is a basic starting point; off-spill data is planned for a data-driven distribution. |
 | **Radiative Pion Capture (RPC)** | Gaussian, $\mathcal{N}(\mu,\sigma^{2})$ | Exponential, $f_{\text{RPC}}(t)=e^{-t/\tau_{\pi}}$ | Gaussian is a simplification; $\tau_{\pi}$ is the free pion lifetime, as the pionic aluminum lifetime is unknown. Data-driven estimates are preferred. |
 
+### DIO Custom Model (2025)
+
+The analysis includes a custom, physics-motivated momentum PDF for Decay-In-Orbit (DIO) implemented as `DIO_custom_model_2025` in `py-fitter/momPDF_module.py`.
+
+Form (unnormalized):
+$$
+f_{\mathrm{DIO}}(p) \propto
+\begin{cases}
+(\Delta E)^{5+\delta}\,\exp\!\big(\beta\,[\log(\Delta E/m_{\mu})]^2\big) & \Delta E\equiv E_{\mathrm{endpoint}}-p > 0,\\
+0 & \text{otherwise.}
+\end{cases}
+$$
+
+Parameters
+- `DIO_endpoint`: endpoint energy (MeV). Typical code fallback: ~104.97 MeV.
+- `beta`: coefficient of the log-squared correction (typical fallback: ~-0.002).
+- `degree_shift` (\(\delta\)): small shift applied to the power (typical fallback: 0).
+
+Notes
+- The model is implemented as a TensorFlow/ZFit PDF and is constructed as an extended PDF in `MomModel` (yield handled via `N` in zfit).
+- The implementation uses `tf.where`/safe-values to avoid taking `log` of non-positive arguments, improving numerical stability near the endpoint.
+- When supplying `pardict` for this model via calls to `MomModel`, initialize the parameters (endpoint, beta, degree_shift) or rely on the code defaults.
+
+Example (simple usage):
+```python
+# build the momentum PDF for DIO (simple path)
+PDF, N = MomModel(obs_mom, params_tot, 'DIO', 'DIO_custom_model_2025',
+                  {'endpoint': (104.97, 103.5, 106.0), 'beta': (-0.002, -0.01, 0.01), 'degree_shift': (0, -1, 1)},
+                  treat_params='float', fit_range=fit_range, constraints=constraints, use_advanced=False)
+```
+
+Implementation caveat
+- The class `DIO_custom_model_2025` declares parameters internally named `['DIO_endpoint','beta','degree_shift']`, while the `MomModel` lookup may use a key named `endpoint` when constructing the TF/ZFit parameters for the simple path. If you see unexpected defaults being used, ensure the `pardict` keys match the parameter lookup names (or provide both forms) so the `MomModel` zfit-parameters propagate to the PDF constructor.
+
+See `py-fitter/momPDF_module.py` for the exact implementation and `py-fitter/mom_components.py` for where the model name `DIO_custom_model_2025` may be referenced in `mom_components`.
+
 ### 4. Including Constraints and Uncertainties
 
 The full likelihood is often combined with likelihoods from Control Regions (CRs) in a **simultaneous fit**:

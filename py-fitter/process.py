@@ -9,6 +9,7 @@ import csv
 import traceback
 import os
 from pyutils.pylogger import Logger
+from pathlib import Path
 
 # Module-level logger
 try:
@@ -270,6 +271,129 @@ def combine_arrays(results):
         # Concatenate arrays
         arrays_to_combine.append(result["filtered_data"])
     return ak.concatenate(arrays_to_combine)
+
+
+def _save_fit_npz(basename, fitresult, par=None, loss=None, nlls=None, extra=None):
+    """Save a compact NPZ summary of a fit result for systematics studies.
+
+    Produces <basename>_fit.npz containing:
+      - param_names: array of parameter names
+      - param_values: array of float values
+      - param_errors: array of float (nan if unavailable)
+      - loss: scalar (if present)
+      - nlls: array/list (if present)
+      - extra: saved under 'extra' if provided (must be numpy-able)
+    """
+    try:
+        if not basename:
+            basename = 'fitresult'
+        # Write fit summaries into a dedicated `fits/` directory and avoid overwriting
+        base_dir = Path(__file__).resolve().parent
+        fits_dir = base_dir / 'fits'
+        fits_dir.mkdir(parents=True, exist_ok=True)
+
+        # Determine versioned filename
+        pattern = f"{basename}_fit*.npz"
+        existing = sorted(fits_dir.glob(pattern))
+        if not existing:
+            fname = fits_dir / f"{basename}_fit.npz"
+        else:
+            # find next v### index
+            max_v = 0
+            for p in existing:
+                nm = p.stem  # without .npz
+                # try to parse suffix vNNN
+                if nm.endswith('_fit'):
+                    # base version exists, treat as v000
+                    max_v = max(max_v, 0)
+                else:
+                    parts = nm.rsplit('_v', 1)
+                    if len(parts) == 2:
+                        try:
+                            vnum = int(parts[1])
+                            max_v = max(max_v, vnum)
+                        except Exception:
+                            pass
+            next_v = max_v + 1
+            fname = fits_dir / f"{basename}_fit_v{next_v:03d}.npz"
+        param_names = []
+        param_values = []
+        param_errors = []
+
+        # Attempt to extract parameters from fitresult
+        params = None
+        try:
+            params = getattr(fitresult, 'params', None)
+        except Exception:
+            params = None
+
+        if params is None and isinstance(fitresult, dict) and 'params' in fitresult:
+            params = fitresult.get('params')
+
+        if params is not None:
+            try:
+                for name in params:
+                    entry = params[name]
+                    # entry may be a dict-like with 'value' and 'error'
+                    val = None
+                    err = None
+                    if isinstance(entry, dict):
+                        val = entry.get('value', None)
+                        err = entry.get('error', None)
+                    else:
+                        # fallback: try attributes
+                        val = getattr(entry, 'value', None)
+                        err = getattr(entry, 'error', None)
+                    param_names.append(name)
+                    try:
+                        param_values.append(float(val) if val is not None else float('nan'))
+                    except Exception:
+                        param_values.append(float('nan'))
+                    try:
+                        param_errors.append(float(err) if err is not None else float('nan'))
+                    except Exception:
+                        param_errors.append(float('nan'))
+            except Exception:
+                # give up gracefully
+                param_names = []
+                param_values = []
+                param_errors = []
+
+        # Save arrays to npz
+        tosave = {}
+        tosave['param_names'] = np.array(param_names, dtype=object)
+        tosave['param_values'] = np.array(param_values, dtype=float)
+        tosave['param_errors'] = np.array(param_errors, dtype=float)
+        # Sanitize loss/nlls/extra so we don't try to pickle complex objects
+        if loss is not None:
+            try:
+                # try to coerce to a float scalar
+                tosave['loss'] = np.array(float(loss))
+            except Exception:
+                # fallback to a string representation
+                tosave['loss'] = np.array([repr(loss)], dtype=object)
+        if nlls is not None:
+            try:
+                # try numeric array
+                nlls_arr = np.asarray(nlls, dtype=float)
+                tosave['nlls'] = nlls_arr
+            except Exception:
+                # store a textual representation instead of attempting to serialize
+                try:
+                    tosave['nlls'] = np.array([list(nlls)], dtype=object)
+                except Exception:
+                    tosave['nlls'] = np.array([repr(nlls)], dtype=object)
+        if extra is not None:
+            try:
+                # if extra is numpy-able, store it; otherwise stringify
+                tosave['extra'] = np.asarray(extra)
+            except Exception:
+                tosave['extra'] = np.array([repr(extra)], dtype=object)
+
+        np.savez_compressed(str(fname), **tosave)
+        print(f'[process] Wrote fit summary to {fname}')
+    except Exception as e:
+        print(f'[process] Failed to write fit NPZ: {e}')
 
 
 def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
@@ -784,6 +908,12 @@ def main(args):
         else:
             print('[py-fitter/main] ✅  Fit result: ', fitresult, '\n', 'for  fit')
 
+        # Save fit summary for systematics studies
+        try:
+            _save_fit_npz(csv_base, fitresult, par=par, loss=loss, nlls=nlls)
+        except Exception as e_save:
+            print(f'[process] Failed to save mom fit npz: {e_save}')
+
         if int(args.interpret) == 1:
             result_output = ResultsClass(mom_mag, fitresult, args.verbose)
             result_output.WriteFittedData(args.fitrange_low[0], args.fitrange_hi[0])
@@ -818,6 +948,12 @@ def main(args):
         else:
             print('[py-fitter/main] ✅ Fit result: ', fitresult, '\n', 'for ', args.fittype, ' fit')
 
+        # Save time fit summary
+        try:
+            _save_fit_npz(csv_base, fitresult, par=par, loss=loss)
+        except Exception as e_save:
+            print(f'[process] Failed to save time fit npz: {e_save}')
+
     elif args.fittype == "2D":
         fitresult, par, loss, combine_pdf, norms = Unbinned_2d_fit_mom_time(
             mom_mag,
@@ -833,6 +969,12 @@ def main(args):
             module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')
         else:
             print('[py-fitter/main]✅  Fit result: ', fitresult, '\n', 'for ', args.fittype, ' fit')
+
+        # Save 2D fit summary
+        try:
+            _save_fit_npz(csv_base, fitresult, par=par, loss=loss)
+        except Exception as e_save:
+            print(f'[process] Failed to save 2D fit npz: {e_save}')
 
         # optionally run a momentum stability scan across N slices
         try:

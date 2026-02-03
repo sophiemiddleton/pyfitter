@@ -133,7 +133,6 @@ mom_components = {
         'lineStyle': ':',
         'catColor': 'lightgreen',
         'advanced_pars': None
-        
     },
     
     # Radiative Pion Background (Internal + External) 

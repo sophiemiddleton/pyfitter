@@ -262,6 +262,15 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
         else:
             print(f"Failed to save NLL scan: {e}")
       plt.close()
+
+    # produce bin-by-bin momentum confusion plot (true vs fitted fractions)
+    try:
+      bin_by_bin_mom_confusion(mom_mag, count_particle_types, [(proc, pdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range, bin_width=0.5, filename_prefix='mom_confusion_1d')
+    except Exception as e:
+      if logger:
+        logger.log(f'Failed to produce bin-by-bin momentum confusion plot: {e}', 'error')
+      else:
+        print(f'Failed to produce bin-by-bin momentum confusion plot: {e}')
       
     return result, pars[1], loss, aux_nlls, combine_pdf, constraints
 
@@ -356,6 +365,8 @@ def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit
       else:
         print(f"Failed to save time-fit figure: {e}")
     plt.close()
+
+    
     return result, pars[1], loss, combine_pdf
 
 def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fit_range_mom, fit_range_time, plot_cat=False, verbose=0):

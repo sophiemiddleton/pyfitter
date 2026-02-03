@@ -101,9 +101,12 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
             
             true_pdf_slice = (prob, edges)
             pdf_conv = doConv(true_pdf_slice, obs_gen, obs_res, process, info, zpars)
-            pdf_conv = zfit.pdf.TruncatedPDF(pdf_conv,limits=obs_mom,obs=obs_mom,extended=N)
-            PDF.set_yield(N)
-            return PDF, N
+            pdf_conv = zfit.pdf.TruncatedPDF(pdf_conv, limits=obs_mom, obs=obs_mom, extended=N)
+            try:
+                pdf_conv.set_yield(N)
+            except Exception:
+                pass
+            return pdf_conv, N
 
     # --- SIMPLE PATH  ---
     params = default_model_params.get(model, {}).copy()
@@ -133,9 +136,42 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
     elif model == 'DIO_custom_model_2025':
         PDF = DIO_custom_model_2025(obs=obs_mom, DIO_endpoint=zpars.get('endpoint', 104.97), beta=zpars.get('beta', -0.002), degree_shift=zpars.get('degree_shift', 0), extended=N)
     elif model == 'poly2': # Cheb. poly order 2
-        c1 = zfit.Parameter("c1", zpars['c1'], floating=False)
-        c2 = zfit.Parameter("c2", zpars['c2'], floating=False)
+        # Accept either zfit.Parameter in zpars or numeric defaults; ensure unique names per process
+        def _get_coeff(name, default=0.0):
+            val = zpars.get(name)
+            pname = f"{name}_{process}"
+            if isinstance(val, zfit.Parameter):
+                return val
+            try:
+                num = float(val)
+                return zfit.Parameter(pname, num, floating=False)
+            except Exception:
+                return zfit.Parameter(pname, float(default), floating=False)
+        
+        c1 = _get_coeff('c1', default=0.0)
+        c2 = _get_coeff('c2', default=0.0)
         coeffs = [c1, c2]
+        print("COSMIC COEEFS", c1,c2)
+        # Create a Chebyshev polynomial PDF
+        PDF = zfit.pdf.Chebyshev(obs=obs_mom, coeffs=coeffs, extended=N)
+    elif model == 'poly5': # Cheb. poly order 5
+        def _get_coeff(name, default=0.0):
+            val = zpars.get(name)
+            pname = f"{name}_{process}"
+            if isinstance(val, zfit.Parameter):
+                return val
+            try:
+                num = float(val)
+                return zfit.Parameter(pname, num, floating=False)
+            except Exception:
+                return zfit.Parameter(pname, float(default), floating=False)
+
+        c1 = _get_coeff('c1', default=0.0)
+        c2 = _get_coeff('c2', default=0.0)
+        c3 = _get_coeff('c3', default=0.0)
+        c4 = _get_coeff('c4', default=0.0)
+        c5 = _get_coeff('c5', default=0.0)
+        coeffs = [c1, c2, c3, c4, c5]
 
         # Create a Chebyshev polynomial PDF
         PDF = zfit.pdf.Chebyshev(obs=obs_mom, coeffs=coeffs, extended=N)
