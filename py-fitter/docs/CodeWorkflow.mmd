@@ -1,0 +1,45 @@
+flowchart LR
+  subgraph Inputs
+    D1[Reco data (mom, time)]
+    D5[Control regions (off-spill, RPC e+)]
+    D2[MC labels (`mc_count`)]
+    D3[Fit config & components (mom_components, time_components, fit config)]
+    D4[Uncertainty package (uncertainties/<name>/constraints.json, templates.npz)]
+  end
+
+  D1 --> FitModule[fit_module]
+  D2 --> FitModule
+  D3 --> FitModule
+  D4 --> Loader[uncertainty_loader]
+  D5 --> FitModule
+  D5 --> MomModel
+  Loader -->|constraints| FitModule
+  Loader -->|templates (optional)| FitModule
+
+  subgraph ModelBuild
+    FitModule --> MomModel[MomModel (momPDF_module)]
+    MomModel --> momPDFs[momPDF_module (poly2/poly5, DIO_custom_model_2025, DSCB, Gauss)]
+    momPDFs --> mom_components[mom_components (pars & styles)]
+    MomModel --> TimeModel[MomTimeModel]
+  end
+
+  FitModule --> Minimizer[zfit Minimizer / loss builder]
+  Minimizer --> FitOutputs[list_pdfs, fitted N params, diagnostics]
+  FitOutputs --> Recoplot[plot_module]
+  Recoplot --> Plots[Saved plots: momentum/time/residuals, yield comparison]
+  FitOutputs --> TemplatesOut[Optional templates.npz]
+  FitOutputs --> Results[Results & Interpretation interface]
+  Results --> Reports[Saved reports, tables, diagnostics]
+  Results --> BayesAna[BayesAna (Bayesian Analysis toolkit)]
+
+  style Inputs fill:#f9f,stroke:#333,stroke-width:1px
+  style ModelBuild fill:#bbf,stroke:#333,stroke-width:1px
+  style FitModule fill:#bfb,stroke:#333,stroke-width:1px
+  style Minimizer fill:#ffd,stroke:#333,stroke-width:1px
+  style Recoplot fill:#fdf6e3,stroke:#333,stroke-width:1px
+  style Results fill:#cfe8ff,stroke:#333,stroke-width:1px
+
+  click Loader "../uncertainty_loader.py" "Opens loader implementation"
+  click mom_components "../mom_components.py" "Component definitions and default pars"
+  click momPDFs "../momPDF_module.py" "Momentum PDF builders"
+  click Recoplot "../plot_module.py" "Plotting and legend handling"

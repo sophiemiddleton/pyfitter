@@ -110,9 +110,21 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
 
     # --- SIMPLE PATH  ---
     params = default_model_params.get(model, {}).copy()
+    # Normalize pardict keys: allow keys with or without process suffix
     if pardict is not None:
-        for par in pardict.keys(): 
-            if par in params: params[par] = pardict[par]
+        for par, val in pardict.items():
+            if par in params:
+                params[par] = val
+            else:
+                # if pardict uses name with process suffix (e.g., c1_Cosmic), map to base name
+                suffix = f"_{process}"
+                if par.endswith(suffix):
+                    base = par[:-len(suffix)]
+                    if base in params:
+                        params[base] = val
+                        continue
+                # also accept keys with process prefix (unlikely) or exact match otherwise store as-is
+                params[par] = val
     
     zpars = {}
     for p in params.keys():
@@ -123,6 +135,10 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
             constraints.append(zfit.constraint.GaussianConstraint(zpars[p], observation=params[p][0], uncertainty=max(abs(params[p][1]), abs(params[p][2]))))
         elif treat_params == 'fix':
             zpars[p] = zfit.Parameter(p_name, params[p][0], floating=False)
+            try:
+                params_tot.append(zpars[p])
+            except Exception:
+                pass
         else:
             zpars[p] = zfit.Parameter(p_name, params[p][0], params[p][1], params[p][2])
             params_tot.append(zpars[p])
@@ -144,10 +160,21 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
                 return val
             try:
                 num = float(val)
-                return zfit.Parameter(pname, num, floating=False)
+                p = zfit.Parameter(pname, num, floating=False)
+                try:
+                    params_tot.append(p)
+                except Exception:
+                    pass
+                return p
             except Exception:
-                return zfit.Parameter(pname, float(default), floating=False)
+                p = zfit.Parameter(pname, float(default), floating=False)
+                try:
+                    params_tot.append(p)
+                except Exception:
+                    pass
+                return p
         
+        # use base coefficient names ('c1','c2') and allow pardict to have supplied values
         c1 = _get_coeff('c1', default=0.0)
         c2 = _get_coeff('c2', default=0.0)
         coeffs = [c1, c2]
@@ -162,9 +189,19 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
                 return val
             try:
                 num = float(val)
-                return zfit.Parameter(pname, num, floating=False)
+                p = zfit.Parameter(pname, num, floating=False)
+                try:
+                    params_tot.append(p)
+                except Exception:
+                    pass
+                return p
             except Exception:
-                return zfit.Parameter(pname, float(default), floating=False)
+                p = zfit.Parameter(pname, float(default), floating=False)
+                try:
+                    params_tot.append(p)
+                except Exception:
+                    pass
+                return p
 
         c1 = _get_coeff('c1', default=0.0)
         c2 = _get_coeff('c2', default=0.0)

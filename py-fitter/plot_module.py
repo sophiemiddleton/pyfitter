@@ -10,7 +10,7 @@ from pyutils.pylogger import Logger
 
 # Module logger
 try:
-  logger = Logger(print_prefix='[recoplot_module] ', verbosity=2)
+  logger = Logger(print_prefix='[plot_module] ', verbosity=2)
 except Exception:
   logger = None
 
@@ -156,7 +156,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
       if logger:
         logger.log('cat option is None; will not include MC truth', 'info')
       else:
-        print("[py-fitter/recoplot_module/plotmom_fit] ❌ cat option is {cat}, will not include MC truth")
+        print("[py-fitter/plot_module/plotmom_fit] ❌ cat option is {cat}, will not include MC truth")
     
     if cat is not None:
         mom_mag = ak.drop_none(mom_mag)
@@ -270,8 +270,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
       proxy_handles.append(Line2D([0], [0], marker='+', color='black', linestyle=''))
       proxy_labels.append('Mock Data')
       # Fit components heading and Total
-      proxy_handles.append(Patch(facecolor='white', edgecolor='black'))
-      proxy_labels.append('Fit Components')
+
       proxy_handles.append(Line2D([0], [0], color='red'))
       proxy_labels.append('Total')
       ncol = 1
@@ -288,11 +287,11 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
         leg = ax1.legend(fontsize=10)
       except Exception:
         leg = None
-    # Make only the 'Reco. MC' and 'Fit Components' legend entries bold; others normal
+    # Make only the 'Reco. MC' legend entries bold; others normal
     legend_texts = leg.get_texts() if leg is not None else []
     for txt in legend_texts:
       t = txt.get_text()
-      if t in ('Reco. MC', 'Fit Components'):
+      if t in ('Reco. MC'):
         txt.set_weight('bold')
       else:
         txt.set_weight('normal')
@@ -311,7 +310,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
        if logger:
          logger.log('histogram empty', 'info')
        else:
-         print('[py-fitter/recoplot_module/plotmom_fit] ⚠️ WARNING! histogram empty')
+         print('[py-fitter/plot_module/plotmom_fit] ⚠️ WARNING! histogram empty')
 
     ax2.errorbar(mom_plot, dev , yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3)
     ax2.grid(True)
@@ -372,7 +371,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
       if logger:
         logger.log('cat option is None; will not include MC truth', 'info')
       else:
-        print("[py-fitter/recoplot_module/plottime_fit] ❌ cat option is {cat}, will not include MC truth")
+        print("[py-fitter/plot_module/plottime_fit] ❌ cat option is {cat}, will not include MC truth")
     
     if cat is not None:
         # Align mc_count and time by trimming the longer array to the shorter
@@ -387,7 +386,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
             if logger:
                 logger.log(f'mc_count/time length mismatch ({len(mc_arr)} vs {len(time_flat)}); trimming to {nmin}', 'info')
             else:
-                print(f'[recoplot_module] mc_count/time length mismatch ({len(mc_arr)} vs {len(time_flat)}); trimming to {nmin}')
+                print(f'[plot_module] mc_count/time length mismatch ({len(mc_arr)} vs {len(time_flat)}); trimming to {nmin}')
             mc_arr = mc_arr[:nmin]
             time_flat = time_flat[:nmin]
 
@@ -531,10 +530,19 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
           ls = style.get('lineStyle', '-')
           proxy_handles.append(Line2D([0], [0], color=color, linestyle=ls))
           proxy_labels.append(nm)
+      # add stopped-muon proxy (DIO+CE) if present
+      try:
+        if 'stopped_plot' in locals() and np.any(stopped_plot):
+          stopped_style = time_components.get('DIO', time_components.get('CE', {}))
+          stopped_color = stopped_style.get('lineColor', 'cyan')
+          stopped_ls = stopped_style.get('lineStyle', '--')
+          proxy_handles.append(Line2D([0], [0], color=stopped_color, linestyle=stopped_ls))
+          proxy_labels.append('Stopped muon')
+      except Exception:
+        pass
       proxy_handles.append(Line2D([0], [0], marker='+', color='black', linestyle=''))
       proxy_labels.append('Mock Data')
-      proxy_handles.append(Patch(facecolor='white', edgecolor='black'))
-      proxy_labels.append('Fit Components')
+
       proxy_handles.append(Line2D([0], [0], color='red'))
       proxy_labels.append('Total')
       ncol = 1
@@ -554,7 +562,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
     legend_texts = leg.get_texts() if leg is not None else []
     for txt in legend_texts:
       t = txt.get_text()
-      if t in ('Reco. MC', 'Fit Components'):
+      if t in ('Reco. MC'):
         txt.set_weight('bold')
       else:
         txt.set_weight('normal')
@@ -570,7 +578,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
         err.append(0)
         dev.append(0)
     if len(data_hist) == 0:
-       print('[py-fitter/recoplot_module/plottime_fit] ⚠️ WARNING! histogram empty')
+       print('[py-fitter/plot_module/plottime_fit] ⚠️ WARNING! histogram empty')
 
     ax2.errorbar(time_plot, dev , yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3)
     ax2.grid(True)

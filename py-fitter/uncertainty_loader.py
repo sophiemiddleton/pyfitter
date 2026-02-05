@@ -55,11 +55,28 @@ def build_zfit_constraints_from_specs(pars, specs, logger=None):
     for s in specs:
         pname = s.get('pname')
         prior = s.get('prior', {})
-        if pname not in name_map:
-            if logger:
-                logger.log(f"Constraint target {pname} not found among parameters; skipping", 'info')
-            continue
-        p = name_map[pname]
+        p = None
+        if pname in name_map:
+            p = name_map[pname]
+        else:
+            # tolerant matching: allow parameter names that contain or end with the requested pname
+            candidates = [n for n in name_map.keys() if n == pname or n.endswith(pname) or pname in n or n.endswith('_' + pname)]
+            if len(candidates) == 1:
+                mapped = candidates[0]
+                p = name_map[mapped]
+                if logger:
+                    logger.log(f"Constraint target {pname} matched to existing parameter {mapped}", 'info')
+            elif len(candidates) > 1:
+                # pick the longest match (most specific) and log ambiguity
+                candidates_sorted = sorted(candidates, key=lambda x: len(x), reverse=True)
+                mapped = candidates_sorted[0]
+                p = name_map[mapped]
+                if logger:
+                    logger.log(f"Constraint target {pname} ambiguous, picked parameter {mapped}", 'info')
+            else:
+                if logger:
+                    logger.log(f"Constraint target {pname} not found among parameters; skipping", 'info')
+                continue
         dist = prior.get('dist', 'gauss')
         if dist == 'gauss':
             mean = prior.get('mean', None)

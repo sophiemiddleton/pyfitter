@@ -19,7 +19,7 @@ except Exception:
 
 from momPDF_module import MomModel, MomTimeModel, poly58
 from timePDF_module import TimeModel
-from recoplot_module import plotmom_fit, plottime_fit, plot_variable, bin_by_bin_mom_confusion
+from plot_module import plotmom_fit, plottime_fit, plot_variable, bin_by_bin_mom_confusion
 from mom_components import mom_components
 from time_components import time_components
 from uncertainty_loader import load_constraints_json, build_zfit_constraints_from_specs, load_templates_npz
@@ -76,8 +76,8 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
         pardict = comp_config['pars']
         treat_params = comp_config['treat_params']
         
-        # Determine if advanced fit structure is present
-        use_advanced_model = 'advanced_pars' in comp_config
+        # Determine if advanced fit structure is present (truthy config required)
+        use_advanced_model = bool(comp_config.get('advanced_pars'))
 
         # Call the updated MomModel
         pdfs[proc], norms[proc] = MomModel(

@@ -97,9 +97,9 @@ theo_exp_pars_DIO.update({
 mom_components = {
 
     # Cosmics assumes eff+res+loss included from control region (Off spill)
-    'Cosmic' : {'pdf' : 'poly5',
-                'pars' : { 'c1' : (0.47, 0.46, 0.48),
-                           'c2' : (0.011,0.0018,0.0202)},
+    'Cosmic' : {'pdf' : 'poly2',
+                'pars' : { 'c1' : (0.223,0.009, 0.437),
+                           'c2' : (-0.063,-0.0841,-0.0419)},
                 'treat_params' : 'fix',
                 'startCode' : [None],
                 'genCode' : [44,38],
