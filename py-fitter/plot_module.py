@@ -159,67 +159,69 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
         print("[py-fitter/plot_module/plotmom_fit] ❌ cat option is {cat}, will not include MC truth")
     
     if cat is not None:
-        mom_mag = ak.drop_none(mom_mag)
+      mom_mag = ak.drop_none(mom_mag)
+      # use fit_range bounds for selection instead of hard-coded values
+      lo, hi = float(fit_range[0]), float(fit_range[1])
 
-        data_signal = ak.mask(mom_mag, mc_count == 168)
-        data_signal = np.array(ak.flatten(data_signal, axis=None))
-        data_signal = [x for x in data_signal if 95 <= x <= 115]
+      data_signal = ak.mask(mom_mag, mc_count == 168)
+      data_signal = np.array(ak.flatten(data_signal, axis=None))
+      data_signal = [x for x in data_signal if (not np.isnan(x)) and (lo <= x <= hi)]
 
-        data_cosmics = ak.mask(mom_mag, mc_count == -1)
-        data_cosmics = np.array(ak.flatten(data_cosmics, axis=None))
-        data_cosmics = [x for x in data_cosmics if 95 <= x <= 115]
+      data_cosmics = ak.mask(mom_mag, mc_count == -1)
+      data_cosmics = np.array(ak.flatten(data_cosmics, axis=None))
+      data_cosmics = [x for x in data_cosmics if (not np.isnan(x)) and (lo <= x <= hi)]
         
-        data_dio = ak.mask(mom_mag, mc_count == 166)
-        data_dio = np.array(ak.flatten(data_dio, axis=None))
-        data_dio = [x for x in data_dio if 95 <= x <= 115]
+      data_dio = ak.mask(mom_mag, mc_count == 166)
+      data_dio = np.array(ak.flatten(data_dio, axis=None))
+      data_dio = [x for x in data_dio if (not np.isnan(x)) and (lo <= x <= hi)]
+
+      data_erpc = ak.mask(mom_mag, mc_count == 178)
+      data_erpc = np.array(ak.flatten(data_erpc,axis=None))
+      data_erpc = [x for x in data_erpc if (not np.isnan(x)) and (lo <= x <= hi)]
+
+      data_irpc = ak.mask(mom_mag, mc_count == 179)
+      data_irpc = np.array(ak.flatten(data_irpc,axis=None))
+      data_irpc = [x for x in data_irpc if (not np.isnan(x)) and (lo <= x <= hi)]
+
+      data_ipa = ak.mask(mom_mag, mc_count == 0)
+      data_ipa = np.array(ak.flatten(data_ipa,axis=None))
+      data_ipa = [x for x in data_ipa if (not np.isnan(x)) and (lo <= x <= hi)]
         
-        data_erpc = ak.mask(mom_mag, mc_count == 178)
-        data_erpc = np.array(ak.flatten(data_erpc,axis=None))
-        data_erpc = [x for x in data_erpc if 95 <= x <= 115]
-        
-        data_irpc = ak.mask(mom_mag, mc_count == 179)
-        data_irpc = np.array(ak.flatten(data_irpc,axis=None))
-        data_irpc = [x for x in data_irpc if 95 <= x <= 115]
-        
-        data_ipa = ak.mask(mom_mag, mc_count == 0)
-        data_ipa = np.array(ak.flatten(data_ipa,axis=None))
-        data_ipa = [x for x in data_ipa if 95 <= x <= 115]
-        
-        datasets = [data_cosmics,data_irpc,data_erpc,data_ipa, data_dio, data_signal]
-        colors = ['violet','darkorange','grey','yellow','lightgreen','lightskyblue']
-        labs_true = ['Cosmic','iRPC','eRPC','IPA DIO','Trgt DIO', ' CE']
-        datasets_filled = []
-        colors_filled = []
-        labels_filled = []
-        for i, dat in enumerate(datasets):
-          if len(dat) !=0:
-            datasets_filled.append(dat)
-            colors_filled.append(colors[i])
-            labels_filled.append(labs_true[i])
-          dummy_handle1 = ax1.plot([], marker="",color='white', label="Reco. MC")
-        n,bins,patch = ax1.hist(datasets_filled,range=(fit_range[0],fit_range[1]), color=colors_filled, label=labels_filled, bins=50, histtype="bar", stacked=True)
+      datasets = [data_irpc,data_erpc,data_cosmics,data_ipa, data_dio, data_signal]
+      colors = ['darkorange','grey','violet','yellow','lightgreen','lightskyblue']
+      labs_true = ['iRPC','eRPC','Cosmic','IPA DIO','Trgt DIO', ' CE']
+      datasets_filled = []
+      colors_filled = []
+      labels_filled = []
+      for i, dat in enumerate(datasets):
+        if len(dat) != 0:
+          datasets_filled.append(dat)
+          colors_filled.append(colors[i])
+          labels_filled.append(labs_true[i])
+      dummy_handle1 = ax1.plot([], marker="", color='white', label="Reco. MC")
+      n,bins,patch = ax1.hist(datasets_filled, range=(fit_range[0],fit_range[1]), color=colors_filled, label=labels_filled, bins=50, histtype="bar", stacked=True)
 
         
-        """
-        for iproc, proc in enumerate(mom_components.keys()):
-            print(iproc, proc.ljust(10)+':', len(sets[iproc+1]))
-        """
-        if logger:
-          logger.log('======= True Events in Fit Range =======', 'info')
-          logger.log(f'N Cosmics {len(data_cosmics)}', 'info')
-          logger.log(f'N iRPC {len(data_irpc)}', 'info')
-          logger.log(f'N eRPC {len(data_erpc)}', 'info')
-          logger.log(f'N IPA {len(data_ipa)}', 'info')
-          logger.log(f'N DIO {len(data_dio)}', 'info')
-          logger.log(f'N CELL {len(data_signal)}', 'info')
-        else:
-          print("======= True Events in Fit Range =======")
-          print("N Cosmics", len(data_cosmics))
-          print("N iRPC", len(data_irpc))
-          print("N eRPC", len(data_erpc))
-          print("N IPA", len(data_ipa))
-          print("N DIO", len(data_dio))
-          print("N CELL", len(data_signal))
+      """
+      for iproc, proc in enumerate(mom_components.keys()):
+          print(iproc, proc.ljust(10)+':', len(sets[iproc+1]))
+      """
+      if logger:
+        logger.log('======= True Events in Fit Range =======', 'info')
+        logger.log(f'N Cosmics {len(data_cosmics)}', 'info')
+        logger.log(f'N iRPC {len(data_irpc)}', 'info')
+        logger.log(f'N eRPC {len(data_erpc)}', 'info')
+        logger.log(f'N IPA {len(data_ipa)}', 'info')
+        logger.log(f'N DIO {len(data_dio)}', 'info')
+        logger.log(f'N CELL {len(data_signal)}', 'info')
+      else:
+        print("======= True Events in Fit Range =======")
+        print("N Cosmics", len(data_cosmics))
+        print("N iRPC", len(data_irpc))
+        print("N eRPC", len(data_erpc))
+        print("N IPA", len(data_ipa))
+        print("N DIO", len(data_dio))
+        print("N CELL", len(data_signal))
     else:
         ax1.hist(data, color='black', bins=n_bins, range=fit_range, histtype='step')
     dummy_handle3 = ax1.plot([], marker="+",color='black', label="Mock Data")
@@ -399,40 +401,43 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
           logger.log('filling list', 'max')
         else:
           print("filling list")
+        # use fit_range bounds for time selection
+        lo, hi = float(fit_range[0]), float(fit_range[1])
         data_signal = ak.mask(time, mc_count == 168)
         data_signal = np.array(ak.flatten(data_signal, axis=None))
-        #data_signal = [x for x in data_signal if 475 <= x <= 1650]
+        data_signal = [x for x in data_signal if (not np.isnan(x)) and (lo <= x <= hi)]
 
         data_cosmics = ak.mask(time, mc_count == -1)
         data_cosmics = np.array(ak.flatten(data_cosmics, axis=None))
-        #data_cosmics = [x for x in data_cosmics if 475 <= x <= 1650]
+        data_cosmics = [x for x in data_cosmics if (not np.isnan(x)) and (lo <= x <= hi)]
         
         data_dio = ak.mask(time, mc_count == 166)
         data_dio = np.array(ak.flatten(data_dio, axis=None))
-        #data_dio = [x for x in data_dio if 475 <= x <= 1650]
+        data_dio = [x for x in data_dio if (not np.isnan(x)) and (lo <= x <= hi)]
         
         data_erpc = ak.mask(time, mc_count == 178)
         data_erpc = np.array(ak.flatten(data_erpc,axis=None))
-        #data_erpc = [x for x in data_erpc if 475 <= x <= 1650]
+        data_erpc = [x for x in data_erpc if (not np.isnan(x)) and (lo <= x <= hi)]
         
         data_irpc = ak.mask(time, mc_count == 179)
         data_irpc = np.array(ak.flatten(data_irpc,axis=None))
-        #data_irpc = [x for x in data_irpc if 475 <= x <= 1650]
+        data_irpc = [x for x in data_irpc if (not np.isnan(x)) and (lo <= x <= hi)]
         
         data_ermc = ak.mask(time, mc_count == 172)
         data_ermc = np.array(ak.flatten(data_ermc,axis=None))
-        #data_erpc = [x for x in data_erpc if 475 <= x <= 1650]
+        data_ermc = [x for x in data_ermc if (not np.isnan(x)) and (lo <= x <= hi)]
         
         data_irmc = ak.mask(time, mc_count == 171)
         data_irmc = np.array(ak.flatten(data_irmc,axis=None))
+        data_irmc = [x for x in data_irmc if (not np.isnan(x)) and (lo <= x <= hi)]
         
         data_ipa = ak.mask(time, mc_count == 0)
         data_ipa = np.array(ak.flatten(data_ipa,axis=None))
-        #data_ipa = [x for x in data_ipa if 475 <= x <= 1650]
+        data_ipa = [x for x in data_ipa if (not np.isnan(x)) and (lo <= x <= hi)]
         
-        datasets = [data_cosmics,data_irpc,data_erpc,data_ipa, data_irmc, data_ermc, data_dio, data_signal]
-        colors = ['violet','darkorange','grey','yellow','magenta','cyan','lightgreen','lightskyblue']
-        labs_true = ['Cosmic','iRPC','eRPC','IPA DIO',"iRMC","eRMC",'Trgt DIO', ' CE']
+        datasets = [data_irpc,data_erpc,data_cosmics,data_ipa, data_irmc, data_ermc, data_dio, data_signal]
+        colors = ['darkorange','grey','violet','yellow','magenta','cyan','lightgreen','lightskyblue']
+        labs_true = ['iRPC','eRPC','Cosmic','IPA DIO',"iRMC","eRMC",'Trgt DIO', ' CE']
         datasets_filled = []
         colors_filled = []
         labels_filled = []

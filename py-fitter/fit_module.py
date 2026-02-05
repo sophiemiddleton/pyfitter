@@ -479,19 +479,19 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
     result = minimizer.minimize(loss, params=pars)
     
     if verbose > 0:
-      print("[py-fitter/fit_module/Unbinned_fit_time] ✅ finished minimizing")
+      print("[py-fitter/fit_module/Unbinned_2d_fit_mom_time] ✅ finished minimizing")
     try:
         param_errors, _ = result.errors(method='minuit_minos')
     except:
         print('[py-fitter/fit_module] ❌ WARNING! Invalid fit, postfit parameters may not be optimal')
     if result.valid == True:
-      print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ fit is valid")
+      print("[py-fitter/fit_module/Unbinned_2d_fit_mom_time] ✅ fit is valid")
     else:
-      print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
+      print("[py-fitter/fit_module/Unbinned_2d_fit_mom_time] ⚠️ WARNING! fit is not valid")
     # Plot after fit
 
     if verbose > 0:
-      print("[py-fitter/fit_module/Unbinned_fit_time] ✅ plotting")
+      print("[py-fitter/fit_module/Unbinned_2d_fit_mom_time] ✅ plotting")
       
     # plot time fit — pass the time-only PDFs (projection of 2D) and yields
     plottime_fit(times, count_particle_types, fit_range_time, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_cat)

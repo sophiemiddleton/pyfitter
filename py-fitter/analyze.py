@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 class Analyze:
     """Class to handle analysis functions
     """
-    def __init__(self,  verbosity=1,  sign="minus", cut_switch=None, mom_lo = 95, mom_hi = 115):
+    def __init__(self,  verbosity=1,  sign="minus", cut_switch=None, mom_lo = 95, mom_hi = 115, time_lo=475, time_hi=1650):
         """Initialise the analysis handler
         Args:
             verbosity (int, optional): Level of output detail (0: critical errors only, 1: info, 2: debug, 3: deep debug)
@@ -35,6 +35,9 @@ class Analyze:
             # Ensure values are booleans for positional lists
             self.switch = [bool(x) for x in cut_switch]
         self.mom_lo = mom_lo
+        # time (t0) selection bounds in ns
+        self.time_lo = time_lo
+        self.time_hi = time_hi
         self.mom_hi = mom_hi
 
     def define_cuts(self, data, cut_manager):
@@ -154,11 +157,11 @@ class Analyze:
             )
 
             # 7. t0 at tracker entrance (trksegs level)
-            within_t0 = ((475 < data['trkfit']["trksegs"]["time"]) & (data['trkfit']["trksegs"]["time"] < 1650))
+            within_t0 = ((self.time_lo < data['trkfit']["trksegs"]["time"]) & (data['trkfit']["trksegs"]["time"] < self.time_hi))
             within_t0 = ak.all(~at_trk_front | within_t0, axis=-1)
             cut_manager.add_cut(
                 name="within_t0",
-                description="t0 at tracker ent (475 < t_0 < 1650 ns)",
+                description=f"t0 at tracker ent ({self.time_lo} < t_0 < {self.time_hi} ns)",
                 mask=within_t0,
                 active=sw(5),
             )

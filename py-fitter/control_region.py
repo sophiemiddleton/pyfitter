@@ -1,3 +1,119 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import zfit
+import tensorflow as tf
+from pyutils.pylogger import Logger
+
+try:
+    logger = Logger(print_prefix='[control_region] ', verbosity=2)
+except Exception:
+    logger = None
+
+
+class LinearPDF(zfit.pdf.ZPDF):
+    _N_OBS = 1
+    _PARAMS = ['a', 'b']
+
+    def _unnormalized_pdf(self, x):
+        x = zfit.z.unstack_x(x)
+        a = self.params['a']
+        b = self.params['b']
+        # linear form; ensure non-negative
+        val = a + b * x
+        return tf.where(val > 0.0, val, 0.0)
+
+
+def fit_onspill_linear(file_path='OnSpill.txt', times=None, fit_range=(400.0, 1695.0), bins=50, verbose=1):
+    """Fit the time spectrum with a linear shape using zfit.
+
+    Either provide `file_path` (text file with one time per line) or pass a numpy `times` array.
+
+    Returns (result, params_dict, figpath)
+    """
+    # Load times (assume one numeric time per line) unless array provided
+    if times is None:
+        try:
+            times = np.loadtxt(file_path)
+        except Exception as e:
+            if logger:
+                logger.log(f'Failed to load {file_path}: {e}', 'error')
+            raise
+
+    # apply fit range
+    lo, hi = float(fit_range[0]), float(fit_range[1])
+    times = times[(times >= lo) & (times <= hi)]
+
+    if len(times) == 0:
+        raise RuntimeError('No entries in OnSpill file inside fit_range')
+
+    obs = zfit.Space('time_cr', limits=fit_range)
+
+    # parameters: shape a + b*x and extended yield
+    a = zfit.Parameter('a_CR', 1.0, -100.0, 100.0)
+    b = zfit.Parameter('b_CR', 0.0, -1.0, 1.0)
+    N = zfit.Parameter('N_CR', float(len(times)), 0.0, 1e8)
+    params = [N, a, b]
+
+    pdf = LinearPDF(obs=obs, a=a, b=b, extended=N)
+    try:
+        pdf.set_yield(N)
+    except Exception:
+        pass
+
+    data = zfit.Data.from_numpy(array=times, obs=obs)
+    loss = zfit.loss.ExtendedUnbinnedNLL(model=pdf, data=data)
+    minimizer = zfit.minimize.Minuit()
+    if logger and verbose:
+        logger.log('Starting control-region linear fit', 'info')
+    result = minimizer.minimize(loss, params=params)
+    if logger and verbose:
+        logger.log('Finished control-region fit', 'info')
+
+    # plotting
+    bin_edges = np.linspace(lo, hi, bins + 1)
+    hist, _ = np.histogram(times, bins=bin_edges)
+    centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+    bw = bin_edges[1] - bin_edges[0]
+
+    x = np.linspace(lo, hi, 300)
+    try:
+        dens = pdf.pdf(x).numpy()
+    except Exception:
+        dens = np.array(pdf.pdf(x))
+    try:
+        Nval = float(N.numpy())
+    except Exception:
+        try:
+            Nval = float(N.value())
+        except Exception:
+            Nval = float(len(times))
+
+    model_counts = dens * Nval * bw
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.hist(times, bins=bin_edges, color='lightgray', edgecolor='black', label='OnSpill data')
+    ax.plot(x, model_counts, color='c', linestyle='--', linewidth=2, label='Linear fit')
+    ax.set_xlabel('Time [ns]')
+    ax.set_ylabel('Counts')
+    ax.set_title('Control Region: OnSpill Linear Fit')
+    ax.legend()
+    # Use log scale for y-axis and fixed limits for consistent display
+    try:
+        ax.set_yscale('log')
+        ax.set_ylim(0.1, 600)
+    except Exception:
+        pass
+    ts = int(zfit.run.tensorflow.numpy().astype('int64') if False else __import__('time').time())
+    figpath = f'control_onspill_fit_{int(ts)}.png'
+    try:
+        fig.tight_layout()
+        fig.savefig(figpath)
+        plt.close(fig)
+    except Exception:
+        pass
+
+    params_dict = {'N_CR': N, 'a_CR': a, 'b_CR': b}
+    return result, params_dict, figpath
 """Control-region helpers focused on the Cosmic component.
 
 This module provides a `ControlRegion` class which is initialised with
