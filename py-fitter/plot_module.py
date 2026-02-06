@@ -797,10 +797,24 @@ def bin_by_bin_mom_confusion(mom_mag, mc_count, list_pdfs, fit_range, bin_width=
     }
 
     mom_flat = ak.to_numpy(ak.flatten(ak.drop_none(mom_mag), axis=None))
+    # coerce mc_count to a flat numpy array, prefer awkward flatten if available
     try:
-        mc_arr = np.asarray(mc_count).flatten()
+      mc_arr = ak.to_numpy(ak.flatten(ak.drop_none(mc_count), axis=None))
     except Exception:
+      try:
+        mc_arr = np.asarray(mc_count).flatten()
+      except Exception:
         mc_arr = np.array([])
+
+    # align lengths by trimming the longer array to preserve per-event pairing
+    if len(mc_arr) != len(mom_flat):
+      nmin = min(len(mc_arr), len(mom_flat))
+      if logger:
+        logger.log(f'mc_count/mom_mag length mismatch in bin_by_bin_mom_confusion ({len(mc_arr)} vs {len(mom_flat)}); trimming to {nmin}', 'info')
+      else:
+        print(f'[plot_module] mc_count/mom_mag length mismatch in bin_by_bin_mom_confusion ({len(mc_arr)} vs {len(mom_flat)}); trimming to {nmin}')
+      mc_arr = mc_arr[:nmin]
+      mom_flat = mom_flat[:nmin]
 
     procs = [p for p, _, _ in list_pdfs]
     true_counts = {p: np.zeros(len(centers), dtype=float) for p in procs}
@@ -920,6 +934,177 @@ def bin_by_bin_mom_confusion(mom_mag, mc_count, list_pdfs, fit_range, bin_width=
     # Print per-bin arrays for each process: true counts, fitted counts, and relative fractions
     try:
       print('\nBin centers (MeV):')
+      print(np.array2string(centers, precision=2, separator=', '))
+      for p in procs:
+        tcounts = np.nan_to_num(true_counts[p], nan=0.0)
+        fcounts = np.nan_to_num(fitted_counts[p], nan=0.0)
+        tfr = np.nan_to_num(true_frac[procs.index(p)], nan=0.0)
+        ffr = np.nan_to_num(fit_frac[procs.index(p)], nan=0.0)
+        print(f"\nProcess {p}:")
+        print('  True counts per bin:   ', np.array2string(tcounts, precision=3, separator=', '))
+        print('  Fitted counts per bin: ', np.array2string(fcounts, precision=3, separator=', '))
+        print('  True frac per bin:     ', np.array2string(tfr, precision=3, separator=', '))
+        print('  Fit frac per bin:      ', np.array2string(ffr, precision=3, separator=', '))
+    except Exception:
+      pass
+
+    return {'bins': centers, 'true_counts': true_counts, 'fitted_counts': fitted_counts, 'true_frac': true_frac, 'fit_frac': fit_frac, 'totals_true': totals_true, 'totals_fit': totals_fit}
+
+
+def bin_by_bin_time_confusion(time_arr, mc_count, list_pdfs, fit_range, bin_width=50.0, filename_prefix='time_confusion'):
+    """Compare true vs fitted relative yields per time bin.
+
+    - `time_arr`: awkward array of reconstructed times
+    - `mc_count`: array of process codes aligned with `time_arr`
+    - `list_pdfs`: list of (proc, time_pdf, N) as used elsewhere
+    - `fit_range`: [low, high]
+    - `bin_width`: width of time bins in ns
+    Saves `{filename_prefix}_{timestamp}.png` and returns a dict with arrays.
+    """
+    import time as _time
+    lo, hi = float(fit_range[0]), float(fit_range[1])
+    edges = np.arange(lo, hi + 1e-6, bin_width)
+    if edges[-1] < hi:
+        edges = np.append(edges, hi)
+    centers = 0.5 * (edges[:-1] + edges[1:])
+    bw = np.diff(edges)
+
+    proc_code_map = {
+        'Cosmic': [-1],
+        'RPC': [179, 178],
+        'iRPC': [179],
+        'eRPC': [178],
+        'IPA': [0],
+        'DIO': [166],
+        'CE': [168]
+    }
+
+    time_flat = ak.to_numpy(ak.flatten(ak.drop_none(time_arr), axis=None))
+    try:
+        mc_arr = ak.to_numpy(ak.flatten(ak.drop_none(mc_count), axis=None))
+    except Exception:
+        try:
+            mc_arr = np.asarray(mc_count).flatten()
+        except Exception:
+            mc_arr = np.array([])
+
+    # align lengths by trimming the longer array to preserve per-event pairing
+    if len(mc_arr) != len(time_flat):
+        nmin = min(len(mc_arr), len(time_flat))
+        if logger:
+            logger.log(f'mc_count/time length mismatch in bin_by_bin_time_confusion ({len(mc_arr)} vs {len(time_flat)}); trimming to {nmin}', 'info')
+        else:
+            print(f'[plot_module] mc_count/time length mismatch in bin_by_bin_time_confusion ({len(mc_arr)} vs {len(time_flat)}); trimming to {nmin}')
+        mc_arr = mc_arr[:nmin]
+        time_flat = time_flat[:nmin]
+
+    procs = [p for p, _, _ in list_pdfs]
+    true_counts = {p: np.zeros(len(centers), dtype=float) for p in procs}
+    for i in range(len(centers)):
+        lo_edge, hi_edge = edges[i], edges[i+1]
+        in_bin = (time_flat >= lo_edge) & (time_flat < hi_edge)
+        for p in procs:
+            codes = proc_code_map.get(p, [])
+            if len(mc_arr) == 0:
+                cnt = 0
+            else:
+                mask = np.zeros_like(in_bin, dtype=bool)
+                for c in codes:
+                    mask = mask | (mc_arr == c)
+                cnt = int(np.sum(in_bin & mask))
+            true_counts[p][i] = cnt
+
+    fitted_counts = {p: np.zeros(len(centers), dtype=float) for p in procs}
+    for p, pdf_obj, N_par in list_pdfs:
+        try:
+            N_val = float(N_par.numpy()) if hasattr(N_par, 'numpy') else float(N_par)
+        except Exception:
+            try:
+                N_val = float(N_par.value())
+            except Exception:
+                N_val = 0.0
+        try:
+            dens = pdf_obj.pdf(centers).numpy()
+        except Exception:
+            try:
+                dens = np.array(pdf_obj.pdf(centers))
+            except Exception:
+                dens = np.zeros(len(centers))
+        fitted_counts[p] = dens * N_val * bw
+
+    true_mat = np.vstack([np.nan_to_num(true_counts[p], nan=0.0, posinf=0.0, neginf=0.0).astype(float) for p in procs])
+    fit_mat = np.vstack([np.nan_to_num(fitted_counts[p], nan=0.0, posinf=0.0, neginf=0.0).astype(float) for p in procs])
+    ttot_vec = np.sum(true_mat, axis=0)
+    ftot_vec = np.sum(fit_mat, axis=0)
+    true_frac = np.zeros_like(true_mat, dtype=float)
+    fit_frac = np.zeros_like(fit_mat, dtype=float)
+    with np.errstate(invalid='ignore', divide='ignore'):
+      np.divide(true_mat, ttot_vec, out=true_frac, where=ttot_vec > 0)
+      np.divide(fit_mat, ftot_vec, out=fit_frac, where=ftot_vec > 0)
+    true_frac = np.nan_to_num(true_frac, nan=0.0, posinf=0.0, neginf=0.0)
+    fit_frac = np.nan_to_num(fit_frac, nan=0.0, posinf=0.0, neginf=0.0)
+    true_frac[~np.isfinite(true_frac)] = 0.0
+    fit_frac[~np.isfinite(fit_frac)] = 0.0
+    true_frac[np.abs(true_frac) < 1e-12] = 0.0
+    fit_frac[np.abs(fit_frac) < 1e-12] = 0.0
+    true_frac = np.clip(true_frac, 0.0, 1.0)
+    fit_frac = np.clip(fit_frac, 0.0, 1.0)
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    totals_true = {p: float(np.nansum(true_counts[p])) for p in procs}
+    totals_fit = {p: float(np.nansum(fitted_counts[p])) for p in procs}
+    max_val = 0.0
+    for ip, p in enumerate(procs):
+      ttrue = int(np.nan_to_num(totals_true[p], nan=0.0))
+      tfit = int(np.nan_to_num(np.round(totals_fit[p]), nan=0.0))
+      ytrue = true_frac[ip]
+      yfit = fit_frac[ip]
+      if len(ytrue) > 0:
+        max_val = max(max_val, np.nanmax(ytrue))
+      if len(yfit) > 0:
+        max_val = max(max_val, np.nanmax(yfit))
+      ax.plot(centers, ytrue, marker='o', linestyle='-', label=f"{p} true (N={ttrue})", markersize=6, markeredgewidth=1.2, zorder=2)
+      ax.plot(centers, yfit, marker='x', linestyle='--', label=f"{p} fit (N={tfit})", markersize=7, markeredgewidth=1.5, markerfacecolor='none', zorder=3)
+    ymax = max(0.05, max_val * 1.15)
+    ax.set_xlabel('Reconstructed Time [ns] (bin center)')
+    ax.set_ylabel('Relative fraction in bin')
+    ax.set_title('Bin-by-bin true vs fitted relative yields (time)')
+    ax.set_ylim(0.0, ymax)
+    try:
+      handles0, labels0 = _get_leg_handles_labels(ax)
+      ncol = 1
+      if labels0:
+        fig.subplots_adjust(right=0.66)
+        leg = fig.legend(handles0, labels0, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=ncol, fontsize=10, frameon=False)
+      else:
+        leg = ax.legend(fontsize=10)
+    except Exception:
+      leg = ax.legend(fontsize=10)
+    ax.grid(True, linestyle=':')
+    ts = int(_time.time())
+    fname = f"{filename_prefix}_{ts}.png"
+    try:
+      plt.tight_layout()
+      plt.savefig(fname)
+      if logger:
+        logger.log(f'Saved time confusion plot to {fname}', 'info')
+      else:
+        print(f'Saved time confusion plot to {fname}')
+    except Exception as e:
+      if logger:
+        logger.log(f'Failed to save time confusion plot: {e}', 'error')
+      else:
+        print(f'Failed to save time confusion plot: {e}')
+    plt.close(fig)
+
+    print('\nTime bin-by-bin confusion summary:')
+    for p in procs:
+      ttrue = int(np.nan_to_num(totals_true[p], nan=0.0))
+      tfit = int(np.nan_to_num(np.round(totals_fit[p]), nan=0.0))
+      print(f"  {p}: true N = {ttrue}, fitted N = {tfit}")
+
+    try:
+      print('\nBin centers (ns):')
       print(np.array2string(centers, precision=2, separator=', '))
       for p in procs:
         tcounts = np.nan_to_num(true_counts[p], nan=0.0)

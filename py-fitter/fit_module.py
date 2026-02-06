@@ -19,7 +19,7 @@ except Exception:
 
 from momPDF_module import MomModel, MomTimeModel, poly58
 from timePDF_module import TimeModel
-from plot_module import plotmom_fit, plottime_fit, plot_variable, bin_by_bin_mom_confusion
+from plot_module import plotmom_fit, plottime_fit, plot_variable, bin_by_bin_mom_confusion, bin_by_bin_time_confusion
 from mom_components import mom_components
 from time_components import time_components
 from uncertainty_loader import load_constraints_json, build_zfit_constraints_from_specs, load_templates_npz
@@ -382,6 +382,15 @@ def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit
         logger.log(f"Failed to save time-fit figure: {e}", "error")
       else:
         print(f"Failed to save time-fit figure: {e}")
+    # produce bin-by-bin time confusion plot (true vs fitted fractions)
+    try:
+      bin_by_bin_time_confusion(times, count_particle_types, [(proc, pdfs[proc], norms[proc]) for proc in time_components.keys()], fit_range, bin_width=50.0, filename_prefix='time_confusion_1d')
+    except Exception as e:
+      if logger:
+        logger.log(f'Failed to produce bin-by-bin time confusion plot: {e}', 'error')
+      else:
+        print(f'Failed to produce bin-by-bin time confusion plot: {e}')
+
     plt.close()
 
     
@@ -537,6 +546,15 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
         logger.log(f'Failed to produce bin-by-bin momentum confusion plot: {e}', 'error')
       else:
         print(f'Failed to produce bin-by-bin momentum confusion plot: {e}')
+
+    # produce bin-by-bin time confusion plot (true vs fitted fractions)
+    try:
+      bin_by_bin_time_confusion(times, count_particle_types, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range_time, bin_width=50.0, filename_prefix='time_confusion_2d')
+    except Exception as e:
+      if logger:
+        logger.log(f'Failed to produce bin-by-bin time confusion plot: {e}', 'error')
+      else:
+        print(f'Failed to produce bin-by-bin time confusion plot: {e}')
 
     return result, pars[1], loss, combine_pdf, norms
 
