@@ -245,8 +245,8 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
     ax1.set_yscale('log')
     ax1.set_xlim(fit_range)
     ax1.set_ylim([1e-1,0.2*max(data_hist) + max(data_hist)])
-    ax1.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=16)
-    ax1.set_ylabel('# of events per bin', fontsize=16)
+    ax1.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=12)
+    ax1.set_ylabel('# of events per bin', fontsize=12)
     # build explicit proxy legend entries so text appears in reserved white space
     try:
       from matplotlib.lines import Line2D
@@ -319,8 +319,8 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
     ax2.yaxis.set_ticks(np.arange(-5, 5,2))
     ax2.yaxis.set_minor_formatter(ticker.FormatStrFormatter('%0.1f'))
     ax2.set_xlim(fit_range)
-    ax2.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=16)
-    ax2.set_ylabel('Normalized Residual', fontsize=16)
+    ax2.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=12)
+    ax2.set_ylabel('Normalized Residual', fontsize=12)
     # yield comparison plot (expected vs fitted) for momentum
     try:
       plot_yield_comparison(mom_mag, mc_count, list_pdfs, filename_prefix='yield_compare_mom')
@@ -376,25 +376,74 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
         print("[py-fitter/plot_module/plottime_fit] ❌ cat option is {cat}, will not include MC truth")
     
     if cat is not None:
-        # Align mc_count and time by trimming the longer array to the shorter
-        time_flat = ak.to_numpy(ak.flatten(ak.drop_none(time), axis=None))
+        # Align mc_count and time explicitly. Prefer keeping awkward arrays with matching per-event counts.
         try:
-            mc_arr = np.asarray(mc_count).flatten()
+          # compute per-event counts for time and mc_count (if mc_count is awkward)
+          counts_time = ak.num(ak.drop_none(time), axis=1)
+          counts_mc = ak.num(mc_count, axis=1)
+          counts_time_np = ak.to_numpy(counts_time)
+          counts_mc_np = ak.to_numpy(counts_mc)
+          if counts_time_np.shape == counts_mc_np.shape and np.array_equal(counts_time_np, counts_mc_np):
+            # shapes align; keep `time` and `mc_count` as awkward arrays
+            pass
+          else:
+            # fallback to flattened comparison and explicit broadcast-or-error
+            time_flat = ak.to_numpy(ak.flatten(ak.drop_none(time), axis=None))
+            try:
+              mc_arr = np.asarray(mc_count).flatten()
+            except Exception:
+              mc_arr = np.array([])
+
+            if len(mc_arr) == len(time_flat):
+              mc_count = mc_arr
+              time = time_flat
+            else:
+              if mc_arr.size == 1 and time_flat.size > 0:
+                if logger:
+                  logger.log(f'mc_count length 1; broadcasting value {mc_arr[0]} to length {len(time_flat)}', 'info')
+                else:
+                  print(f'[plot_module] mc_count length 1; broadcasting value {mc_arr[0]} to length {len(time_flat)}')
+                mc_count = np.full(len(time_flat), mc_arr[0], dtype=mc_arr.dtype)
+                time = time_flat
+              else:
+                msg = (
+                  f'plot_module.plottime_fit: mc_count/time length mismatch ({len(mc_arr)} vs {len(time_flat)}). '
+                  'Do not silently truncate — provide track-aligned `mc_count` (one entry per flattened time) or adjust selection.'
+                )
+                if logger:
+                  logger.log(msg, 'error')
+                else:
+                  print(msg)
+                raise ValueError(msg)
         except Exception:
+          # If mc_count is not awkward or counts computation failed, fallback to flattened logic
+          time_flat = ak.to_numpy(ak.flatten(ak.drop_none(time), axis=None))
+          try:
+            mc_arr = np.asarray(mc_count).flatten()
+          except Exception:
             mc_arr = np.array([])
 
-        if len(mc_arr) != len(time_flat):
-            nmin = min(len(mc_arr), len(time_flat))
-            if logger:
-                logger.log(f'mc_count/time length mismatch ({len(mc_arr)} vs {len(time_flat)}); trimming to {nmin}', 'info')
+          if len(mc_arr) == len(time_flat):
+            mc_count = mc_arr
+            time = time_flat
+          else:
+            if mc_arr.size == 1 and time_flat.size > 0:
+              if logger:
+                logger.log(f'mc_count length 1; broadcasting value {mc_arr[0]} to length {len(time_flat)}', 'info')
+              else:
+                print(f'[plot_module] mc_count length 1; broadcasting value {mc_arr[0]} to length {len(time_flat)}')
+              mc_count = np.full(len(time_flat), mc_arr[0], dtype=mc_arr.dtype)
+              time = time_flat
             else:
-                print(f'[plot_module] mc_count/time length mismatch ({len(mc_arr)} vs {len(time_flat)}); trimming to {nmin}')
-            mc_arr = mc_arr[:nmin]
-            time_flat = time_flat[:nmin]
-
-        # replace originals so existing ak.mask(...) calls work with aligned numpy/awkward data
-        mc_count = mc_arr
-        time = time_flat
+              msg = (
+                f'plot_module.plottime_fit: mc_count/time length mismatch ({len(mc_arr)} vs {len(time_flat)}). '
+                'Do not silently truncate — provide track-aligned `mc_count` (one entry per flattened time) or adjust selection.'
+              )
+              if logger:
+                logger.log(msg, 'error')
+              else:
+                print(msg)
+              raise ValueError(msg)
     if cat is not None:
         time = ak.drop_none(time)
         if logger:
@@ -515,8 +564,8 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
     ax1.set_yscale('log')
     ax1.set_xlim(fit_range)
     ax1.set_ylim([1e-1, max(data_hist) + 0.2*max(data_hist)])
-    ax1.set_xlabel('Reconstructed Time [ns]', fontsize=16)
-    ax1.set_ylabel('# of events per bin', fontsize=16)
+    ax1.set_xlabel('Reconstructed Time [ns]', fontsize=12)
+    ax1.set_ylabel('# of events per bin', fontsize=12)
     # build explicit proxy legend entries for time plot so text appears
     try:
       from matplotlib.lines import Line2D
@@ -590,8 +639,8 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
     ax2.yaxis.set_ticks(np.arange(-5, 5,2))
     ax2.yaxis.set_minor_formatter(ticker.FormatStrFormatter('%0.1f'))
     ax2.set_xlim(fit_range)
-    ax2.set_xlabel('Reconstructed Time [ns]', fontsize=16)
-    ax2.set_ylabel('Normalized Residual', fontsize=16)
+    ax2.set_xlabel('Reconstructed Time [ns]', fontsize=12)
+    ax2.set_ylabel('Normalized Residual', fontsize=12)
     # yield comparison plot (expected vs fitted) for momentum
     try:
       plot_yield_comparison(mom_mag, mc_count, list_pdfs, filename_prefix='yield_compare_mom')

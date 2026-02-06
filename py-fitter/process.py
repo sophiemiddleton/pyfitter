@@ -1049,6 +1049,35 @@ def main(args):
     time = ak.nan_to_none(trkfit_ent['time'])  # FIXME
     time = ak.drop_none(time)
 
+    # Build track-aligned mc_count arrays for momentum and time using per-event counts
+    try:
+        event_mc = np.asarray(mc_count).flatten()
+        counts_mom = ak.to_numpy(ak.num(mom_mag, axis=1))
+        counts_time = ak.to_numpy(ak.num(trkfit_ent['time'], axis=1))
+
+        if len(event_mc) != len(counts_mom) or len(event_mc) != len(counts_time):
+            raise ValueError(f'mc_count length ({len(event_mc)}) does not match number of events (mom:{len(counts_mom)}, time:{len(counts_time)})')
+
+        # Repeat event-level labels per track and unflatten to match nested structure
+        if counts_mom.sum() > 0:
+            rep_mom = np.repeat(event_mc, counts_mom)
+            mc_count_track_mom = ak.unflatten(rep_mom, counts_mom)
+        else:
+            mc_count_track_mom = ak.Array([])
+
+        if counts_time.sum() > 0:
+            rep_time = np.repeat(event_mc, counts_time)
+            mc_count_track_time = ak.unflatten(rep_time, counts_time)
+        else:
+            mc_count_track_time = ak.Array([])
+    except Exception as e_mc_expand:
+        # As a final fallback, attempt to broadcast; but prefer failing loudly
+        try:
+            mc_count_track_mom = ak.broadcast_arrays(ak.fill_none(mom_mag, None), mc_count)[1]
+            mc_count_track_time = ak.broadcast_arrays(ak.fill_none(trkfit_ent['time'], None), mc_count)[1]
+        except Exception:
+            raise RuntimeError(f'Failed to build track-aligned mc_count arrays: {e_mc_expand}')
+
     # call the fitter
     if 'mom_mag' in locals():
         try:
@@ -1077,7 +1106,7 @@ def main(args):
         fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(
             mom_mag,
             track_cat,
-            mc_count,
+            mc_count_track_mom,
             args.fitrange_low[0],
             args.fitrange_hi[0],
             True,
@@ -1122,7 +1151,7 @@ def main(args):
         fitresult, par, loss, combine_pdf = Unbinned_fit_time(
             time,
             track_cat,
-            mc_count,
+            mc_count_track_time,
             float(args.fitrange_low[1]),
             float(args.fitrange_hi[1]),
             True,
@@ -1144,11 +1173,16 @@ def main(args):
             module_logger.log(f"Building 2D fit", "info")
         else:
             print(f"Building 2D fit")
+        # Ensure flattened mom and time arrays match for 2D alignment
+        mom_flat_len = len(ak.flatten(mom_mag, axis=None))
+        time_flat_len = len(ak.flatten(time, axis=None))
+        if mom_flat_len != time_flat_len:
+            raise ValueError(f'Cannot run 2D fit: flattened mom length ({mom_flat_len}) != flattened time length ({time_flat_len}). Provide track-aligned mc_count or fix selections.')
         fitresult, par, loss, combine_pdf, norms = Unbinned_2d_fit_mom_time(
             mom_mag,
             time,
             track_cat,
-            mc_count,
+            mc_count_track_mom,
             [args.fitrange_low[0], args.fitrange_hi[0]],
             [args.fitrange_low[1], args.fitrange_hi[1]],
             bool(args.cat),
