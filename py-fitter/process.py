@@ -592,170 +592,7 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
     return {'results': results, 'combined_filtered': combined}
 
 
-def process_onspill_filelist(filelist_path: str = 'OnSpill_10.txt',
-                             out_prefix: str = 'onspill_control',
-                             location: str = 'local',
-                             cuts=None,
-                             mom_lo: float = 95.0,
-                             mom_hi: float = 115.0,
-                             time_lo: float = None,
-                             time_hi: float = None,
-                             jobs: int = 1):
-    """Process an OnSpill file list, apply same selection, save combined filtered data,
-    extract time array and run the control-region linear time fit (using `fit_onspill_linear`).
 
-    The function accepts both momentum (`mom_lo`, `mom_hi`) used to initialise
-    `Analyze`/selection and separate time range (`time_lo`, `time_hi`) used for the
-    OnSpill linear time fit. If `time_lo`/`time_hi` are not provided, the function
-    falls back to using `mom_lo`/`mom_hi` for the fit range (for backward compat).
-    """
-    try:
-        with open(filelist_path, 'r') as f:
-            files = [l.strip() for l in f if l.strip() and not l.startswith('#')]
-    except Exception as e:
-        print(f'[process_onspill_filelist] Failed to read {filelist_path}: {e}')
-        return None
-
-    if len(files) == 0:
-        print(f'[process_onspill_filelist] No files found in {filelist_path}')
-        return None
-
-    ana = AnaProcessor(file_list_path=filelist_path, jobs=jobs, cuts=cuts, location=location, mom_lo=mom_lo, mom_hi=mom_hi)
-
-    results = []
-    for fn in files:
-        try:
-            r = ana.process_file(fn)
-            if r is not None:
-                results.append(r)
-        except Exception as e:
-            print(f'[process_onspill_filelist] Error processing {fn}: {e}')
-
-    if len(results) == 0:
-        print('[process_onspill_filelist] No results produced')
-        return None
-
-    try:
-        combined = combine_arrays(results)
-        cutlist = [result['cut_stats'] for result in results]
-        combine_cutflows = combine_cut_flows(cutlist, csv_basename=out_prefix)
-    except Exception as e:
-        print(f'[process_onspill_filelist] Failed to combine arrays: {e}')
-        combined = None
-
-    import pickle
-    try:
-        with open(out_prefix + '_filtered.pkl', 'wb') as pf:
-            pickle.dump({'results': results, 'combined_filtered': combined}, pf)
-        print(f'[process_onspill_filelist] Wrote {out_prefix}_filtered.pkl')
-    except Exception as e:
-        print(f'[process_onspill_filelist] Failed to write pickle: {e}')
-
-    # Extract time array for control-region fitting
-    try:
-        time_flat = None
-        try:
-            selector = Select()
-            trk_front = selector.select_surface(combined['trkfit'], surface_name='TT_Front')
-            trkfit_ent = ak.mask(combined['trkfit']["trksegs"], trk_front)
-            time_per_event = ak.to_numpy(ak.flatten(ak.nan_to_none(trkfit_ent['time']), axis=None))
-            time_flat = time_per_event
-        except Exception:
-            # fallback strategies
-            try:
-                if combined is not None:
-                    if 'trkfit' in combined.fields:
-                        tf = combined['trkfit']
-                        if 'trksegs' in ak.fields(tf):
-                            ts = tf['trksegs']
-                            if 'time' in ak.fields(ts):
-                                time_flat = ak.to_numpy(ak.flatten(ak.nan_to_none(ts['time']), axis=None))
-            except Exception:
-                time_flat = None
-
-        if time_flat is not None:
-            np.savez(out_prefix + '_time.npz', time=time_flat)
-            print(f'[process_onspill_filelist] Wrote {out_prefix}_time.npz')
-            # Run the linear time fit using the array-capable fitter
-            try:
-                from control_region import fit_onspill_linear
-                # Use provided time range if present, otherwise fall back to mom range
-                _tlo = time_lo if time_lo is not None else mom_lo
-                _thi = time_hi if time_hi is not None else mom_hi
-                res_cr, params_cr, fig_cr = fit_onspill_linear(times=time_flat, fit_range=(_tlo, _thi), bins=50, verbose=1)
-                print('[process_onspill_filelist] OnSpill fit valid:', getattr(res_cr, 'valid', False))
-                print('[process_onspill_filelist] OnSpill fit params:', params_cr)
-                print('[process_onspill_filelist] OnSpill fit figure:', fig_cr)
-                # Save returned figure (match OffSpill behaviour)
-                try:
-                    fig = fig_cr
-                    if fig is not None:
-                        fname_plot = out_prefix + '_onspill_time_fit.png'
-                        try:
-                            fig.savefig(fname_plot)
-                            print(f'[process_onspill_filelist] Wrote OnSpill time-fit figure to {fname_plot}')
-                        except Exception as e_save_on:
-                            print(f'[process_onspill_filelist] Failed to save OnSpill time-fit figure: {e_save_on}')
-                        try:
-                            plt.close(fig)
-                        except Exception:
-                            pass
-                except Exception as e_figproc:
-                    print(f'[process_onspill_filelist] Error handling OnSpill figure: {e_figproc}')
-            except Exception as e_fit:
-                print(f'[process_onspill_filelist] OnSpill control-region fit failed: {e_fit}')
-        else:
-            print('[process_onspill_filelist] Could not extract time array for OnSpill')
-    except Exception as e:
-        print(f'[process_onspill_filelist] Could not extract time: {e}')
-
-    # Also produce a quick momentum slice plot (95-110 MeV) from the combined filtered array
-    try:
-        mom_flat = None
-        try:
-            selector = Select()
-            trk_front = selector.select_surface(combined['trkfit'], surface_name='TT_Front')
-            trkfit_ent = ak.mask(combined['trkfit']["trksegs"], trk_front)
-            from pyutils.pyvector import Vector as _Vector
-            _vec = _Vector()
-            mom_per_event = _vec.get_mag(trkfit_ent, 'mom')
-            mom_flat = ak.to_numpy(ak.flatten(mom_per_event, axis=None))
-        except Exception:
-            mom_flat = None
-
-        if mom_flat is not None:
-            import numpy as _np
-            import matplotlib.pyplot as _plt
-            arr = _np.asarray(mom_flat)
-            # select 95-110 MeV slice
-            sel_mask = (_np.isfinite(arr)) & (arr >= 95.0) & (arr <= 110.0)
-            sel = arr[sel_mask]
-            fig_mom = _plt.figure(figsize=(6,4))
-            if sel.size > 0:
-                _plt.hist(sel, bins=40, range=(95.0,110.0), color='C0', alpha=0.8)
-            else:
-                _plt.hist([], bins=40, range=(95.0,110.0), color='C0', alpha=0.8)
-            _plt.xlabel('Reconstructed Momentum [MeV/c]')
-            _plt.ylabel('Counts')
-            _plt.title('OnSpill: Momentum slice 95-110 MeV')
-            fname_mom = out_prefix + '_mom_95_110.png'
-            try:
-                fig_mom.savefig(fname_mom)
-                print(f'[process_onspill_filelist] Wrote momentum slice histogram to {fname_mom}')
-            except Exception as e_save_mom:
-                print(f'[process_onspill_filelist] Failed to save momentum slice histogram: {e_save_mom}')
-            try:
-                _plt.close(fig_mom)
-            except Exception:
-                pass
-        else:
-            print('[process_onspill_filelist] Could not extract mom_mag for OnSpill')
-    except Exception as e_mom:
-        print(f'[process_onspill_filelist] Error creating momentum slice plot: {e_mom}')
-
-    return {'results': results, 'combined_filtered': combined}
-
-    
     
 def categorize_tracks( data, mismatch=False):
     array_tmp = ak.copy(data['trkmc'])
@@ -962,9 +799,9 @@ def main(args):
         module_logger.log(f"selection cuts to be applied : {named_switches_offspill}", "info")
     else:
         print("selection cuts to be applied : ", named_switches_offspill)
-    if bool(getattr(args, 'control-fit', False)): #FIXME: argparse conversion
+    if getattr(args, 'control_fit', False):
         # run OffSpill mom-spectrum control-region fit (poly2) if the file exists
-        """
+
         try:
             process_offspill_filelist('OffSpill.txt', 
             out_prefix='offspill_control', 
@@ -978,26 +815,6 @@ def main(args):
                 module_logger.log(f'OffSpill control-region fit failed: {e}', 'error')
             else:
                 print(f'[process] OffSpill control-region fit failed: {e}')
-        """
-        # Also run OnSpill time-spectrum control-region fit (linear) if the file exists
-        try:
-            process_onspill_filelist(
-                'OnSpill.txt',
-                out_prefix='onspill_control',
-                location='tape',
-                cuts=named_switches,
-                mom_lo=args.fitrange_low[0],
-                mom_hi=args.fitrange_hi[0],
-                time_lo=args.fitrange_low[1],
-                time_hi=args.fitrange_hi[1],
-                jobs=1,
-            )
-        except Exception as e:
-            if module_logger:
-                module_logger.log(f'OnSpill control-region fit failed: {e}', 'error')
-            else:
-                print(f'[process] OnSpill control-region fit failed: {e}')
-        
 
     ana_processor = AnaProcessor(args.file, args.jobs, named_switches, args.loc, args.fitrange_low[0], args.fitrange_hi[0])
     results = ana_processor.execute()
@@ -1187,6 +1004,7 @@ def main(args):
             [args.fitrange_low[1], args.fitrange_hi[1]],
             bool(args.cat),
             args.verbose,
+            constraints_dir='uncertainties/Cosmic_test',
         )
         if module_logger:
             module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')

@@ -122,6 +122,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
 
     # --- optional: load external constraints/templates (standalone uncertainty artifacts)
     if constraints_dir is not None:
+      print("USING constraints/templates from:", constraints_dir)
       try:
         specs = load_constraints_json(constraints_dir)
         extra_constraints = build_zfit_constraints_from_specs(pars, specs, logger=logger)
@@ -396,7 +397,7 @@ def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit
     
     return result, pars[1], loss, combine_pdf
 
-def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fit_range_mom, fit_range_time, plot_cat=False, verbose=0):
+def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fit_range_mom, fit_range_time, plot_cat=False, verbose=0, constraints_dir=None):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum and time using zfit
 
@@ -472,6 +473,23 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
 
     # Combine parameter lists (momentum + time)
     pars = mompars + timepars
+
+    # --- optional: load external constraints/templates (standalone uncertainty artifacts)
+    if constraints_dir is not None:
+      try:
+        specs = load_constraints_json(constraints_dir)
+        extra_constraints = build_zfit_constraints_from_specs(pars, specs, logger=logger)
+        # append to existing constraints list used by the loss builder
+        constraints.extend(extra_constraints)
+        # expose loaded templates (not automatically injected; available for later use)
+        templates = load_templates_npz(constraints_dir)
+        if logger and templates:
+          logger.log(f'Loaded templates: {list(templates.keys())}', 'info')
+      except Exception as e:
+        if logger:
+          logger.log(f'Failed to load constraints from {constraints_dir}: {e}', 'error')
+        else:
+          print(f'Failed to load constraints from {constraints_dir}: {e}')
 
     # Now collect auxiliary NLL terms from any sources that needed the full param list
     for src in nll_sources:
