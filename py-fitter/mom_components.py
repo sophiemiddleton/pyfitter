@@ -121,7 +121,12 @@ mom_components = {
         'lineColor': 'b',
         'lineStyle': '--',
         'catColor': 'lightskyblue',
-        'advanced_pars': None
+        'advanced_pars': {
+            'pdf_theo': 'theo_exp',
+            'treat_params_adv': 'param',
+            'fitpars_in_formatted': theo_exp_pars,
+            'nll_sources': [flat_res, flat_loss]
+        }
     },
     'DIO': { # Decay in Orbit Background From Target
         'pdf': 'DIO_custom_model_2025', # Default: custom theory model
@@ -132,7 +137,12 @@ mom_components = {
         'lineColor': 'g',
         'lineStyle': ':',
         'catColor': 'lightgreen',
-        'advanced_pars': None
+        'advanced_pars': {
+          'pdf_theo': 'theo_exp',
+          'treat_params_adv': 'simul', # Use 'simul' to share parameters with CE
+          'fitpars_in_formatted': theo_exp_pars_DIO,
+          'nll_sources': None 
+        }
     },
     
     # Radiative Pion Background (Internal + External) 

@@ -45,6 +45,7 @@ class DIO_custom_model_2025(zfit.pdf.ZPDF):
 
         return tf.where(is_valid, pdf_val, 0.0)
 
+# FIXME - should we not just use the compoents class inputs as default?
 default_model_params = {
     'poly2' : { 'c1' : (0.47, 0.46, 0.48),'c2' : (0.011,0.0018,0.0202)},
     'dscb'   : {'mu': (104, 103, 107), 'sigma': (0.5, 0.08, 2.0), 'alphaL': (0.422, 0, 10), 
@@ -126,6 +127,7 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
                 # also accept keys with process prefix (unlikely) or exact match otherwise store as-is
                 params[par] = val
     
+    # include constraints for subsidiary measurements if provided in pardict
     zpars = {}
     for p in params.keys():
         p_name = p + '_' + process

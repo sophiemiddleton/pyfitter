@@ -45,9 +45,7 @@ class Analyze:
 
         Note that all cuts here need to be defined at trk level. 
 
-        Also note that the tracking algorthm produces cut for upstream/downstream muon/electrons and then uses trkqual to guess the right one
-        trkqual needs to be good before making a selection 
-        this is particulary important for the pileup cut, since it needs to be selected from tracks which are above 90% or whatever 
+        Also note that the tracking algorthm produces cut for upstream/downstream muon/electrons
         
         Args:
             data (ak.Array): data to apply cuts to
