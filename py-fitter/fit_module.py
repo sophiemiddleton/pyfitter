@@ -24,7 +24,7 @@ from mom_components import mom_components
 from time_components import time_components
 from uncertainty_loader import load_constraints_json, build_zfit_constraints_from_specs, load_templates_npz
 
-def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, plot_NLL= False, constraints_dir=None):
+def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, plot_NLL=False, plot_results=True, constraints_dir=None):
     """
     ----------
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
@@ -189,36 +189,43 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
       else:
         print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
       
-    # Plot after fit
-    if verbose > 0:
+    # Plot after fit (optional)
+    if plot_results:
+      if verbose > 0:
+        if logger:
+          logger.log('Plotting results', 'info')
+        else:
+          print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ plotting")
       if logger:
-        logger.log('Plotting results', 'info')
+        logger.log(str(pars), 'max')
       else:
-        print("[py-fitter/fit_module/Unbinned_fit_mom] ✅ plotting")
-    if logger:
-      logger.log(str(pars), 'max')
-    else:
-      print(pars)
-    
-    # plotmom_fit (Assuming this is an external function you need to call)
-    plotmom_fit(mom_mag,count_particle_types, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in mom_components.keys()], plot_cat)
-    ts = int(time.time())
-    fname = f"fit_mom_{ts}.png"
-    try:
-      plt.savefig(fname)
-      if logger:
-        logger.log(f"Saved fit figure to {fname}", "info")
-      else:
-        print(f"Saved fit figure to {fname}")
-    except Exception as e:
-      if logger:
-        logger.log(f"Failed to save fit figure: {e}", "error")
-      else:
-        print(f"Failed to save fit figure: {e}")
-    plt.close()
+        print(pars)
+
+      # plotmom_fit (Assuming this is an external function you need to call)
+      try:
+        plotmom_fit(mom_mag, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_cat)
+        ts = int(time.time())
+        fname = f"fit_mom_{ts}.png"
+        try:
+          plt.savefig(fname)
+          if logger:
+            logger.log(f"Saved fit figure to {fname}", "info")
+          else:
+            print(f"Saved fit figure to {fname}")
+        except Exception as e:
+          if logger:
+            logger.log(f"Failed to save fit figure: {e}", "error")
+          else:
+            print(f"Failed to save fit figure: {e}")
+        plt.close()
+      except Exception as e:
+        if logger:
+          logger.log(f'plotmom_fit failed: {e}', 'error')
+        else:
+          print(f'plotmom_fit failed: {e}')
     
     # --- NLL Scan Plotting  ---
-    if plot_NLL:
+    if plot_NLL and plot_results:
       # performs optional scan to draw NLL plot:
       best_nll = result.fmin
       if logger:
@@ -283,17 +290,44 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
       plt.close()
 
     # produce bin-by-bin momentum confusion plot (true vs fitted fractions)
-    try:
-      bin_by_bin_mom_confusion(mom_mag, count_particle_types, [(proc, pdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range, bin_width=0.5, filename_prefix='mom_confusion_1d')
-    except Exception as e:
-      if logger:
-        logger.log(f'Failed to produce bin-by-bin momentum confusion plot: {e}', 'error')
-      else:
-        print(f'Failed to produce bin-by-bin momentum confusion plot: {e}')
+    if plot_results:
+      try:
+        bin_by_bin_mom_confusion(mom_mag, count_particle_types, [(proc, pdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range, bin_width=0.5, filename_prefix='mom_confusion_1d')
+      except Exception as e:
+        if logger:
+          logger.log(f'Failed to produce bin-by-bin momentum confusion plot: {e}', 'error')
+        else:
+          print(f'Failed to produce bin-by-bin momentum confusion plot: {e}')
       
-    return result, pars[1], loss, aux_nlls, combine_pdf, constraints
+    # select POI (signal yield) robustly by name with a strict preference
+    # for normalization-like parameters such as `N_CE` or names starting
+    # with `N_` and containing `CE`.
+    poi = None
+    # 1) exact/strong matches
+    for p in pars:
+      pname = getattr(p, 'name', getattr(p, '_name', None))
+      if pname is None:
+        continue
+      if pname == 'N_CE' or pname == 'Nsig' or (pname.startswith('N_') and 'CE' in pname.upper()):
+        poi = p
+        break
+    # 2) looser matches
+    if poi is None:
+      for p in pars:
+        pname = getattr(p, 'name', getattr(p, '_name', None))
+        if pname is None:
+          continue
+        if 'CE' in pname.upper() or 'SIG' in pname.upper() or ('N_' in pname.upper()):
+          poi = p
+          break
+    # 3) fallback to previous convention
+    if poi is None:
+      poi = pars[1] if len(pars) > 1 else (pars[0] if len(pars) > 0 else None)
+    if logger:
+      logger.log(f'Selected POI for return: {getattr(poi, "name", repr(poi))}', 'info')
+    return result, poi, loss, aux_nlls, combine_pdf, constraints
 
-def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0):
+def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, plot_results=True):
     """
     Configures and calls the unbinned maximum likelihood fit for time using zfit
 
@@ -362,42 +396,65 @@ def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit
         logger.log('fit is not valid', 'info')
       else:
         print("[py-fitter/fit_module/Unbinned_fit_mom] ⚠️ WARNING! fit is not valid")
-    # Plot after fit
+    # Plot after fit (optional)
+    if plot_results:
+      if verbose > 0:
+        if logger:
+          logger.log('Plotting time fit', 'info')
+        else:
+          print("[py-fitter/fit_module/Unbinned_fit_time] ✅ plotting")
+      try:
+        plottime_fit(times, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in time_components.keys()], True)
+        ts = int(time.time())
+        fname_t = f"fit_time_{ts}.png"
+        try:
+          plt.savefig(fname_t)
+          if logger:
+            logger.log(f"Saved time-fit figure to {fname_t}", "info")
+          else:
+            print(f"Saved time-fit figure to {fname_t}")
+        except Exception as e:
+          if logger:
+            logger.log(f"Failed to save time-fit figure: {e}", "error")
+          else:
+            print(f"Failed to save time-fit figure: {e}")
+      except Exception as e:
+        if logger:
+          logger.log(f'plottime_fit failed: {e}', 'error')
+        else:
+          print(f'plottime_fit failed: {e}')
 
-    if verbose > 0:
-      if logger:
-        logger.log('Plotting time fit', 'info')
-      else:
-        print("[py-fitter/fit_module/Unbinned_fit_time] ✅ plotting")
-    plottime_fit(times, count_particle_types, fit_range, [(proc,pdfs[proc],norms[proc]) for proc in time_components.keys()], True)
-    ts = int(time.time())
-    fname_t = f"fit_time_{ts}.png"
-    try:
-      plt.savefig(fname_t)
-      if logger:
-        logger.log(f"Saved time-fit figure to {fname_t}", "info")
-      else:
-        print(f"Saved time-fit figure to {fname_t}")
-    except Exception as e:
-      if logger:
-        logger.log(f"Failed to save time-fit figure: {e}", "error")
-      else:
-        print(f"Failed to save time-fit figure: {e}")
-    # produce bin-by-bin time confusion plot (true vs fitted fractions)
-    try:
-      bin_by_bin_time_confusion(times, count_particle_types, [(proc, pdfs[proc], norms[proc]) for proc in time_components.keys()], fit_range, bin_width=50.0, filename_prefix='time_confusion_1d')
-    except Exception as e:
-      if logger:
-        logger.log(f'Failed to produce bin-by-bin time confusion plot: {e}', 'error')
-      else:
-        print(f'Failed to produce bin-by-bin time confusion plot: {e}')
+      # produce bin-by-bin time confusion plot (true vs fitted fractions)
+      try:
+        bin_by_bin_time_confusion(times, count_particle_types, [(proc, timepdfs[proc], norms[proc]) for proc in time_components.keys()], fit_range, bin_width=50.0, filename_prefix='time_confusion_1d')
+      except Exception as e:
+        if logger:
+          logger.log(f'Failed to produce bin-by-bin time confusion plot: {e}', 'error')
+        else:
+          print(f'Failed to produce bin-by-bin time confusion plot: {e}')
 
-    plt.close()
+      plt.close()
 
     
-    return result, pars[1], loss, combine_pdf
+    # select POI (signal yield) robustly by name
+    poi = None
+    for p in pars:
+      try:
+        pname = p.name
+      except Exception:
+        pname = getattr(p, '_name', None)
+      if pname is None:
+        continue
+      if 'CE' in pname or 'ce' in pname or 'sig' in pname.lower() or ('n_' in pname.lower() and 'ce' in pname.lower()):
+        poi = p
+        break
+    if poi is None:
+      poi = pars[1] if len(pars) > 1 else (pars[0] if len(pars) > 0 else None)
+    if logger:
+      logger.log(f'Selected POI for return (time fit): {getattr(poi, "name", repr(poi))}', 'info')
+    return result, poi, loss, combine_pdf
 
-def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fit_range_mom, fit_range_time, plot_cat=False, verbose=0, constraints_dir=None):
+def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fit_range_mom, fit_range_time, plot_cat=False, verbose=0, plot_results=True, constraints_dir=None):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum and time using zfit
 
@@ -515,66 +572,94 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
       print("[py-fitter/fit_module/Unbinned_2d_fit_mom_time] ✅ fit is valid")
     else:
       print("[py-fitter/fit_module/Unbinned_2d_fit_mom_time] ⚠️ WARNING! fit is not valid")
-    # Plot after fit
+    # Plot after fit (optional)
+    if plot_results:
+      if verbose > 0:
+        if logger:
+          logger.log("[py-fitter/fit_module/Unbinned_2d_fit_mom_time] ✅ plotting", 'info')
+        else:
+          print("[py-fitter/fit_module/Unbinned_2d_fit_mom_time] ✅ plotting")
 
-    if verbose > 0:
-      print("[py-fitter/fit_module/Unbinned_2d_fit_mom_time] ✅ plotting")
-      
-    # plot time fit — pass the time-only PDFs (projection of 2D) and yields
-    plottime_fit(times, count_particle_types, fit_range_time, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_cat)
+      # plot time fit — pass the time-only PDFs (projection of 2D) and yields
+      try:
+        plottime_fit(times, count_particle_types, fit_range_time, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_cat)
+        ts = int(time.time())
+        fname_time_2d = f"fit_2d_time_{ts}.png"
+        try:
+          plt.savefig(fname_time_2d)
+          if logger:
+            logger.log(f"Saved 2D-fit figure to {fname_time_2d}", "info")
+          else:
+            print(f"Saved 2D-fit figure to {fname_time_2d}")
+        except Exception as e:
+          if logger:
+            logger.log(f"Failed to save 2D-fit figure: {e}", "error")
+          else:
+            print(f"Failed to save 2D-fit figure: {e}")
+        plt.close()
+      except Exception as e:
+        if logger:
+          logger.log(f'plottime_fit failed: {e}', 'error')
+        else:
+          print(f'plottime_fit failed: {e}')
 
-    
-    ts = int(time.time())
-    fname_time_2d = f"fit_2d_time_{ts}.png"
-    try:
-      plt.savefig(fname_time_2d)
-      if logger:
-        logger.log(f"Saved 2D-fit figure to {fname_time_2d}", "info")
-      else:
-        print(f"Saved 2D-fit figure to {fname_time_2d}")
-    except Exception as e:
-      if logger:
-        logger.log(f"Failed to save 2D-fit figure: {e}", "error")
-      else:
-        print(f"Failed to save 2D-fit figure: {e}")
-    plt.close()
+      # plot mom fit using the 1D momentum sub-PDFs (projections)
+      try:
+        plotmom_fit(mom_mag, count_particle_types, fit_range_mom, [(proc, mompdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_cat)
+        fname_mom_2d = f"fit_2d_mom_{ts}.png"
+        try:
+          plt.savefig(fname_mom_2d)
+          if logger:
+            logger.log(f"Saved 2D-fit figure to {fname_mom_2d}", "info")
+          else:
+            print(f"Saved 2D-fit figure to {fname_mom_2d}")
+        except Exception as e:
+          if logger:
+            logger.log(f"Failed to save 2D-fit figure: {e}", "error")
+          else:
+            print(f"Failed to save 2D-fit figure: {e}")
+        plt.close()
+      except Exception as e:
+        if logger:
+          logger.log(f'plotmom_fit failed: {e}', 'error')
+        else:
+          print(f'plotmom_fit failed: {e}')
 
-    # plot mom fit using the 1D momentum sub-PDFs (projections)
-    plotmom_fit(mom_mag, count_particle_types, fit_range_mom, [(proc, mompdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_cat)
-    fname_mom_2d = f"fit_2d_mom_{ts}.png"
-    try:
-      plt.savefig(fname_mom_2d)
-      if logger:
-        logger.log(f"Saved 2D-fit figure to {fname_mom_2d}", "info")
-      else:
-        print(f"Saved 2D-fit figure to {fname_mom_2d}")
-    except Exception as e:
-      if logger:
-        logger.log(f"Failed to save 2D-fit figure: {e}", "error")
-      else:
-        print(f"Failed to save 2D-fit figure: {e}")
-    plt.close()
+      # produce bin-by-bin momentum confusion plot (true vs fitted fractions)
+      try:
+        bin_by_bin_mom_confusion(mom_mag, count_particle_types, [(proc, mompdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range_mom, bin_width=0.5, filename_prefix='mom_confusion_2d')
+      except Exception as e:
+        if logger:
+          logger.log(f'Failed to produce bin-by-bin momentum confusion plot: {e}', 'error')
+        else:
+          print(f'Failed to produce bin-by-bin momentum confusion plot: {e}')
 
+      # produce bin-by-bin time confusion plot (true vs fitted fractions)
+      try:
+        bin_by_bin_time_confusion(times, count_particle_types, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range_time, bin_width=50.0, filename_prefix='time_confusion_2d')
+      except Exception as e:
+        if logger:
+          logger.log(f'Failed to produce bin-by-bin time confusion plot: {e}', 'error')
+        else:
+          print(f'Failed to produce bin-by-bin time confusion plot: {e}')
 
-    # produce bin-by-bin momentum confusion plot (true vs fitted fractions)
-    try:
-      bin_by_bin_mom_confusion(mom_mag, count_particle_types, [(proc, mompdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range_mom, bin_width=0.5, filename_prefix='mom_confusion_2d')
-    except Exception as e:
-      if logger:
-        logger.log(f'Failed to produce bin-by-bin momentum confusion plot: {e}', 'error')
-      else:
-        print(f'Failed to produce bin-by-bin momentum confusion plot: {e}')
-
-    # produce bin-by-bin time confusion plot (true vs fitted fractions)
-    try:
-      bin_by_bin_time_confusion(times, count_particle_types, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range_time, bin_width=50.0, filename_prefix='time_confusion_2d')
-    except Exception as e:
-      if logger:
-        logger.log(f'Failed to produce bin-by-bin time confusion plot: {e}', 'error')
-      else:
-        print(f'Failed to produce bin-by-bin time confusion plot: {e}')
-
-    return result, pars[1], loss, combine_pdf, norms
+    # select POI (signal yield) robustly by name from combined pars
+    poi = None
+    for p in pars:
+      try:
+        pname = p.name
+      except Exception:
+        pname = getattr(p, '_name', None)
+      if pname is None:
+        continue
+      if 'CE' in pname or 'ce' in pname or 'sig' in pname.lower() or ('n_' in pname.lower() and 'ce' in pname.lower()):
+        poi = p
+        break
+    if poi is None:
+      poi = pars[1] if len(pars) > 1 else (pars[0] if len(pars) > 0 else None)
+    if logger:
+      logger.log(f'Selected POI for return (2D fit): {getattr(poi, "name", repr(poi))}', 'info')
+    return result, poi, loss, combine_pdf, norms
 
 def stability_scan(axis, slices, mom_mag, times, track_cat, count_particle_types, fit_range_mom, fit_range_time, plot_cat=False, verbose=0):
     """Run Unbinned_2d_fit_mom_time across a series of slices and plot fitted yields vs slice.

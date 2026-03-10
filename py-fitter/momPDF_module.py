@@ -51,6 +51,10 @@ default_model_params = {
     'dscb'   : {'mu': (104, 103, 107), 'sigma': (0.5, 0.08, 2.0), 'alphaL': (0.422, 0, 10), 
                 'nL': (25.1, 0, 100), 'alphaR': (2.227, 0, 100), 'nR': (5.954, 0, 100)},
     'Gauss'  : {'mu'     : (100,           95,    115),'sigma'  : (10.0,           1e-3,  1e3)},
+    'poly58' : {'a5'     : (8.97879e-17,    0,     1e-16),
+                                    'a6'     : (1.17169e-17,   0,     1e-16),
+                                    'a7'     : (-1.06599e-19, -1e-18, 0),
+                                    'a8'     : (8.14251e-20,   0,     1e-19)},
     'uniform': {}
 }
 
@@ -132,9 +136,21 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
     for p in params.keys():
         p_name = p + '_' + process
         if treat_params == 'constrain':
-            zpars[p] = zfit.Parameter(p_name, params[p][0], params[p][0]+5*params[p][1], params[p][0]+5*params[p][2], step_size=0.0001)
+            # build symmetric bounds around the observed central value so the
+            # initial parameter value lies inside the limits (avoids zfit ValueError)
+            obs = float(params[p][0])
+            unc_lo = float(params[p][1]) if len(params[p]) > 1 else 0.0
+            unc_hi = float(params[p][2]) if len(params[p]) > 2 else unc_lo if unc_lo != 0.0 else 1.0
+            lower = obs - 5.0 * abs(unc_lo)
+            upper = obs + 5.0 * abs(unc_hi)
+            # guard: ensure lower < obs < upper
+            if lower >= obs:
+                lower = obs - abs(unc_lo) if abs(unc_lo) > 0 else obs - 1e-3
+            if upper <= obs:
+                upper = obs + abs(unc_hi) if abs(unc_hi) > 0 else obs + 1e-3
+            zpars[p] = zfit.Parameter(p_name, obs, lower, upper, step_size=0.0001)
             params_tot.append(zpars[p])
-            constraints.append(zfit.constraint.GaussianConstraint(zpars[p], observation=params[p][0], uncertainty=max(abs(params[p][1]), abs(params[p][2]))))
+            constraints.append(zfit.constraint.GaussianConstraint(zpars[p], observation=obs, uncertainty=max(abs(unc_lo), abs(unc_hi))))
         elif treat_params == 'fix':
             zpars[p] = zfit.Parameter(p_name, params[p][0], floating=False)
             try:
@@ -151,6 +167,8 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
         PDF = zfit.pdf.Gauss(obs=obs_mom, mu=zpars['mu'], sigma=zpars['sigma'], extended=N)
     elif model == 'uniform':
         PDF = zfit.pdf.Uniform(low=fit_range[0], high=fit_range[1], obs=obs_mom, extended=N)
+    elif model == 'poly58':
+        PDF = poly58(obs=obs_mom, a5=zpars['a5'], a6=zpars['a6'], a7=zpars['a7'], a8=zpars['a8'], extended=N)
     elif model == 'DIO_custom_model_2025':
         PDF = DIO_custom_model_2025(obs=obs_mom, DIO_endpoint=zpars.get('endpoint', 104.97), beta=zpars.get('beta', -0.002), degree_shift=zpars.get('degree_shift', 0), extended=N)
     elif model == 'poly2': # Cheb. poly order 2

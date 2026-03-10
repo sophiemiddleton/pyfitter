@@ -275,19 +275,71 @@ class ResultsClass:
         self.logger.log(f'Resampling with N_CE = {sig_yield} as mean', 'info')
       else:
         print(f'[py-fitter/results_module/GetUL] ✅ resampling with N_CE = {sig_yield} as mean')
-    sampler.resample({par: sig_yield})
 
-    if opt == 'asym':
-      calculator_low_sig = AsymptoticCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer)
-    elif opt == 'freq':
-      calculator_low_sig = FrequentistCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer, ntoysnull=1000,ntoysalt=1000)
-      # see https://github.com/scikit-hep/hepstats/blob/main/src/hepstats/hypotests/calculators/frequentist_calculator.py for details
+    # Try the native sampler resample API, but fall back to temporarily setting
+    # model parameter values with clipping if resample fails (zfit may try to
+    # assign out-of-bounds values to constrained parameters during resample).
+    temp_param_context = None
+    try:
+      sampler.resample({par: sig_yield})
+    except Exception:
+      # build a full parameter->value mapping based on the current fit result
+      try:
+        params_all = tuple(loss.get_params())
+      except Exception:
+        params_all = tuple()
+
+      vals = []
+      for p in params_all:
+        try:
+          vals.append(float(self.result.params[p.name]['value']))
+        except Exception:
+          try:
+            vals.append(float(p.value()))
+          except Exception:
+            vals.append(0.0)
+
+      # overwrite the POI value with the requested injected signal
+      for i, p in enumerate(params_all):
+        try:
+          if p.name == getattr(par, 'name', None):
+            vals[i] = float(sig_yield)
+            break
+        except Exception:
+          continue
+
+      # Use zfit.param.set_values with clip=True to avoid ValueError
+      try:
+        temp_param_context = zfit.param.set_values(params_all, tuple(vals), clip=True)
+      except Exception:
+        temp_param_context = None
+
+    # Create the calculator inside the temporary parameter-setting context
+    # if we had to fall back to clipped parameter assignment.
+    if temp_param_context is not None:
+      ctx = temp_param_context
+      with ctx:
+        if opt == 'asym':
+          calculator_low_sig = AsymptoticCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer)
+        elif opt == 'freq':
+          calculator_low_sig = FrequentistCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer, ntoysnull=1000,ntoysalt=1000)
+        else:
+          if self.logger:
+            self.logger.log('Invalid limit calculator chosen', 'error')
+          else:
+            print('[py-fitter/results_module/GetUL] ❌ ERROR! Invalid limit calculator chosen')
+          return
     else:
-      if self.logger:
-        self.logger.log('Invalid limit calculator chosen', 'error')
+      if opt == 'asym':
+        calculator_low_sig = AsymptoticCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer)
+      elif opt == 'freq':
+        calculator_low_sig = FrequentistCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer, ntoysnull=1000,ntoysalt=1000)
       else:
-        print('[py-fitter/results_module/GetUL] ❌ ERROR! Invalid limit calculator chosen')
-      return
+        if self.logger:
+          self.logger.log('Invalid limit calculator chosen', 'error')
+        else:
+          print('[py-fitter/results_module/GetUL] ❌ ERROR! Invalid limit calculator chosen')
+        return
       
     if self.verbose > 0:
       if self.logger:
@@ -317,10 +369,23 @@ class ResultsClass:
     ul = UpperLimit(calculator=calculator_low_sig, poinull=sig_yield_scan, poialt=bkg_only)
 
 
-    ul.upperlimit(alpha=0.05, CLs=True);
+    try:
+      ul.upperlimit(alpha=0.05, CLs=True)
+    except Exception as e:
+      if self.logger:
+        self.logger.log(f'upperlimit() failed: {e}', 'error')
+        self.logger.log(traceback.format_exc(), 'max')
+      else:
+        print(f'[py-fitter/results_module/GetUL] ❌ upperlimit() failed: {e}')
+        import traceback as _tb
+        print(_tb.format_exc())
 
+    # plotting of the UL scan (may be absent if upperlimit() failed)
     f = plt.figure(figsize=(9, 8))
-    plotlimit(ul, alpha=0.05, CLs=False)
+    try:
+      plotlimit(ul, alpha=0.05, CLs=False)
+    except Exception:
+      pass
     plt.xlabel("Nsig");
     plt.show()
     if self.verbose > 0:
@@ -397,6 +462,96 @@ class ResultsClass:
       else:
         print(f"Error saving list: {e}")
         print(traceback.format_exc())
+
+  def SensitivityFromMocks(self, mock_samples, fit_runner, result_key='ul', alpha=0.05, CL=0.90, verbose=0):
+    """Estimate expected sensitivity from an ensemble of mock datasets.
+
+    This helper runs a user-supplied `fit_runner` on each mock dataset and
+    collects a numeric summary (by default an upper limit) returned by the
+    runner. It reports the median expected value and +/-1 and +/-2 sigma bands.
+
+    Parameters
+    ----------
+    mock_samples : iterable
+      Iterable of mock data arrays (e.g. 1D numpy arrays of momenta) to be
+      passed to `fit_runner`.
+    fit_runner : callable
+      Function with signature `res = fit_runner(data)` where `data` is one
+      mock sample. `res` may be:
+        - a numeric value (interpreted as the desired metric), or
+        - a dict-like object containing `result_key` with a numeric value, or
+        - an object from which a float can be coerced.
+    result_key : str
+      If `fit_runner` returns a dict, use this key to extract the numeric
+      metric (default: 'ul' for upper limit).
+    alpha, CL : float
+      Unused by the routine itself but available for the runner if needed.
+    verbose : int
+      Verbosity level.
+
+    Returns
+    -------
+    dict containing:
+      - 'median': median of collected metrics
+      - 'p16','p84': 1 sigma lower/upper (16th/84th percentiles)
+      - 'p025','p975': 2 sigma lower/upper (2.5th/97.5th percentiles)
+      - 'values': raw list of values
+
+    Notes
+    -----
+    This method intentionally delegates the fitting work to `fit_runner` so
+    it remains decoupled from specific fitting workflows and can be used with
+    both 1D and 2D fit runners. The runner should be responsible for any
+    model construction, constraints loading, and returning a numeric metric
+    for each mock dataset.
+    """
+    vals = []
+    for i, samp in enumerate(mock_samples):
+      try:
+        res = fit_runner(samp)
+        if isinstance(res, dict):
+          if result_key in res:
+            v = float(res[result_key])
+          else:
+            # try to coerce a single-entry dict
+            try:
+              v = float(list(res.values())[0])
+            except Exception:
+              raise ValueError(f"fit_runner returned dict without key {result_key}")
+        elif isinstance(res, (int, float, np.floating, np.integer)):
+          v = float(res)
+        else:
+          # try coercion
+          v = float(res)
+      except Exception as e:
+        if verbose:
+          if self.logger:
+            self.logger.log(f"Mock {i} fit failed: {e}", 'error')
+          else:
+            print(f"Mock {i} fit failed: {e}")
+        continue
+      vals.append(v)
+
+    if len(vals) == 0:
+      raise RuntimeError('No successful mock fits; cannot estimate sensitivity')
+
+    arr = np.array(vals, dtype=float)
+    out = {
+      'median': float(np.median(arr)),
+      'p16': float(np.percentile(arr, 16)),
+      'p84': float(np.percentile(arr, 84)),
+      'p025': float(np.percentile(arr, 2.5)),
+      'p975': float(np.percentile(arr, 97.5)),
+      'values': vals,
+    }
+
+    if verbose:
+      if self.logger:
+        self.logger.log(f"Sensitivity estimate: median={out['median']}, p16/p84={out['p16']}/{out['p84']}", 'info')
+      else:
+        print(f"Sensitivity estimate: median={out['median']}, p16/p84={out['p16']}/{out['p84']}")
+
+    return out
 
   def ReadPkl(self, filename):
     """test to read in a zfit result (e.g. to compare to a previous result)

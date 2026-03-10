@@ -100,7 +100,7 @@ mom_components = {
     'Cosmic' : {'pdf' : 'poly2',
                 'pars' : { 'c1' : (0.223,0.009, 0.437),
                            'c2' : (-0.063,-0.0841,-0.0419)},
-                'treat_params' : 'fix',
+                'treat_params' : 'constrain',
                 'startCode' : [None],
                 'genCode' : [44,38],
                 'lineColor' : 'm',
@@ -108,28 +108,8 @@ mom_components = {
                 'catColor' : 'violet',
                 'advanced_pars': None},
 
-    'CE': {
-        'pdf': 'dscb',  # Default: simple double sided crystal ball
-        'pars': {
-            'mu': (104, 103, 107), 'sigma': (0.5, 0.08, 2.0),
-            'alphaL': (0.422, 0, 10), 'nL': (25.1, 0, 100),
-            'alphaR': (2.227, 0, 100), 'nR': (5.954, 0, 100)
-        },
-        'treat_params': 'float',
-        'startCode': [168],
-        'genCode': [None],
-        'lineColor': 'b',
-        'lineStyle': '--',
-        'catColor': 'lightskyblue',
-        'advanced_pars': {
-            'pdf_theo': 'theo_exp',
-            'treat_params_adv': 'param',
-            'fitpars_in_formatted': theo_exp_pars,
-            'nll_sources': [flat_res, flat_loss]
-        }
-    },
     'DIO': { # Decay in Orbit Background From Target
-        'pdf': 'DIO_custom_model_2025', # Default: custom theory model
+        'pdf': 'poly58', # Default: to what is in our generator
         'pars': {'N': (55000, 0, 1e6), },
         'treat_params': 'fix',
         'startCode': [166, 170],
@@ -137,12 +117,7 @@ mom_components = {
         'lineColor': 'g',
         'lineStyle': ':',
         'catColor': 'lightgreen',
-        'advanced_pars': {
-          'pdf_theo': 'theo_exp',
-          'treat_params_adv': 'simul', # Use 'simul' to share parameters with CE
-          'fitpars_in_formatted': theo_exp_pars_DIO,
-          'nll_sources': None 
-        }
+        'advanced_pars': None
     },
     
     # Radiative Pion Background (Internal + External) 
@@ -159,3 +134,20 @@ mom_components = {
                 'advanced_pars': None } # No advanced model for RPC
     
 }
+"""
+'CE': {
+    'pdf': 'dscb',  # Default: simple double sided crystal ball
+    'pars': {
+        'mu': (104, 103, 107), 'sigma': (0.5, 0.08, 2.0),
+        'alphaL': (0.422, 0, 10), 'nL': (25.1, 0, 100),
+        'alphaR': (2.227, 0, 100), 'nR': (5.954, 0, 100)
+    },
+    'treat_params': 'float',
+    'startCode': [168],
+    'genCode': [None],
+    'lineColor': 'b',
+    'lineStyle': '--',
+    'catColor': 'lightskyblue',
+    'advanced_pars': None
+},
+"""

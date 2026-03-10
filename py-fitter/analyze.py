@@ -136,7 +136,7 @@ class Analyze:
             data["good_trkqual"] = good_trkqual
             
             # 5. Track PID
-            good_trkpid = selector.select_trkpid(data["trk"], value=0.6)
+            good_trkpid = selector.select_trkpid(data["trk"], value=0.638)
             cut_manager.add_cut(
                 name="good_trkpid",
                 description="Track PID > 0.6",
@@ -206,20 +206,68 @@ class Analyze:
 
             # 12. CRV veto: |dt| < 150 ns
             dt_threshold = 150
-            trk_times = data['trkfit']["trksegs"]["time"][at_trk_front]
-            coinc_times = data["crv"]["crvcoincs.time"]
-            coinc_broadcast = coinc_times[:, None, None, :]
-            trk_broadcast = trk_times[:, :, :, None]
+            
+            # Get track and coincidence times
+            trk_times = data['trkfit']["trksegs"]["time"][at_trk_front]  # events × tracks × segments
+            coinc_times = data["crv"]["crvcoincs.time"]                  # events × coincidences
+            
+            # Broadcast CRV times to match track structure, so that we can compare element-wise
+            # FIXME: should use ak.broadcast
+            coinc_broadcast = coinc_times[:, None, None, :]  # Add dimensions for tracks and segments
+            trk_broadcast = trk_times[:, :, :, None]         # Add dimension for coincidences
+
+            # Calculate time differences
             dt = abs(trk_broadcast - coinc_broadcast)
+            
+            # Check if within threshold
             within_threshold = dt < dt_threshold
+            """
+            fig, (ax1) = plt.subplots(1,1)
+            n,bins,patch = plt.hist(ak.flatten(dt, axis=None), bins=50, range=(0,300), histtype='bar', color='red')
+            plt.yscale('log')
+            ax1.set_xlabel(r'$| T_{trk} - T_{crv}| [ns]$',fontsize=16)
+            plt.show()
+            """
+            # Basic coincidence (used for veto): any coincidence within dt threshold
             any_coinc = ak.any(within_threshold, axis=3)
+
+            # Additionally compute a separate CRV-quality flag (PEs, nHits, span)
+            try:
+                pe = data["crv"]["crvcoincs.PEs"]
+                nh = data["crv"]["crvcoincs.nHits"]
+                ts = data["crv"]["crvcoincs.timeStart"]
+                te = data["crv"]["crvcoincs.timeEnd"]
+                quality = (pe > 25) & (nh >= 15) & ((te - ts) < 175)
+                any_coinc_quality = ak.any(within_threshold & quality[:, None, None, :], axis=3)
+            except Exception:
+                any_coinc_quality = ak.zeros_like(any_coinc)
+
+            # Then reduce over trks (axis=2)
             veto = ak.any(any_coinc, axis=2)
             data["no_crv_veto"] = ~veto
+            try:
+                active_veto = sw(10)
+            except Exception:
+                active_veto = False
             cut_manager.add_cut(
                 name="no_crv_veto",
                 description="No crv-trk veto: |dt| >= 150 ns",
                 mask=~veto,
-                active=sw(10),
+                active= active_veto
+            )
+
+            # Now add a separate CRV quality cut: pass events with NO high-quality coincidences
+            quality_veto = ak.any(any_coinc_quality, axis=2)
+            data["no_crv_quality"] = ~quality_veto
+            try:
+                active_quality = sw(10)
+            except Exception:
+                active_quality = False
+            cut_manager.add_cut(
+                name="no_crv_quality",
+                description="No high-quality CRV coincidence (PEs>25, nHits>=15, span<175ns)",
+                mask=~quality_veto,
+                active= active_quality
             )
 
             # 13. New ST selection

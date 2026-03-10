@@ -54,6 +54,10 @@ class AnaProcessor(Skeleton):
             ],
             "crv" : [
                 "crvcoincs.time",
+                "crvcoincs.nHits",
+                "crvcoincs.PEs",
+                "crvcoincs.timeStart",
+                "crvcoincs.timeEnd"
             ],
             "trk" : [
                 "trk.nactive", 

@@ -26,13 +26,25 @@ def TimeModel(obs_time, params_tot, process, model, pardict, fit_range):
       fit_range = min, max to fit over
       constraints= parameter specific constraints
     """
-    if isinstance(pardict,dict) and 'N' in pardict:
-        N = zfit.Parameter('N_'+process, pardict['N'][0], pardict['N'][1], pardict['N'][2])
-    elif process in list(default_norms.keys()):
-        N = zfit.Parameter('N_'+process, default_norms[process], 0, 1e6)
-    else:
-        N = zfit.Parameter('N_'+process, 10,                     0, 1e6)
-    params_tot.append(N)
+    # Reuse an existing normalization parameter if present in params_tot
+    pname = 'N_' + process
+    N = None
+    for p in params_tot:
+      try:
+        if getattr(p, 'name', None) == pname:
+          N = p
+          break
+      except Exception:
+        continue
+
+    if N is None:
+      if isinstance(pardict,dict) and 'N' in pardict:
+        N = zfit.Parameter(pname, pardict['N'][0], pardict['N'][1], pardict['N'][2])
+      elif process in list(default_norms.keys()):
+        N = zfit.Parameter(pname, default_norms[process], 0, 1e6)
+      else:
+        N = zfit.Parameter(pname, 10,                     0, 1e6)
+      params_tot.append(N)
     
     # Start with default parameters for model
     params = default_model_params[model]
@@ -44,7 +56,21 @@ def TimeModel(obs_time, params_tot, process, model, pardict, fit_range):
 
     zpars = {'N' : N}
     for p in params.keys():
-      zpars[p] = zfit.Parameter(p+'_'+process, params[p][0], params[p][1], params[p][2])
+        pname_p = p + '_' + process
+        # reuse existing param if present
+        existing = None
+        for par in params_tot:
+            try:
+                if getattr(par, 'name', None) == pname_p:
+                    existing = par
+                    break
+            except Exception:
+                continue
+        if existing is not None:
+            zpars[p] = existing
+        else:
+            zpars[p] = zfit.Parameter(pname_p, params[p][0], params[p][1], params[p][2])
+            params_tot.append(zpars[p])
     if model == "muexp":
       params_tot.append(N)
       PDF = zfit.pdf.Exponential(zpars['decay_rate_mu'], obs=obs_time, extended=N)
