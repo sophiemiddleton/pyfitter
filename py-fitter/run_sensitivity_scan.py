@@ -51,6 +51,8 @@ def main():
     p.add_argument('--out', default='sensitivity_scan.csv')
     p.add_argument('--plot', default='sensitivity_scan.png')
     p.add_argument('--verbose', type=int, default=1)
+    p.add_argument('--plot-toys', type=int, default=0, help='Save plots for first N toys per mu (0 = disabled)')
+    p.add_argument('--plot-dir', default=None, help='Directory to save per-toy plots when --plot-toys > 0')
     args = p.parse_args()
 
     data_path = Path(args.data)
@@ -96,6 +98,8 @@ def main():
         n_per_toy=args.n_per_toy,
         fit_runner_args=(),
         fit_runner_kwargs={'fit_range': tuple(args.fit_range), 'constraints_dir': args.constraints_dir, 'verbose': args.verbose},
+        plot_first_n=args.plot_toys,
+        plot_dir=args.plot_dir,
         verbose=args.verbose,
     )
 
