@@ -14,6 +14,8 @@ Notes:
 
 import numpy as np
 import awkward as ak
+import os
+import matplotlib.pyplot as plt
 
 from fit_module import Unbinned_fit_mom, Unbinned_2d_fit_mom_time
 from results_module import ResultsClass
@@ -213,7 +215,7 @@ def fit_runner_2d_ul(mom_sample, time_sample, fit_range_mom=(95.0, 115.0), fit_r
     return {'ul': float(ul_value), 'fitresult': fitresult, 'ul_obj': ul_obj}
 
 
-def toy_scan_from_model(combine_pdf, par, fit_runner, mu_grid, ntoys=100, n_per_toy=1000, fit_runner_args=(), fit_runner_kwargs=None, verbose=0):
+def toy_scan_from_model(combine_pdf, par, fit_runner, mu_grid, ntoys=100, n_per_toy=1000, fit_runner_args=(), fit_runner_kwargs=None, verbose=0, plot_first_n=0, plot_dir=None):
     """Run a toy-based sensitivity scan by sampling from `combine_pdf` at
     several injected signal strengths `mu_grid`.
 
@@ -330,6 +332,35 @@ def toy_scan_from_model(combine_pdf, par, fit_runner, mu_grid, ntoys=100, n_per_
                 try:
                     if isinstance(arr, np.ndarray) and arr.dtype == object:
                         arr = np.asarray([np.asarray(x) for x in arr])
+                except Exception:
+                    pass
+
+                # Optional: save toy plots for the first N toys per mu
+                try:
+                    if plot_dir and plot_first_n and itoy < int(plot_first_n):
+                        odir = os.path.join(plot_dir, f"mu_{mu}")
+                        os.makedirs(odir, exist_ok=True)
+                        fname = os.path.join(odir, f"toy_{itoy}.png")
+                        plt.figure()
+                        # If 2D array with two columns, make a scatter; else histogram
+                        try:
+                            if hasattr(arr, 'ndim') and arr.ndim == 2 and arr.shape[1] == 2:
+                                plt.scatter(arr[:, 0], arr[:, 1], s=4)
+                                plt.xlabel('mom')
+                                plt.ylabel('time')
+                                plt.title(f'mu={mu} toy={itoy} (scatter)')
+                            else:
+                                plt.hist(np.asarray(arr).ravel(), bins=60, histtype='stepfilled', alpha=0.7)
+                                plt.xlabel('momentum')
+                                plt.title(f'mu={mu} toy={itoy} (hist)')
+                            plt.tight_layout()
+                            plt.savefig(fname)
+                            plt.close()
+                        except Exception:
+                            try:
+                                plt.close()
+                            except Exception:
+                                pass
                 except Exception:
                     pass
 
