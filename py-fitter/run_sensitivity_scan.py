@@ -53,6 +53,9 @@ def main():
     p.add_argument('--verbose', type=int, default=1)
     p.add_argument('--plot-toys', type=int, default=0, help='Save plots for first N toys per mu (0 = disabled)')
     p.add_argument('--plot-dir', default=None, help='Directory to save per-toy plots when --plot-toys > 0')
+    p.add_argument('--save-nominal-out', default=None, help='If set, save the nominal mom (and time if present) arrays to this NPZ file')
+    p.add_argument('--compute-sigmas', action='store_true', help='Compute per-toy discovery significance (slower)')
+    p.add_argument('--sig-calc-opt', choices=['asym','freq'], default='asym', help='Calculator for significance: asym or freq')
     args = p.parse_args()
 
     data_path = Path(args.data)
@@ -80,6 +83,18 @@ def main():
         constraints_dir=args.constraints_dir,
     )
 
+    # Optionally save the nominal input arrays used for the scan
+    if args.save_nominal_out:
+        try:
+            if args.verbose:
+                print(f'Saving nominal data to {args.save_nominal_out} ...')
+            # Save momentum array; time not available in this driver
+            np.savez(args.save_nominal_out, mom_mag=np.asarray(mom))
+            if args.verbose:
+                print(f'Wrote nominal arrays to {args.save_nominal_out}')
+        except Exception as e:
+            print(f'Failed to write nominal NPZ {args.save_nominal_out}: {e}')
+
     # prepare mu grid (allow quick background-only UL scenario)
     if args.background_only:
         mu_grid = np.array([0.0])
@@ -100,6 +115,8 @@ def main():
         fit_runner_kwargs={'fit_range': tuple(args.fit_range), 'constraints_dir': args.constraints_dir, 'verbose': args.verbose},
         plot_first_n=args.plot_toys,
         plot_dir=args.plot_dir,
+        compute_sigmas=args.compute_sigmas,
+        sig_calc_opt=args.sig_calc_opt,
         verbose=args.verbose,
     )
 

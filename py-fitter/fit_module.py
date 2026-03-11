@@ -5,6 +5,7 @@ import awkward as ak
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import zfit
+from zfit.minimizers.strategy import FailMinimizeNaN
 from typing import List, Tuple, Optional, Any
 from zfit.result import FitResult
 import traceback
@@ -159,7 +160,52 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
         loss = loss + nll # zfit overloads the '+' operator for loss addition
 
     minimizer = zfit.minimize.Minuit()
-    result = minimizer.minimize(loss, params=pars)
+    # --- Attempt minimize with graceful diagnostic on FailMinimizeNaN ---
+    try:
+      result = minimizer.minimize(loss, params=pars)
+    except FailMinimizeNaN as e:
+      print('[fit_module] Minimizer raised FailMinimizeNaN — dumping diagnostics')
+      try:
+        lv = loss.value()
+        print('[fit_module] loss.value() =', lv)
+      except Exception as e_lv:
+        print('[fit_module] loss.value() raised:', repr(e_lv))
+
+      print('[fit_module] Params:')
+      for p in pars:
+        try:
+          name = getattr(p, 'name', str(p))
+          val = float(p.value())
+          fl = getattr(p, 'floating', None)
+          print('  ', name, 'value=', val, 'floating=', fl, 'finite=', np.isfinite(val))
+        except Exception:
+          print('  ', p)
+
+      print('[fit_module] Constraints (count):', len(constraints))
+      for c in constraints:
+        try:
+          print('   -', type(c), getattr(c, 'param', getattr(c, 'params', repr(c))))
+        except Exception:
+          print('   -', repr(c))
+
+      # Evaluate combined pdf and per-component pdfs on the data
+      try:
+        comb_vals = zfit.run(combine_pdf.pdf(mom_zfit))
+        carr = np.asarray(comb_vals)
+        print(f'[fit_module] combine_pdf stats: min={np.nanmin(carr):.3e} max={np.nanmax(carr):.3e} n_nan={np.isnan(carr).sum()} n_zero={(carr==0).sum()}')
+      except Exception as e_c:
+        print('[fit_module] combine_pdf eval failed:', repr(e_c))
+
+      for proc, pdf in pdfs.items():
+        try:
+          vals = zfit.run(pdf.pdf(mom_zfit))
+          arr = np.asarray(vals)
+          print(f'[fit_module] PDF {proc} stats: min={np.nanmin(arr):.3e} max={np.nanmax(arr):.3e} n_nan={np.isnan(arr).sum()} n_zero={(arr==0).sum()}')
+        except Exception as e2:
+          print(f'[fit_module] PDF {proc} eval failed: {e2}')
+
+      # re-raise for upstream handling
+      raise
     
     if verbose > 0:
       if logger:

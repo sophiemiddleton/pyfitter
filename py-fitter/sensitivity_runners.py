@@ -146,7 +146,7 @@ def fit_runner_1d_ul(sample, fit_range=(95.0, 115.0), constraints_dir='uncertain
         except Exception:
             ul_value = float('nan')
 
-    return {'ul': float(ul_value), 'fitresult': fitresult, 'ul_obj': ul_obj}
+    return {'ul': float(ul_value), 'fitresult': fitresult, 'ul_obj': ul_obj, 'par': par, 'loss': loss, 'nlls': nlls, 'combine_pdf': combine_pdf, 'constraints': constraints}
 
 
 def fit_runner_2d_ul(mom_sample, time_sample, fit_range_mom=(95.0, 115.0), fit_range_time=(400.0, 1695.0), constraints_dir='uncertainties/Cosmic_test', verbose=0):
@@ -215,7 +215,7 @@ def fit_runner_2d_ul(mom_sample, time_sample, fit_range_mom=(95.0, 115.0), fit_r
     return {'ul': float(ul_value), 'fitresult': fitresult, 'ul_obj': ul_obj}
 
 
-def toy_scan_from_model(combine_pdf, par, fit_runner, mu_grid, ntoys=100, n_per_toy=1000, fit_runner_args=(), fit_runner_kwargs=None, verbose=0, plot_first_n=0, plot_dir=None):
+def toy_scan_from_model(combine_pdf, par, fit_runner, mu_grid, ntoys=100, n_per_toy=1000, fit_runner_args=(), fit_runner_kwargs=None, verbose=0, plot_first_n=0, plot_dir=None, compute_sigmas=False, sig_calc_opt='asym'):
     """Run a toy-based sensitivity scan by sampling from `combine_pdf` at
     several injected signal strengths `mu_grid`.
 
@@ -351,7 +351,7 @@ def toy_scan_from_model(combine_pdf, par, fit_runner, mu_grid, ntoys=100, n_per_
                                 plt.title(f'mu={mu} toy={itoy} (scatter)')
                             else:
                                 plt.hist(np.asarray(arr).ravel(), bins=60, histtype='stepfilled', alpha=0.7)
-                                plt.xlabel('momentum')
+                                plt.xlabel('Momentum [MeV/c]')
                                 plt.title(f'mu={mu} toy={itoy} (hist)')
                             plt.tight_layout()
                             plt.savefig(fname)
@@ -390,6 +390,25 @@ def toy_scan_from_model(combine_pdf, par, fit_runner, mu_grid, ntoys=100, n_per_
                         if verbose:
                             print(f"Toy produced invalid UL for mu={mu} toy={itoy}; recorded error: {err_msg}")
                         continue
+                    # optionally compute discovery significance for this toy if fit details are available
+                    sigma_val = None
+                    if compute_sigmas:
+                        try:
+                            fitres = res.get('fitresult', None)
+                            par_res = res.get('par', None)
+                            loss_res = res.get('loss', None)
+                            if fitres is not None and par_res is not None and loss_res is not None:
+                                rc = ResultsClass(arr, fitres, verbose=0)
+                                try:
+                                    sig = rc.GetSignifcance(par_res, loss_res, opt=sig_calc_opt)
+                                    # sig is (pvalue, sigma)
+                                    sigma_val = float(sig[1]) if sig is not None and len(sig) > 1 else float('nan')
+                                except Exception:
+                                    sigma_val = float('nan')
+                        except Exception:
+                            sigma_val = float('nan')
+                    else:
+                        sigma_val = None
                 else:
                     try:
                         v = float(res)
@@ -398,9 +417,16 @@ def toy_scan_from_model(combine_pdf, par, fit_runner, mu_grid, ntoys=100, n_per_
                     if isinstance(v, float) and np.isnan(v):
                         err_msg = f'Non-numeric fit_runner return: {res!r}'
                         errors.append(err_msg)
+                        sigma_val = None
                         if verbose:
                             print(f"Toy produced non-numeric result for mu={mu} toy={itoy}; recorded error: {err_msg}")
                         continue
+
+                # record sigma if computed
+                if compute_sigmas:
+                    if 'sigmas' not in locals():
+                        sigmas = []
+                    sigmas.append(sigma_val)
 
             except Exception as e:
                 import traceback
@@ -424,6 +450,23 @@ def toy_scan_from_model(combine_pdf, par, fit_runner, mu_grid, ntoys=100, n_per_
                 'p84': float(np.percentile(arr, 84)),
                 'errors': errors,
             }
+        # attach sigmas if computed
+        if compute_sigmas:
+            try:
+                sig_arr = np.array(sigmas, dtype=float)
+                results[mu]['sigmas'] = list(sig_arr)
+                results[mu]['sigma_median'] = float(np.nanmedian(sig_arr))
+                results[mu]['sigma_p16'] = float(np.nanpercentile(sig_arr, 16))
+                results[mu]['sigma_p84'] = float(np.nanpercentile(sig_arr, 84))
+            except Exception:
+                results[mu]['sigmas'] = []
+                results[mu]['sigma_median'] = float('nan')
+                results[mu]['sigma_p16'] = float('nan')
+                results[mu]['sigma_p84'] = float('nan')
+
+        # clear sigmas for next mu
+        if 'sigmas' in locals():
+            del sigmas
 
         if verbose:
             print(f"mu={mu}: n_success={len(mu_vals)}, median={results[mu]['median']}")

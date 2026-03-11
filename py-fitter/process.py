@@ -387,10 +387,27 @@ def _save_fit_npz(basename, fitresult, par=None, loss=None, nlls=None, extra=Non
                     tosave['nlls'] = np.array([list(nlls)], dtype=object)
                 except Exception:
                     tosave['nlls'] = np.array([repr(nlls)], dtype=object)
+        # If caller provided explicit arrays in `extra` (dict), include them as named fields
         if extra is not None:
             try:
-                # if extra is numpy-able, store it; otherwise stringify
-                tosave['extra'] = np.asarray(extra)
+                if isinstance(extra, dict):
+                    for k, v in extra.items():
+                        try:
+                            # attempt to coerce awkward/arraylike to numpy
+                            import awkward as _ak
+                            if isinstance(v, _ak.highlevel.Array) or getattr(v, 'dtype', None) == object:
+                                arr = np.asarray(_ak.to_numpy(_ak.flatten(v, axis=None)))
+                            else:
+                                arr = np.asarray(v)
+                        except Exception:
+                            try:
+                                arr = np.asarray(v)
+                            except Exception:
+                                arr = np.array([repr(v)], dtype=object)
+                        tosave[k] = arr
+                else:
+                    # if extra is numpy-able, store it under 'extra'
+                    tosave['extra'] = np.asarray(extra)
             except Exception:
                 tosave['extra'] = np.array([repr(extra)], dtype=object)
 
@@ -941,7 +958,7 @@ def main(args):
 
         # Save fit summary for systematics studies
         try:
-            _save_fit_npz(csv_base, fitresult, par=par, loss=loss, nlls=nlls)
+            _save_fit_npz(csv_base, fitresult, par=par, loss=loss, nlls=nlls, extra={'mom_mag': mom_mag})
         except Exception as e_save:
             print(f'[process] Failed to save mom fit npz: {e_save}')
 
@@ -985,7 +1002,7 @@ def main(args):
 
         # Save time fit summary
         try:
-            _save_fit_npz(csv_base, fitresult, par=par, loss=loss)
+            _save_fit_npz(csv_base, fitresult, par=par, loss=loss, extra={'time': time})
         except Exception as e_save:
             print(f'[process] Failed to save time fit npz: {e_save}')
 
@@ -1017,7 +1034,7 @@ def main(args):
 
         # Save 2D fit summary
         try:
-            _save_fit_npz(csv_base, fitresult, par=par, loss=loss)
+            _save_fit_npz(csv_base, fitresult, par=par, loss=loss, extra={'mom_mag': mom_mag, 'time': time})
         except Exception as e_save:
             print(f'[process] Failed to save 2D fit npz: {e_save}')
 

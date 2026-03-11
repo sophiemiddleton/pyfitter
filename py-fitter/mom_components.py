@@ -111,9 +111,9 @@ mom_components = {
     'DIO': { # Decay in Orbit Background From Target
         'pdf': 'poly58', # Default: to what is in our generator
         'pars': {'a5'     : (8.97879e-17,    1e-17,     1e-16),
-                                    'a6'     : (1.17169e-17,   1e-18,     1e-16),
-                                    'a7'     : (-1.06599e-19, -1e-18, -1e-19),
-                                    'a8'     : (8.14251e-20,   1e-20,     1e-19)},
+                            'a6'     : (1.17169e-17,   0,     1e-16),
+                            'a7'     : (-1.06599e-19, -1e-18, 0),
+                            'a8'     : (8.14251e-20,   0,     1e-19)},
         'treat_params': 'constrian',
         'startCode': [166, 170],
         'genCode': [None],
