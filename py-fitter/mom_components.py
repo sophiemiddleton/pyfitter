@@ -95,38 +95,50 @@ theo_exp_pars_DIO.update({
 
 # --- Component Dictionary ---
 mom_components = {
-
+    'CE': {
+    'pdf': 'dscb',  # Default: simple double sided crystal ball
+    'pars': {
+        'mu': (104, 103, 107), 'sigma': (0.5, 0.08, 2.0),
+        'alphaL': (0.422, 0, 10), 'nL': (25.1, 0, 100),
+        'alphaR': (2.227, 0, 100), 'nR': (5.954, 0, 100)
+    },
+    'treat_params': 'float',
+    'startCode': [168],
+    'genCode': [None],
+    'lineColor': 'b',
+    'lineStyle': '--',
+    'catColor': '#ffff00',
+    'advanced_pars': {
+            'pdf_theo': 'theo_exp',
+            'treat_params_adv': 'param',
+            'fitpars_in_formatted': theo_exp_pars,
+            'nll_sources': [flat_res, flat_loss]
+        }
+  },
     # Cosmics assumes eff+res+loss included from control region (Off spill)
     'Cosmic' : {'pdf' : 'poly2',
-                'pars' : { 'c1' : (0.223,0.009, 0.437),
-                           'c2' : (-0.063,-0.0841,-0.0419)},
+                'pars' : { 'c1' : (0.219,0.197, 0.241),
+                           'c2' : (-0.108803,-0.130803,-0.086803)},
                 'treat_params' : 'constrain',
                 'startCode' : [None],
                 'genCode' : [44,38],
                 'lineColor' : 'm',
                 'lineStyle' : '-.',
-                'catColor' : 'violet',
+                'catColor' : '#1f77b4',
                 'advanced_pars': None},
-
+ 
     'DIO': { # Decay in Orbit Background From Target
         'pdf': 'poly58', # Default: to what is in our generator
-        'pars': {'a5'     : (8.97879e-17,    1e-17,     1e-16),
-                            'a6'     : (1.17169e-17,   0,     1e-16),
-                            'a7'     : (-1.06599e-19, -1e-18, 0),
-                            'a8'     : (8.14251e-20,   0,     1e-19)},
-        'treat_params': 'constrian',
+        'pars': {'N_DIO' : (2000, 1000, 3000),},
+        'treat_params': 'fix',
         'startCode': [166, 170],
         'genCode': [None],
         'lineColor': 'g',
         'lineStyle': ':',
-        'catColor': 'lightgreen',
-        'advanced_pars': None}
-    }
-    
+        'catColor': '#e377c2',
+        'advanced_pars': None},
 
-"""
-    # Radiative Pion Background (Internal + External) 
-    'RPC'    : {'pdf' : 'Gauss', # Default: assumes res+eff+loss already included from e+ control region
+        'RPC'    : {'pdf' : 'Gauss', # Default: assumes res+eff+loss already included from e+ control region
                 'pars' : {'mu'    : (100.26, 100.0,100.5),
                           'sigma' : (11.96, 11.5,12.0),
                           'decay_rate_pi'    : (-0.03846,  -0.04, -0.01)},
@@ -138,7 +150,12 @@ mom_components = {
                 'catColor' : 'black',
                 'advanced_pars': None } # No advanced model for RPC
     
-}
+    }
+    
+
+"""
+    # Radiative Pion Background (Internal + External) 
+
 'CE': {
     'pdf': 'dscb',  # Default: simple double sided crystal ball
     'pars': {
@@ -154,4 +171,18 @@ mom_components = {
     'catColor': 'lightskyblue',
     'advanced_pars': None
 },
+'DIO': { # Decay in Orbit Background From Target
+        'pdf': 'poly58', # Default: to what is in our generator
+        'pars': {'a5'     : (8.97879e-17,    1e-17,     1e-16),
+                            'a6'     : (1.17169e-17,   0,     1e-16),
+                            'a7'     : (-1.06599e-19, -1e-18, 0),
+                            'a8'     : (8.14251e-20,   0,     1e-19)},
+        'treat_params': 'constrian',
+        'startCode': [166, 170],
+        'genCode': [None],
+        'lineColor': 'g',
+        'lineStyle': ':',
+        'catColor': 'lightgreen',
+        'advanced_pars': None},
+
 """

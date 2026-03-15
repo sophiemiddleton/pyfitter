@@ -51,6 +51,9 @@ class AnaProcessor(Skeleton):
                 "run",
                 "subrun",
                 "event",
+                "trig_apr_TrkDe_80m70p",
+                "trig_cpr_TrkDe_80m70p",
+                "trig_tpr_TrkDe_80m70p"
             ],
             "crv" : [
                 "crvcoincs.time",
@@ -423,7 +426,7 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
                              cuts=None,
                              mom_lo: float = 95.0,
                              mom_hi: float = 115.0,
-                             jobs: int = 1):
+                             jobs: int = 16):
     """Process a text file listing OffSpill files and save combined filtered results.
 
     The function will instantiate `AnaProcessor` (with `location`), call
@@ -783,26 +786,47 @@ def main(args):
     # sw(8)=within_d0, sw(9)=within_pitch_angle, sw(10)=no_crv_veto, sw(11)=has_st,
     # sw(12)=no_opa, sw(13)=in_mom_range
 
-    new = [True, True, True, True, True, True, True, False, False, False, True, True, True, True]
-    off_spill_cosmics = [True, True, True, True, True, False, True, False, False, False, True, True, True, True]
-    nocuts = [False] * 14
+   
+    #off_spill_cosmics = [True, True, True, True, True, False, True, False, False, False, True, True, True, True]
+    nocuts = [False] * 16
+
 
     # Convert positional list to named switches for robustness
+    new = [
+        True,  # 0 is_reco_electron
+        True,  # 1 has_downstream
+        True, # 2 has trk front
+        True,  # 3 good_trkqual
+        True,  # 4 good_trkpid
+        False, # 5 within_t0
+        True,  # 6 within_t0err
+        True,  # 7 has_hits
+        True,  #8 has_st
+        True,  #9 no_opa
+        True,  #10 no_crv_veto
+        True,  #11 no_crv_quality
+        True,  #12 no_crv_timewindow
+        True,  #13 pz/pt
+        True,  #14 triggers
+        True,  #15 in_mom_range
+    ]
     cut_names = [
-        "is_reco_electron",
+        "is_reco_electron", #True
         "has_downstream",
+        "trkfront", 
         "good_trkqual",
         "good_trkpid",
-        "has_hits",
         "within_t0",
+        "has_hits",
         "within_t0err",
-        "within_lhr_max",
-        "within_d0",
-        "within_pitch_angle",
         "no_crv_veto",
+        "no_crv_quality",
+        "no_crv_timewindow",
         "has_st",
         "no_opa",
-        "in_mom_range",
+        "pz_over_pt",
+        "good_trigger",
+        "in_mom_range"
     ]
 
     
@@ -815,7 +839,7 @@ def main(args):
 
 
     # run control sample analysis:
-    named_switches_offspill = dict(zip(cut_names, off_spill_cosmics))
+    named_switches_offspill = dict(zip(cut_names, new))
     if module_logger:
         module_logger.log(f"selection cuts to be applied : {named_switches_offspill}", "info")
     else:
@@ -824,13 +848,13 @@ def main(args):
         # run OffSpill mom-spectrum control-region fit (poly2) if the file exists
 
         try:
-            process_offspill_filelist('OffSpill.txt', 
+            process_offspill_filelist('OffSpill_10.txt', 
             out_prefix='offspill_control', 
             location='tape', 
             cuts=named_switches_offspill, 
             mom_lo=args.fitrange_low[0], 
             mom_hi=args.fitrange_hi[0], 
-            jobs=1)
+            jobs=16)
         except Exception as e:
             if module_logger:
                 module_logger.log(f'OffSpill control-region fit failed: {e}', 'error')
@@ -949,7 +973,8 @@ def main(args):
             args.fitrange_hi[0],
             True,
             args.verbose,
-            constraints_dir='uncertainties/Cosmic_test'
+            constraints_dir='uncertainties',
+            plot_NLL = True
         )
         if module_logger:
             module_logger.log(f'Fit result: {fitresult}', 'success')
@@ -1025,7 +1050,7 @@ def main(args):
             [args.fitrange_low[1], args.fitrange_hi[1]],
             bool(args.cat),
             args.verbose,
-            constraints_dir='uncertainties/Cosmic_test',
+            constraints_dir='uncertainties',
         )
         if module_logger:
             module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')

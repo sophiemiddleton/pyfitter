@@ -114,13 +114,14 @@ class Analyze:
             )
             data["is_downstream"] = is_downstream
 
+
             # 3. Presence at tracker entrance
             has_trk_front = ak.any(at_trk_front, axis=-1)
             cut_manager.add_cut(
                 name="has_trk_front",
                 description="Tracks intersect tracker entrance",
                 mask=has_trk_front,
-                active=False,
+                active=sw(2),
             )
             data["at_trk_front"] = at_trk_front
             data["has_trk_front"] = has_trk_front
@@ -131,7 +132,7 @@ class Analyze:
                 name="good_trkqual",
                 description="Track quality (quality > 0.2)",
                 mask=good_trkqual,
-                active=sw(2),
+                active=sw(3),
             )
             data["good_trkqual"] = good_trkqual
             
@@ -141,20 +142,11 @@ class Analyze:
                 name="good_trkpid",
                 description="Track PID > 0.6",
                 mask=good_trkpid,
-                active=sw(3),
+                active=sw(4),
             )
             data["good_trkpid"] = good_trkpid
 
-            # 6. Minimum hits
-            has_hits = selector.has_n_hits(data["trk"], n_hits=20)
-            cut_manager.add_cut(
-                name="has_hits",
-                description="Minimum of 20 active hits in the tracker",
-                mask=has_hits,
-                active=sw(4),
-            )
-
-            # 7. t0 at tracker entrance (trksegs level)
+            # 6. t0 at tracker entrance (trksegs level)
             within_t0 = ((self.time_lo < data['trkfit']["trksegs"]["time"]) & (data['trkfit']["trksegs"]["time"] < self.time_hi))
             within_t0 = ak.all(~at_trk_front | within_t0, axis=-1)
             cut_manager.add_cut(
@@ -164,6 +156,17 @@ class Analyze:
                 active=sw(5),
             )
 
+
+            # 7. Minimum hits
+            has_hits = selector.has_n_hits(data["trk"], n_hits=20)
+            cut_manager.add_cut(
+                name="has_hits",
+                description="Minimum of 20 active hits in the tracker",
+                mask=has_hits,
+                active=sw(6),
+            )
+
+            
             # 8. t0 error
             within_t0err = (data['trkfit']["trksegpars_lh"]["t0err"] < 0.9)
             within_t0err = ak.all(~at_trk_front | within_t0err, axis=-1)
@@ -171,46 +174,36 @@ class Analyze:
                 name="within_t0err",
                 description="t0err < 0.9",
                 mask=within_t0err,
-                active=sw(6),
-            )
-
-            # 9. Loop helix maximum radius
-            within_lhr_max = ((450 < data['trkfit']["trksegpars_lh"]["maxr"]) & (data['trkfit']["trksegpars_lh"]["maxr"] < 680))
-            within_lhr_max = ak.all(~at_trk_front | within_lhr_max, axis=-1)
-            cut_manager.add_cut(
-                name="within_lhr_max",
-                description="Loop helix maximum radius (450 < R_max < 680 mm)",
-                mask=within_lhr_max,
                 active=sw(7),
             )
 
-            # 10. Distance from origin
-            within_d0 = (data['trkfit']["trksegpars_lh"]["d0"] < 100)
-            within_d0 = ak.all(~at_trk_front | within_d0, axis=-1)
+            # 1ST selection
+            has_st = selector.has_ST(data['trkfit'])
             cut_manager.add_cut(
-                name="within_d0",
-                description="Distance of closest approach (d_0 < 100 mm)",
-                mask=within_d0,
+                name="has_st",
+                description="has Nst > 0",
+                mask=has_st,
                 active=sw(8),
             )
 
-            # 11. Pitch angle
-            within_pitch_angle = ((0.5577350 < data['trkfit']["trksegpars_lh"]["tanDip"]) & (data['trkfit']["trksegpars_lh"]["tanDip"] < 1.0))
-            within_pitch_angle = ak.all(~at_trk_front | within_pitch_angle, axis=-1)
+            # OPA veto
+            no_OPA = selector.has_OPA(data['trkfit'])
             cut_manager.add_cut(
-                name="within_pitch_angle",
-                description="Extrapolated pitch angle (0.5577350 < tan(theta_Dip) < 1.0)",
-                mask=within_pitch_angle,
-                active=sw(9),
+                name="no_opa",
+                description="has N_opa == 0",
+                mask=no_OPA,
+                active=sw(19),
             )
 
-            # 12. CRV veto: |dt| < 150 ns
+            # 13,14,15. CRV veto: |dt| < 150 ns
+            # Check if EACH track is within 150 ns of ANY coincidence 
+
             dt_threshold = 150
-            
+    
             # Get track and coincidence times
             trk_times = data['trkfit']["trksegs"]["time"][at_trk_front]  # events × tracks × segments
             coinc_times = data["crv"]["crvcoincs.time"]                  # events × coincidences
-            
+    
             # Broadcast CRV times to match track structure, so that we can compare element-wise
             # FIXME: should use ak.broadcast
             coinc_broadcast = coinc_times[:, None, None, :]  # Add dimensions for tracks and segments
@@ -218,7 +211,7 @@ class Analyze:
 
             # Calculate time differences
             dt = abs(trk_broadcast - coinc_broadcast)
-            
+    
             # Check if within threshold
             within_threshold = dt < dt_threshold
             """
@@ -239,8 +232,45 @@ class Analyze:
                 te = data["crv"]["crvcoincs.timeEnd"]
                 quality = (pe > 25) & (nh >= 15) & ((te - ts) < 175)
                 any_coinc_quality = ak.any(within_threshold & quality[:, None, None, :], axis=3)
+
+                # CRV coincidence time-window selection: startTime > 429 and endTime < 1700
+                timewindow = (ts > 429) & (te < 1700)
+                any_coinc_timewindow = ak.any(within_threshold & timewindow[:, None, None, :], axis=3)
+
             except Exception:
                 any_coinc_quality = ak.zeros_like(any_coinc)
+                any_coinc_timewindow = ak.zeros_like(any_coinc)
+
+            
+            # Now add a separate CRV quality cut: pass events with NO high-quality coincidences
+            quality_veto = ak.any(any_coinc_quality, axis=2)
+            data["no_crv_quality"] = ~quality_veto
+            try:
+                active_quality = sw(11)
+            except Exception:
+                active_quality = False
+            cut_manager.add_cut(
+                name="no_crv_quality",
+                description="No high-quality CRV coincidence (PEs>25, nHits>=15, span<175ns)",
+                mask=~quality_veto,
+                active= active_quality
+            )
+            # CRV time-window veto: no coincidences with start>429 and end<1700 within dt threshold
+            try:
+                timewindow_veto = ak.any(any_coinc_timewindow, axis=2)
+            except Exception:
+                timewindow_veto = ak.zeros_like(ak.any(any_coinc, axis=2))
+            data["no_crv_timewindow"] = ~timewindow_veto
+            try:
+                active_timewindow = sw(12)
+            except Exception:
+                active_timewindow = False
+            cut_manager.add_cut(
+                name="no_crv_timewindow",
+                description="No CRV coincidence with start>429 and end<1700 within dt threshold",
+                mask=~timewindow_veto,
+                active= active_timewindow
+            )
 
             # Then reduce over trks (axis=2)
             veto = ak.any(any_coinc, axis=2)
@@ -256,37 +286,57 @@ class Analyze:
                 active= active_veto
             )
 
-            # Now add a separate CRV quality cut: pass events with NO high-quality coincidences
-            quality_veto = ak.any(any_coinc_quality, axis=2)
-            data["no_crv_quality"] = ~quality_veto
+
+            #16. pz/pt cut: compute pz/pt robustly using pyutils.Vector
             try:
-                active_quality = sw(10)
+                vec = Vector(verbosity=0)
+                # restrict to tracker-front segments for vector creation
+                trkfit_ent = ak.mask(data['trkfit']["trksegs"], at_trk_front)
+                vec3 = vec.get_vector(trkfit_ent, 'mom')
+                if vec3 is None:
+                    raise Exception("failed to create momentum vector")
+
+                px = vec3.x
+                py = vec3.y
+                pz = vec3.z
+                pt = vec3.rho
+
+                # per-segment ratio (guard against division by zero)
+                pz_over_pt = ak.where(pt > 0, pz / pt, ak.zeros_like(pt))
+
             except Exception:
-                active_quality = False
+                # fallback to zeros with same shape as trk segments
+                pz_over_pt = ak.zeros_like(data['trkfit']["trksegs"]["time"])
+
+            # Reduce segment-level ratio to a track-level mask: require 0.5 < pz/pt < 1.0
+            try:
+                mask_seg = (pz_over_pt > 0.5) & (pz_over_pt < 1.0)
+                mask_pzpt = ak.all(~at_trk_front | mask_seg, axis=-1)
+            except Exception:
+                mask_pzpt = ak.zeros_like(ak.any(~at_trk_front, axis=-1))
+
+            # Store numeric per-segment ratio for debugging/inspection
+            data["pz_over_pt"] = pz_over_pt
+
             cut_manager.add_cut(
-                name="no_crv_quality",
-                description="No high-quality CRV coincidence (PEs>25, nHits>=15, span<175ns)",
-                mask=~quality_veto,
-                active= active_quality
+                name="pz_over_pt",
+                description="Track-level cut: 0.5 < pz/pt < 1.0 (pt = transverse mag)",
+                mask=mask_pzpt,
+                active= sw(13)
             )
 
-            # 13. New ST selection
-            has_st = selector.has_ST(data['trkfit'])
-            cut_manager.add_cut(
-                name="has_st",
-                description="has Nst > 0",
-                mask=has_st,
-                active=sw(11),
-            )
 
-            # 14. New OPA veto
-            no_OPA = selector.has_OPA(data['trkfit'])
+             # 17. Trigger test
+            good_trigger = selector.get_triggers(data["evt"], ["trig_cpr_TrkDe_80m70p","trig_apr_TrkDe_80m70p","trig_tpr_TrkDe_80m70p"])
             cut_manager.add_cut(
-                name="no_opa",
-                description="has N_opa == 0",
-                mask=no_OPA,
-                active=sw(12),
+                name="good_trigger",
+                description="trigger passed",
+                mask=good_trigger,
+                active= sw(14),
             )
+            data["good_trigger"] = good_trigger
+            
+
 
             # 15. momentum selection
             vector = Vector()
@@ -298,7 +348,7 @@ class Analyze:
                 name="in_mom_range",
                 description=str(self.mom_lo) + "< mom < " + str(self.mom_hi),
                 mask=in_mom_range,
-                active=sw(13),
+                active=sw(15),
             )
 
             # If user provided named switches as a dict, apply them now

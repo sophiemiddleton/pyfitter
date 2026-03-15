@@ -58,7 +58,7 @@ default_model_params = {
     'uniform': {}
 }
 
-default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 5000, 'RPC' : 20}
+default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 5000, 'RPC' : 24}
 
 def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_range, constraints, advanced_config=None, use_advanced=False):
     """

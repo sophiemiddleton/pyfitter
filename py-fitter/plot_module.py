@@ -90,7 +90,7 @@ def plot_variable(val_overlay, val_label, filenames, lo, hi, cut_lo, cut_hi, mc_
   for i in range(0,len(sets)):
     # create dummy handle for legend columns
     dummy_handle = plt.plot([], marker="",color='white', label=columns[i])
-    n,bins,patch = plt.hist(sets[i],range=(lo,hi), color=cols, label=labs, bins=50, histtype=styles[i], linestyle=lines[i],alpha=alphas[i], stacked=True, density=density)
+    n,bins,patch = plt.hist(sets[i],range=(lo,hi), color=cols, label=labs, bins=25, histtype=styles[i], linestyle=lines[i],alpha=alphas[i], stacked=True, density=density)
   plt.xlabel(str(val_label))
   # draw cuts
   plt.plot(cut_lo, [0,1000], 'k--')
@@ -141,7 +141,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
     mom_mag_skim = ak.nan_to_none(mom_mag)
     mom_mag_skim = ak.drop_none(mom_mag_skim)
     data = ak.to_numpy(ak.flatten(mom_mag_skim, axis=None))
-    n_bins = 50
+    n_bins = 25
     mom_plot = np.linspace(fit_range[0], fit_range[1], n_bins)
     scale = 1 / n_bins * (fit_range[1] - fit_range[0])
     data = data[~np.isnan(data)] 
@@ -186,10 +186,11 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
       data_ipa = ak.mask(mom_mag, mc_count == 0)
       data_ipa = np.array(ak.flatten(data_ipa,axis=None))
       data_ipa = [x for x in data_ipa if (not np.isnan(x)) and (lo <= x <= hi)]
-        
-      datasets = [data_irpc,data_erpc,data_cosmics,data_ipa, data_dio, data_signal]
-      colors = ['darkorange','grey','violet','yellow','lightgreen','lightskyblue']
-      labs_true = ['iRPC','eRPC','Cosmic','IPA DIO','Trgt DIO', ' CE']
+
+      datasets = [data_cosmics,data_irpc,data_erpc,data_ipa, data_dio, data_signal]
+      colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#8c564b', '#e377c2', '#ffff00']
+      labs_true = ['Cosmic','int. RPC','ext. RPC','IPA Decays','DIO', 'Signal']
+  
       datasets_filled = []
       colors_filled = []
       labels_filled = []
@@ -199,7 +200,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
           colors_filled.append(colors[i])
           labels_filled.append(labs_true[i])
       dummy_handle1 = ax1.plot([], marker="", color='white', label="Reco. MC")
-      n,bins,patch = ax1.hist(datasets_filled, range=(fit_range[0],fit_range[1]), color=colors_filled, label=labels_filled, bins=50, histtype="bar", stacked=True)
+      n,bins,patch = ax1.hist(datasets_filled, range=(fit_range[0],fit_range[1]), color=colors_filled, label=labels_filled, bins=25, histtype="bar", stacked=True, edgecolor='black', linewidth=0.8,)
 
         
       """
@@ -241,12 +242,12 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
       ax1.plot(mom_plot, pdf_plot, label=name, color=color, linestyle=ls)
 
     ax1.plot(mom_plot, combine_plot, '-r', label='Total')
-    ax1.grid(True)
+    #ax1.grid(True)
     ax1.set_yscale('log')
     ax1.set_xlim(fit_range)
-    ax1.set_ylim([1e-1,0.2*max(data_hist) + max(data_hist)])
-    ax1.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=12)
-    ax1.set_ylabel('# of events per bin', fontsize=12)
+    ax1.set_ylim([1.0,0.2*max(data_hist) + max(data_hist)])
+    #ax1.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=12)
+    ax1.set_ylabel('# of events per bin', fontsize=10)
     # build explicit proxy legend entries so text appears in reserved white space
     try:
       from matplotlib.lines import Line2D
@@ -315,12 +316,17 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
          print('[py-fitter/plot_module/plotmom_fit] ⚠️ WARNING! histogram empty')
 
     ax2.errorbar(mom_plot, dev , yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3)
-    ax2.grid(True)
+    # add horizontal line at zero for residuals
+    try:
+      ax2.axhline(0, color='red', linewidth=1)
+    except Exception:
+      pass
+    #ax2.grid(True)
     ax2.yaxis.set_ticks(np.arange(-5, 5,2))
     ax2.yaxis.set_minor_formatter(ticker.FormatStrFormatter('%0.1f'))
     ax2.set_xlim(fit_range)
-    ax2.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=12)
-    ax2.set_ylabel('Normalized Residual', fontsize=12)
+    ax2.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=10)
+    ax2.set_ylabel('Normalized Residual', fontsize=10)
     # yield comparison plot (expected vs fitted) for momentum
     try:
       plot_yield_comparison(mom_mag, mc_count, list_pdfs, filename_prefix='yield_compare_mom')
@@ -354,7 +360,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
     time_skim = ak.nan_to_none(time)
     time_skim = ak.drop_none(time_skim)
     data = ak.to_numpy(ak.flatten(time_skim, axis=None))
-    n_bins = 50
+    n_bins = 25
     time_plot = np.linspace(fit_range[0], fit_range[1], n_bins)
     scale = 1 / n_bins * (fit_range[1] - fit_range[0])
     data = data[~np.isnan(data)] 
@@ -484,9 +490,9 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
         data_ipa = np.array(ak.flatten(data_ipa,axis=None))
         data_ipa = [x for x in data_ipa if (not np.isnan(x)) and (lo <= x <= hi)]
         
-        datasets = [data_irpc,data_erpc,data_cosmics,data_ipa, data_irmc, data_ermc, data_dio, data_signal]
-        colors = ['darkorange','grey','violet','yellow','magenta','cyan','lightgreen','lightskyblue']
-        labs_true = ['iRPC','eRPC','Cosmic','IPA DIO',"iRMC","eRMC",'Trgt DIO', ' CE']
+        datasets = [data_cosmics,data_irpc,data_erpc,data_ipa, data_dio, data_signal]
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#8c564b', '#e377c2', '#ffff00']
+        labs_true = ['Cosmic','int. RPC','ext. RPC','IPA Decays','DIO', 'Signal']
         datasets_filled = []
         colors_filled = []
         labels_filled = []
@@ -502,7 +508,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
             print(len(colors_filled))
         dummy_handle1 = ax1.plot([], marker="",color='white', label="Reco. MC")
 
-        n,bins,patch = ax1.hist(datasets_filled,range=(fit_range[0],fit_range[1]), color=colors_filled, label=labels_filled, bins=50, histtype="bar", stacked=True)
+        n,bins,patch = ax1.hist(datasets_filled,range=(fit_range[0],fit_range[1]), color=colors_filled, label=labels_filled, bins=25, edgecolor='black', linewidth=0.8,histtype="bar", stacked=True)
 
         
         """
@@ -560,12 +566,12 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
       ax1.plot(time_plot, stopped_plot, label='Stopped muon', color=stopped_color, linestyle=stopped_ls)
 
     ax1.plot(time_plot, combine_plot, '-r', label='Total')
-    ax1.grid(True)
+    #ax1.grid(True)
     ax1.set_yscale('log')
     ax1.set_xlim(fit_range)
-    ax1.set_ylim([1e-1, max(data_hist) + 0.2*max(data_hist)])
-    ax1.set_xlabel('Reconstructed Time [ns]', fontsize=12)
-    ax1.set_ylabel('# of events per bin', fontsize=12)
+    ax1.set_ylim([1.0, max(data_hist) + 0.2*max(data_hist)])
+    #ax1.set_xlabel('Reconstructed Time [ns]', fontsize=12)
+    ax1.set_ylabel('# of events per bin', fontsize=10)
     # build explicit proxy legend entries for time plot so text appears
     try:
       from matplotlib.lines import Line2D
@@ -635,12 +641,17 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
        print('[py-fitter/plot_module/plottime_fit] ⚠️ WARNING! histogram empty')
 
     ax2.errorbar(time_plot, dev , yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3)
-    ax2.grid(True)
+    # add horizontal line at zero for residuals
+    try:
+      ax2.axhline(0, color='red', linewidth=1)
+    except Exception:
+      pass
+    #ax2.grid(True)
     ax2.yaxis.set_ticks(np.arange(-5, 5,2))
     ax2.yaxis.set_minor_formatter(ticker.FormatStrFormatter('%0.1f'))
     ax2.set_xlim(fit_range)
-    ax2.set_xlabel('Reconstructed Time [ns]', fontsize=12)
-    ax2.set_ylabel('Normalized Residual', fontsize=12)
+    ax2.set_xlabel('Reconstructed Time [ns]', fontsize=10)
+    ax2.set_ylabel('Normalized Residual', fontsize=10)
     # yield comparison plot (expected vs fitted) for momentum
     try:
       plot_yield_comparison(mom_mag, mc_count, list_pdfs, filename_prefix='yield_compare_mom')
@@ -719,6 +730,8 @@ def plot_yield_comparison(data, mc_count, list_pdfs, filename_prefix='yield_comp
     rects1 = ax.bar(x - width/2, expected, width, label='Expected')
     rects2 = ax.bar(x + width/2, fitted, width, label='Fitted')
     ax.set_ylabel('Counts')
+    ax.set_yscale('log')
+
     ax.set_title('Expected vs Fitted Yields')
     ax.set_xticks(x)
     ax.set_xticklabels(procs, rotation=45, ha='right')
@@ -951,7 +964,7 @@ def bin_by_bin_mom_confusion(mom_mag, mc_count, list_pdfs, fit_range, bin_width=
     return {'bins': centers, 'true_counts': true_counts, 'fitted_counts': fitted_counts, 'true_frac': true_frac, 'fit_frac': fit_frac, 'totals_true': totals_true, 'totals_fit': totals_fit}
 
 
-def bin_by_bin_time_confusion(time_arr, mc_count, list_pdfs, fit_range, bin_width=50.0, filename_prefix='time_confusion'):
+def bin_by_bin_time_confusion(time_arr, mc_count, list_pdfs, fit_range, bin_width=25.0, filename_prefix='time_confusion'):
     """Compare true vs fitted relative yields per time bin.
 
     - `time_arr`: awkward array of reconstructed times

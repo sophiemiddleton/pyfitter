@@ -247,7 +247,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
       else:
         print(pars)
 
-      # plotmom_fit (Assuming this is an external function you need to call)
+
       try:
         plotmom_fit(mom_mag, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_cat)
         ts = int(time.time())
@@ -275,13 +275,13 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
       # performs optional scan to draw NLL plot:
       best_nll = result.fmin
       if logger:
-        logger.log(f"Best fit nsig: {result.params[pars[1]]['value']:.2f}", 'info')
+        logger.log(f"Best fit nsig: {result.params[pars[0]]['value']:.2f}", 'info')
         logger.log(f"Minimum NLL: {best_nll:.2f}", 'info')
       else:
-        print(f"Best fit nsig: {result.params[pars[1]]['value']:.2f}")
+        print(f"Best fit nsig: {result.params[pars[0]]['value']:.2f}")
         print(f"Minimum NLL: {best_nll:.2f}")
 
-      scan_range = np.linspace(0,float(pars[1].value())+float(pars[1].value())*0.5, 41)
+      scan_range = np.linspace(0,float(pars[0].value())+float(pars[0].value())*0.5, 41)
       nll_values = []
 
       if logger:
@@ -290,12 +290,12 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
         print("Starting NLL scan...")
       # Loop over the scan range for the signal yield
       for n in scan_range:
-          with pars[1].set_value(n):
-              pars[1].floating = False
+          with pars[0].set_value(n):
+              pars[0].floating = False
               
               minimizer.minimize(loss )
               nll_values.append(loss.value())  
-              pars[1].floating = True
+              pars[0].floating = True
 
       if logger:
         logger.log('Scan complete', 'info')
