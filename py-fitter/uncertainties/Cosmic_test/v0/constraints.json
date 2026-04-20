@@ -2,24 +2,23 @@
   {
     "name": "N_Cosmic",
     "type": "norm",
-    "default": 431,
-    "prior": { "dist": "gauss", "mean": 431, "sigma": 21 },
+    "default": 5000,
+    "prior": { "dist": "gauss", "mean": 5000, "sigma": 1000 },
     "notes": "Gaussian prior on Cosmic yield (absolute). Matches parameter name N_Cosmic created by MomModel."
   },
   {
     "name": "c1_Cosmic",
     "type": "parametric",
-    "default": 0.219,
-    "prior": { "dist": "gauss", "mean": 0.219, "sigma": 0.022 },
+    "default": 0.47,
+    "prior": { "dist": "gauss", "mean": 0.47, "sigma": 0.05 },
     "notes": "Gaussian prior on Chebyshev coefficient c1 for the Cosmic poly2 model."
   }
   ,
   {
     "name": "c2_Cosmic",
     "type": "parametric",
-    "default": -0.108803,
-    "prior": { "dist": "gauss", "mean": -0.108803, "sigma": 0.022 },
+    "default": 0.011,
+    "prior": { "dist": "gauss", "mean": 0.011, "sigma": 0.005 },
     "notes": "Gaussian prior on Chebyshev coefficient c2 for the Cosmic poly2 model."
   }
-  
 ]

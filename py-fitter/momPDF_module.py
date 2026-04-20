@@ -58,7 +58,7 @@ default_model_params = {
     'uniform': {}
 }
 
-default_norms = {'CE' : 600, 'DIO' : 55000, 'Cosmic' : 5000, 'RPC' : 24}
+default_norms = {'CE' : 0, 'DIO' : 55000, 'Cosmic' : 5000, 'RPC' : 24}
 
 def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_range, constraints, advanced_config=None, use_advanced=False):
     """
@@ -238,7 +238,7 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
     return PDF, N
 
 
-def MomTimeModel(obs_mom, obs_time, mom_params_tot, time_params_tot, process, mom_model, time_model, pardict, treat_params, fit_range, constraints):
+def MomTimeModel(obs_mom, obs_time, mom_params_tot, time_params_tot, process, mom_model, time_model, pardict, treat_params, fit_range, constraints, advanced_config=None, use_advanced=False):
     """
     Combined momentum × time PDF. Momentum part is built by `MomModel` (extended with yield N).
     Time part uses fixed/shared decay rates:
@@ -248,7 +248,8 @@ def MomTimeModel(obs_mom, obs_time, mom_params_tot, time_params_tot, process, mo
 
     Returns (pdf_2d, N, mom_pdf, time_pdf)
     """
-    mom_pdf, N = MomModel(obs_mom, mom_params_tot, process, mom_model, pardict, treat_params, fit_range, constraints)
+    # Delegate to MomModel which supports advanced configurations
+    mom_pdf, N = MomModel(obs_mom, mom_params_tot, process, mom_model, pardict, treat_params, fit_range, constraints, advanced_config=advanced_config, use_advanced=use_advanced)
 
     # Ensure shared/fixed decay parameters exist
     if 'decay_shared_CE_DIO' not in _shared_time_params:

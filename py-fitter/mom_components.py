@@ -108,12 +108,7 @@ mom_components = {
     'lineColor': 'b',
     'lineStyle': '--',
     'catColor': '#ffff00',
-    'advanced_pars': {
-            'pdf_theo': 'theo_exp',
-            'treat_params_adv': 'param',
-            'fitpars_in_formatted': theo_exp_pars,
-            'nll_sources': [flat_res, flat_loss]
-        }
+    'advanced_pars': None
   },
     # Cosmics assumes eff+res+loss included from control region (Off spill)
     'Cosmic' : {'pdf' : 'poly2',
@@ -129,14 +124,15 @@ mom_components = {
  
     'DIO': { # Decay in Orbit Background From Target
         'pdf': 'poly58', # Default: to what is in our generator
-        'pars': {'N_DIO' : (2000, 1000, 3000),},
+        'pars': {'N_DIO' : (2000, 1000, 30000),},
         'treat_params': 'fix',
         'startCode': [166, 170],
         'genCode': [None],
         'lineColor': 'g',
         'lineStyle': ':',
         'catColor': '#e377c2',
-        'advanced_pars': None},
+        'advanced_pars':  None
+        },
 
         'RPC'    : {'pdf' : 'Gauss', # Default: assumes res+eff+loss already included from e+ control region
                 'pars' : {'mu'    : (100.26, 100.0,100.5),
@@ -171,6 +167,12 @@ mom_components = {
     'catColor': 'lightskyblue',
     'advanced_pars': None
 },
+  'advanced_pars': {
+            'pdf_theo': 'theo_exp',
+            'treat_params_adv': 'param',
+            'fitpars_in_formatted': theo_exp_pars,
+            'nll_sources': [flat_res, flat_loss]
+        }
 'DIO': { # Decay in Orbit Background From Target
         'pdf': 'poly58', # Default: to what is in our generator
         'pars': {'a5'     : (8.97879e-17,    1e-17,     1e-16),

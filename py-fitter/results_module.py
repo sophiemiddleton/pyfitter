@@ -363,8 +363,27 @@ class ResultsClass:
     
     #Background only hypothesis.
     bkg_only = POI(par, 0)
-    # Range of Nsig values to scan.
-    sig_yield_scan = POIarray(par, np.linspace(0,35,45)) #FIXME
+    # Range of Nsig values to scan - make adaptive based on fitted POI value
+    # Use 2-3x the fitted POI value to ensure UL is sufficiently constraining
+    fitted_poi = None
+    try:
+        fitted_poi = float(self.result.params[par.name]['value'])
+    except Exception:
+        fitted_poi = None
+    
+    if fitted_poi is not None and fitted_poi > 0:
+        # Adaptive range: scan from 0 to ~2x the fitted POI value
+        scan_max = max(50.0, 2.5 * abs(fitted_poi))
+        sig_yield_scan = POIarray(par, np.linspace(0, scan_max, 60))
+    else:
+        # Fallback: conservative range
+        sig_yield_scan = POIarray(par, np.linspace(0, 100, 60))
+    
+    if self.verbose > 0:
+        if self.logger:
+            self.logger.log(f'UL scan range: fitted POI={fitted_poi}, scan max={sig_yield_scan.value[-1] if hasattr(sig_yield_scan, "value") else "unknown"}', 'info')
+        else:
+            print(f'[py-fitter/results_module/GetUL] UL scan range: fitted POI={fitted_poi}')
 
     ul = UpperLimit(calculator=calculator_low_sig, poinull=sig_yield_scan, poialt=bkg_only)
 

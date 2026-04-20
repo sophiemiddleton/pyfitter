@@ -1,5 +1,9 @@
 # Uncertainty Analysis — Concept and Practical Guide
 
+To complete our analysis framework we need to include uncertainties both yield/normalization uncertainties that might effect the relative yields but most importantly shape uncertainties.
+
+Here I set some guidelines to plan how we include the large number of possible uncertainties:
+
 Purpose
 - Provide a compact, actionable plan for identifying, propagating, and summarizing uncertainties in the analysis.
 - Focus on reproducible studies that exercise the full pipeline (selection → reconstruction → fit).
@@ -26,7 +30,7 @@ Purpose
 - Covariance propagation: compute analytic or numeric derivatives and propagate the covariance to final observables when re-fits are too expensive.
 
 4) Practical workflow (recommended)
-- Step A — Inventory: make a short table of sources: name, typical size, how to vary (file/parameter/weight), expected direction.
+- Step A — Inventory: make a short table of sources: name, typical size, how to vary (file/parameter/weight), expected direction (see the `uncertainties1 package)
 - Step B — Small-scale checks: for each source, produce a quick diagnostic (histogram overlays before/after variation) to detect gross mismodeling.
 - Step C — One-at-a-time evaluation: apply each variation individually, run the full pipeline, and capture delta metrics (shift in parameter, change in uncertainty).
 - Step D — Combined effects: for correlated NPs, consider joint toys or multi-parameter profiling to capture interplay.
@@ -41,15 +45,15 @@ Purpose
 - Toy summary: bias and RMS as a function of injected NP value.
 
 6) Implementation notes and file layout
-- Keep each systematic variation as a small, readable script under `py-fitter/systematics/` (or a similar folder). Each script should:
+- Keep each systematic variation as a small, readable script under `py-fitter/uncertainties/` (or a similar folder). Each script should:
   - accept the same CLI options as `process.py` (filelist, location, cuts) and produce diagnostics into a named output folder.
   - save the derived inputs (e.g. shifted `mom_mag.npz` or pickled filtered arrays) so re-running fits is cheap.
-- Create a driver `run_systematics.py` that enumerates variations, dispatches jobs (local/cluster), and collects results into `systematics/outputs/`.
+- Create a driver `run_systematics.py` that enumerates variations, dispatches jobs (local/cluster), and collects results into `uncertainties/outputs/`.
 - Use consistent filenames: `<basename>__sys-<NAME>__shift-<dir>.npz` and `<basename>__sys-<NAME>__fit.json` to make collection and comparison trivial.
 
 7) Automated tests and reproducibility
 - Add a quick smoke test (similar to `run_unit_test.py`) that runs the baseline and a small handful of systematic shifts and stores a summary CSV.
-- Store logs under `py-fitter/unit_test/systematics/` and require attaching them to PRs that touch core code (per your GettingStarted requirement).
+- Store logs under `py-fitter/unit_test/uncertainties/` and require attaching them to PRs that touch core code (per your GettingStarted requirement).
 
 8) Scaling to expensive studies
 - If re-fitting is expensive, prefer reweighting or analytic propagation for first-pass ranking.
@@ -61,18 +65,8 @@ Purpose
 - Run pipeline and save outputs (filtered data, `mom_mag.npz`, fit results JSON/PNG).
 - Record metric: shift in parameter and change in fit uncertainty.
 
-10) Example commands (template)
-```bash
-# baseline
-cd py-fitter
-python process.py --file unit_test/test.txt --loc tape --fittype 2D
+10) Provide a README.md with commands to anlayze the specific systematic.
 
-# one systematic: momentum scale +1%
-python py-fitter/systematics/scale_momentum.py --scale 1.01 --file unit_test/test.txt --loc tape
-
-# collect and summarize
-python py-fitter/systematics/collect_results.py --dir systematics/outputs --out systematics/summary.csv
-```
 
 11) Next steps you can ask me to implement
 - scaffold `py-fitter/systematics/` with a template `scale_momentum.py` and a `collect_results.py` summarizer.

@@ -541,19 +541,32 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
       timepdf = time_components.get(proc, {}).get('pdf', None)
 
       # MomTimeModel now returns (pdf_2d, N, mom_pdf, time_pdf)
+      comp_config = mom_components[proc]
+      use_advanced_model = bool(comp_config.get('advanced_pars'))
       try:
-        pdf2d, N, mom_subpdf, time_subpdf = MomTimeModel(obs_mom, obs_time, mompars, timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints)
+        pdf2d, N, mom_subpdf, time_subpdf = MomTimeModel(
+            obs_mom, obs_time, mompars, timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints,
+            advanced_config=comp_config, use_advanced=use_advanced_model
+        )
       except TypeError:
         # backward-compatible: older MomTimeModel returned (pdf_2d, N)
-        pdf2d, N = MomTimeModel(obs_mom, obs_time, mompars, timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints)
+        pdf2d, N = MomTimeModel(obs_mom, obs_time, mompars, timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints, advanced_config=comp_config, use_advanced=use_advanced_model)
         mom_subpdf = mompdf
         time_subpdf = time_components.get(proc, {}).get('pdf', zfit.pdf.Uniform(low=fit_range_time[0], high=fit_range_time[1], obs=obs_time))
 
       pdfs[proc] = pdf2d
       norms[proc] = N
       mompdfs[proc] = mom_subpdf
+      # collect nll sources from either top-level 'nll' or advanced_pars['nll_sources']
       if 'nll' in mom_components[proc].keys():
         nll_sources.append(mom_components[proc]['nll'])
+      adv = comp_config.get('advanced_pars') if 'comp_config' in locals() else None
+      if adv and 'nll_sources' in adv:
+        sources = adv['nll_sources']
+        if not isinstance(sources, list):
+          sources = [sources]
+        for s in sources:
+          nll_sources.append(s)
 
       # also build a time-only (non-extended) PDF for plotting
       if proc in ('DIO', 'CE'):

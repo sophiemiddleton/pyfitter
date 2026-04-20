@@ -798,7 +798,7 @@ def main(args):
         True, # 2 has trk front
         True,  # 3 good_trkqual
         True,  # 4 good_trkpid
-        False, # 5 within_t0
+        True, # 5 within_t0
         True,  # 6 within_t0err
         True,  # 7 has_hits
         True,  #8 has_st
@@ -1052,6 +1052,25 @@ def main(args):
             args.verbose,
             constraints_dir='uncertainties',
         )
+        if int(args.interpret) == 1:
+            result_output = ResultsClass(mom_mag, fitresult, args.verbose)
+            result_output.WriteFittedData(args.fitrange_low[0], args.fitrange_hi[0])
+            result_output.WriteResult()
+            result_output.GetSignifcance(par, loss, 'asym')
+            if int(args.setlimit) == 1:
+                result_output.GetUL(
+                    par,
+                    loss,
+                    nlls,
+                    combine_pdf,
+                    constraints,
+                    args.fitrange_low[0],
+                    args.fitrange_hi[0],
+                    fitresult.params['N_CE']['value'],
+                    0.90,
+                    'asym',
+                )
+
         if module_logger:
             module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')
         else:
