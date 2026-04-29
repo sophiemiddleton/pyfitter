@@ -12,10 +12,8 @@ from pyutils.pylogger import Logger
 from pathlib import Path
 
 # Module-level logger
-try:
-    module_logger = Logger(print_prefix='[process] ', verbosity=2)
-except Exception:
-    module_logger = None
+module_logger = Logger(print_prefix='[process] ', verbosity=2)
+
 
 from fit_module import *
 from results_module import ResultsClass
@@ -82,7 +80,6 @@ class AnaProcessor(Skeleton):
             ]
         }
         self.tree_path = "ntuple"
-        #self.filelist = "filelist.txt"          # text file containing list of files
         self.use_remote = True     # Use remote file via mdh
         if str(location)  == "local":
           self.use_remote = False
@@ -91,30 +88,13 @@ class AnaProcessor(Skeleton):
         self.verbosity = 2         # Set verbosity 
         self.use_processes = True  # Use processes rather than threads
         
-        # Now add your own analysis-specific parameters 
-
-        # Init analysis methods
-        # Avoid mutable default for cuts
         cuts_list = cuts if cuts is not None else []
-        # Would be good to load an analysis config here 
         self.analyse = Analyze(verbosity=self.verbosity, cut_switch=cuts_list, mom_lo = mom_lo, mom_hi = mom_hi)
             
-        # Custom prefix for log messages from this processor
         self.print_prefix = "[AnaProcessor] "
-        # Module-level logger (kept lightweight)
-        try:
-            self.logger = Logger(print_prefix=self.print_prefix, verbosity=self.verbosity)
-            self.logger.log("Initialised", "info")
-        except Exception:
-            # Fallback to simple print if Logger isn't available
-            if module_logger:
-                module_logger.log(f"{self.print_prefix}Initialised", "info")
-            else:
-                print(f"{self.print_prefix}Initialised")
+        self.logger = Logger(print_prefix=self.print_prefix, verbosity=self.verbosity)
+        self.logger.log("Initialised", "info")
     
-    # ==========================================
-    # Define the core processing logic
-    # ==========================================
     # This method overrides the parent class's process_file method
     # It will be called automatically for each file by the execute method
     def process_file(self, file_name): 
@@ -153,17 +133,8 @@ class AnaProcessor(Skeleton):
             return results 
         
         except Exception as e:
-            # Handle any errors that occur during processing
-            try:
-                self.logger.log(f"Error processing {file_name}: {e}", "error")
-                self.logger.log(traceback.format_exc(), "max")
-            except Exception:
-                if module_logger:
-                    module_logger.log(f"{self.print_prefix}Error processing {file_name}: {e}", "error")
-                    module_logger.log(traceback.format_exc(), "max")
-                else:
-                    print(f"{self.print_prefix}Error processing {file_name}: {e}")
-                    print(traceback.format_exc())
+            self.logger.log(f"Error processing {file_name}: {e}", "error")
+            self.logger.log(traceback.format_exc(), "max")
             return None
             
 def combine_cut_flows( cut_flow_list, csv_basename: str = None):
@@ -175,94 +146,63 @@ def combine_cut_flows( cut_flow_list, csv_basename: str = None):
     Returns:
         list: Combined cut statistics
     """        
+    # Use the first (now filtered) list as template
+    template = cut_flow_list[0]
+    # Use the template to initialise combined stats
+    combined_cut_flow = []
+    for cut in template:
+        cut_copy = {k: v for k, v in cut.items()}
+        cut_copy["events_passing"] = 0
+        combined_cut_flow.append(cut_copy)
+
+    # Create a mapping of cut names to indices in combined_stats 
+    cut_name_to_index = {cut["name"]: i for i, cut in enumerate(combined_cut_flow)}
+
+    # Sum up events_passing for each cut across all files
+    for cut_flow in cut_flow_list:
+        for cut in cut_flow:
+            cut_name = cut["name"]
+            if cut_name in cut_name_to_index:
+                idx = cut_name_to_index[cut_name]
+                combined_cut_flow[idx]["events_passing"] += cut["events_passing"]
+
+    # Recalculate percentages
+    if combined_cut_flow and combined_cut_flow[0]["events_passing"] > 0:
+        total_events = combined_cut_flow[0]["events_passing"]
+        for i, cut in enumerate(combined_cut_flow):
+            events = cut["events_passing"]
+            cut["absolute_frac"] = (events / total_events) * 100.0
+            if i == 0:
+                cut["relative_frac"] = 100.0
+            else:
+                prev_events = combined_cut_flow[i-1]["events_passing"]
+                cut["relative_frac"] = (events / prev_events) * 100.0 if prev_events > 0 else 0.0
+
+    cut_manager = CutManager(verbosity=2)
+    module_logger.log("================== Total Cut Flow =======================", "info")
     try:
-        # Use the first (now filtered) list as template
-        template = cut_flow_list[0]
-        
-        # Use the template to initialise combined stats
-        combined_cut_flow = []
-        for cut in template:
-            # Create a copy (needed?)
-            cut_copy = {k: v for k, v in cut.items()}
-            # Reset the event count
-            cut_copy["events_passing"] = 0
-            combined_cut_flow.append(cut_copy)
-        
-        # Create a mapping of cut names to indices in combined_stats 
-        cut_name_to_index = {cut["name"]: i for i, cut in enumerate(combined_cut_flow)}
-        
-        # Sum up events_passing for each cut across all files
-        for cut_flow in cut_flow_list:
-            for cut in cut_flow:
-                cut_name = cut["name"]
-                # Only process cuts that are in our combined_stats
-                if cut_name in cut_name_to_index:
-                    idx = cut_name_to_index[cut_name]
-                    combined_cut_flow[idx]["events_passing"] += cut["events_passing"]
-        
-        # Recalculate percentages
-        if combined_cut_flow and combined_cut_flow[0]["events_passing"] > 0:
-            total_events = combined_cut_flow[0]["events_passing"]
-            
-            for i, cut in enumerate(combined_cut_flow):
-                events = cut["events_passing"]
-                
-                # Absolute percentage
-                cut["absolute_frac"] = (events / total_events) * 100.0
-                
-                # Relative percentage
-                if i == 0:  # "No cuts"
-                    cut["relative_frac"] = 100.0
-                else:
-                    prev_events = combined_cut_flow[i-1]["events_passing"]
-                    cut["relative_frac"] = (events / prev_events) * 100.0 if prev_events > 0 else 0.0
+        cut_manager.print_cut_stats(stats=combined_cut_flow, active_only=True, csv_name=None)
+    except Exception as e_print:
+        module_logger.log(f'[combine_cut_flows] Failed to print combined cut flow: {e_print}', 'error')
 
-        cut_manager = CutManager(verbosity=2)
-        try:
-            # Use module logger if available
-            logger = Logger(print_prefix="[combine_cut_flows] ", verbosity=2)
-            logger.log("================== Total Cut Flow =======================", "info")
-        except Exception:
-            print("================== Total Cut Flow =======================")
-
-        # Print combined cut flow to terminal
-        try:
-            cut_manager.print_cut_stats(stats=combined_cut_flow, active_only=True, csv_name=None)
-        except Exception as e_print:
-            print(f'[combine_cut_flows] Failed to print combined cut flow: {e_print}')
-
-        # If a basename was provided, derive filename; otherwise default
-        csv_name = "cut_stats.csv" if not csv_basename else f"{csv_basename}.csv"
-
-        # Write the combined_cut_flow to a CSV file (only the final combined flow)
-        try:
-            # Determine fieldnames from the keys of the first entry
-            if combined_cut_flow:
-                fieldnames = list(combined_cut_flow[0].keys())
-            else:
-                fieldnames = ["name", "events_passing", "absolute_frac", "relative_frac"]
-            with open(csv_name, 'w', newline='') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writeheader()
-                for row in combined_cut_flow:
-                    # Ensure all keys present
-                    out_row = {k: row.get(k, "") for k in fieldnames}
-                    writer.writerow(out_row)
-            if module_logger:
-                module_logger.log(f'Wrote combined cut flow to {csv_name}', 'info')
-            else:
-                print(f'Wrote combined cut flow to {csv_name}')
-        except Exception as e_csv:
-            print(f'Failed to write combined cut flow to {csv_name}: {e_csv}')
-
-        return combined_cut_flow
-    
-    except Exception as e:
-        if module_logger:
-            module_logger.log(f"Exception when combining cut flows: {e}", "error")
+    csv_name = "cut_stats.csv" if not csv_basename else f"{csv_basename}.csv"
+    try:
+        if combined_cut_flow:
+            fieldnames = list(combined_cut_flow[0].keys())
         else:
-            print(f"Exception when combining cut flows: {e}")
-        raise
+            fieldnames = ["name", "events_passing", "absolute_frac", "relative_frac"]
+        with open(csv_name, 'w', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in combined_cut_flow:
+                out_row = {k: row.get(k, "") for k in fieldnames}
+                writer.writerow(out_row)
+        module_logger.log(f'Wrote combined cut flow to {csv_name}', 'info')
+    except Exception as e_csv:
+        module_logger.log(f'Failed to write combined cut flow to {csv_name}: {e_csv}', 'error')
+
+    return combined_cut_flow
+
         
 def combine_arrays(results):
     """Combine filtered arrays from multiple files
@@ -294,24 +234,18 @@ def _save_fit_npz(basename, fitresult, par=None, loss=None, nlls=None, extra=Non
     try:
         if not basename:
             basename = 'fitresult'
-        # Write fit summaries into a dedicated `fits/` directory and avoid overwriting
         base_dir = Path(__file__).resolve().parent
         fits_dir = base_dir / 'fits'
         fits_dir.mkdir(parents=True, exist_ok=True)
-
-        # Determine versioned filename
         pattern = f"{basename}_fit*.npz"
         existing = sorted(fits_dir.glob(pattern))
         if not existing:
             fname = fits_dir / f"{basename}_fit.npz"
         else:
-            # find next v### index
             max_v = 0
             for p in existing:
-                nm = p.stem  # without .npz
-                # try to parse suffix vNNN
+                nm = p.stem
                 if nm.endswith('_fit'):
-                    # base version exists, treat as v000
                     max_v = max(max_v, 0)
                 else:
                     parts = nm.rsplit('_v', 1)
@@ -326,29 +260,23 @@ def _save_fit_npz(basename, fitresult, par=None, loss=None, nlls=None, extra=Non
         param_names = []
         param_values = []
         param_errors = []
-
-        # Attempt to extract parameters from fitresult
         params = None
         try:
             params = getattr(fitresult, 'params', None)
         except Exception:
             params = None
-
         if params is None and isinstance(fitresult, dict) and 'params' in fitresult:
             params = fitresult.get('params')
-
         if params is not None:
             try:
                 for name in params:
                     entry = params[name]
-                    # entry may be a dict-like with 'value' and 'error'
                     val = None
                     err = None
                     if isinstance(entry, dict):
                         val = entry.get('value', None)
                         err = entry.get('error', None)
                     else:
-                        # fallback: try attributes
                         val = getattr(entry, 'value', None)
                         err = getattr(entry, 'error', None)
                     param_names.append(name)
@@ -361,42 +289,32 @@ def _save_fit_npz(basename, fitresult, par=None, loss=None, nlls=None, extra=Non
                     except Exception:
                         param_errors.append(float('nan'))
             except Exception:
-                # give up gracefully
                 param_names = []
                 param_values = []
                 param_errors = []
-
-        # Save arrays to npz
         tosave = {}
         tosave['param_names'] = np.array(param_names, dtype=object)
         tosave['param_values'] = np.array(param_values, dtype=float)
         tosave['param_errors'] = np.array(param_errors, dtype=float)
-        # Sanitize loss/nlls/extra so we don't try to pickle complex objects
         if loss is not None:
             try:
-                # try to coerce to a float scalar
                 tosave['loss'] = np.array(float(loss))
             except Exception:
-                # fallback to a string representation
                 tosave['loss'] = np.array([repr(loss)], dtype=object)
         if nlls is not None:
             try:
-                # try numeric array
                 nlls_arr = np.asarray(nlls, dtype=float)
                 tosave['nlls'] = nlls_arr
             except Exception:
-                # store a textual representation instead of attempting to serialize
                 try:
                     tosave['nlls'] = np.array([list(nlls)], dtype=object)
                 except Exception:
                     tosave['nlls'] = np.array([repr(nlls)], dtype=object)
-        # If caller provided explicit arrays in `extra` (dict), include them as named fields
         if extra is not None:
             try:
                 if isinstance(extra, dict):
                     for k, v in extra.items():
                         try:
-                            # attempt to coerce awkward/arraylike to numpy
                             import awkward as _ak
                             if isinstance(v, _ak.highlevel.Array) or getattr(v, 'dtype', None) == object:
                                 arr = np.asarray(_ak.to_numpy(_ak.flatten(v, axis=None)))
@@ -409,15 +327,13 @@ def _save_fit_npz(basename, fitresult, par=None, loss=None, nlls=None, extra=Non
                                 arr = np.array([repr(v)], dtype=object)
                         tosave[k] = arr
                 else:
-                    # if extra is numpy-able, store it under 'extra'
                     tosave['extra'] = np.asarray(extra)
             except Exception:
                 tosave['extra'] = np.array([repr(extra)], dtype=object)
-
         np.savez_compressed(str(fname), **tosave)
-        print(f'[process] Wrote fit summary to {fname}')
+        module_logger.log(f'[process] Wrote fit summary to {fname}', 'info')
     except Exception as e:
-        print(f'[process] Failed to write fit NPZ: {e}')
+        module_logger.log(f'[process] Failed to write fit NPZ: {e}', 'error')
 
 
 def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
@@ -437,15 +353,14 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
     as a small `.npz` file for downstream control-region fits.
     """
     try:
-        # read file list
         with open(filelist_path, 'r') as f:
             files = [l.strip() for l in f if l.strip() and not l.startswith('#')]
     except Exception as e:
-        print(f'[process_offspill_filelist] Failed to read {filelist_path}: {e}')
+        module_logger.log(f'[process_offspill_filelist] Failed to read {filelist_path}: {e}', 'error')
         return None
 
     if len(files) == 0:
-        print(f'[process_offspill_filelist] No files found in {filelist_path}')
+        module_logger.log(f'[process_offspill_filelist] No files found in {filelist_path}', 'error')
         return None
 
     # Create AnaProcessor with the same selection/cuts as main analysis
@@ -458,10 +373,10 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
             if r is not None:
                 results.append(r)
         except Exception as e:
-            print(f'[process_offspill_filelist] Error processing {fn}: {e}')
+            module_logger.log(f'[process_offspill_filelist] Error processing {fn}: {e}', 'error')
 
     if len(results) == 0:
-        print('[process_offspill_filelist] No results produced')
+        module_logger.log('[process_offspill_filelist] No results produced', 'error')
         return None
 
     # Combine filtered arrays and save
@@ -470,26 +385,22 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
         cutlist = []
         for i, result in enumerate(results):
             cutlist.append(result["cut_stats"])
-        # For offspill processing, name the CSV after the output prefix
         combine_cutflows = combine_cut_flows(cutlist, csv_basename=out_prefix)
-
     except Exception as e:
-        print(f'[process_offspill_filelist] Failed to combine arrays: {e}')
+        module_logger.log(f'[process_offspill_filelist] Failed to combine arrays: {e}', 'error')
         combined = None
 
     import pickle
     try:
         with open(out_prefix + '_filtered.pkl', 'wb') as pf:
             pickle.dump({'results': results, 'combined_filtered': combined}, pf)
-        print(f'[process_offspill_filelist] Wrote {out_prefix}_filtered.pkl')
+        module_logger.log(f'[process_offspill_filelist] Wrote {out_prefix}_filtered.pkl', 'info')
     except Exception as e:
-        print(f'[process_offspill_filelist] Failed to write pickle: {e}')
+        module_logger.log(f'[process_offspill_filelist] Failed to write pickle: {e}', 'error')
 
     # Try to extract a flattened mom_mag for convenience.
     try:
         mom_flat = None
-        # Try to extract momentum magnitude the same way as the main analysis:
-        # select track front, mask trksegs, then use Vector.get_mag
         try:
             selector = Select()
             trk_front = selector.select_surface(combined['trkfit'], surface_name='TT_Front')
@@ -498,8 +409,7 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
             mom_per_event = vector.get_mag(trkfit_ent, 'mom')
             mom_flat = ak.to_numpy(ak.flatten(mom_per_event, axis=None))
         except Exception as e_primary:
-            # Fallback: try common direct fields without importing pyvector
-            print("Within exception block for mom_mag extraction fallback")
+            module_logger.log("Within exception block for mom_mag extraction fallback", 'error')
             mom_flat = None
             try:
                 mom_arr = None
@@ -518,7 +428,6 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
                     mom_flat = ak.to_numpy(mom_arr)
             except Exception:
                 mom_flat = None
-            # Last-resort: try pyvector on the raw trkfit (if present)
             if mom_flat is None:
                 try:
                     from pyutils.pyvector import Vector as _Vector
@@ -527,32 +436,27 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
                     mom_per_event = _vec.get_mag(trkfit_ent, 'mom')
                     mom_flat = ak.to_numpy(ak.flatten(mom_per_event, axis=None))
                 except Exception as e2:
-                    print(f'[process_offspill_filelist] Could not extract mom_mag via primary or fallback methods: {e_primary}; {e2}')
+                    module_logger.log(f'[process_offspill_filelist] Could not extract mom_mag via primary or fallback methods: {e_primary}; {e2}', 'error')
                     mom_flat = None
 
         if mom_flat is not None:
             np.savez(out_prefix + '_mom_mag.npz', mom_mag=mom_flat)
-            print(f'[process_offspill_filelist] Wrote {out_prefix}_mom_mag.npz')
-            # Run the control-region cosmic fit and save diagnostics
+            module_logger.log(f'[process_offspill_filelist] Wrote {out_prefix}_mom_mag.npz', 'info')
             try:
                 from control_region import ControlRegion
                 cr = ControlRegion(mom_flat)
                 fit_out = cr.fit_cosmic(fit_range=(mom_lo, mom_hi), plot=True)
-
-                # Save figure if produced
                 fig = fit_out.get('figure', None)
                 if fig is not None:
                     fname_plot = out_prefix + '_cosmic_fit.png'
                     try:
                         fig.savefig(fname_plot)
-                        print(f'[process_offspill_filelist] Wrote cosmic fit figure to {fname_plot}')
+                        module_logger.log(f'[process_offspill_filelist] Wrote cosmic fit figure to {fname_plot}', 'info')
                     except Exception as e_save:
-                        print(f'[process_offspill_filelist] Failed to save cosmic fit figure: {e_save}')
-
-                # Print fitted params to terminal
+                        module_logger.log(f'[process_offspill_filelist] Failed to save cosmic fit figure: {e_save}', 'error')
                 params = fit_out.get('params', {})
                 hesse = fit_out.get('hesse', {})
-                print('[process_offspill_filelist] Cosmic fit parameters:')
+                module_logger.log('[process_offspill_filelist] Cosmic fit parameters:', 'info')
                 for k, v in params.items():
                     err = None
                     try:
@@ -560,38 +464,34 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
                     except Exception:
                         err = None
                     if isinstance(err, dict) and 'error' in err:
-                        print(f'  {k}: {v} ± {err["error"]}')
+                        module_logger.log(f'  {k}: {v} ± {err["error"]}', 'info')
                     else:
-                        print(f'  {k}: {v}')
-
+                        module_logger.log(f'  {k}: {v}', 'info')
             except Exception as e_cr:
-                print(f'[process_offspill_filelist] ControlRegion fit failed: {e_cr}')
-                # Provide diagnostics for mom_flat to help debug formatting issues
+                module_logger.log(f'[process_offspill_filelist] ControlRegion fit failed: {e_cr}', 'error')
                 try:
                     import numpy as _np
-                    print(f'[process_offspill_filelist] mom_flat type: {type(mom_flat)}, shape: {getattr(mom_flat, "shape", None)}')
+                    module_logger.log(f'[process_offspill_filelist] mom_flat type: {type(mom_flat)}, shape: {getattr(mom_flat, "shape", None)}', 'error')
                     try:
                         sample = repr(mom_flat[:50])
                     except Exception:
                         sample = str(mom_flat)
-                    print(f'[process_offspill_filelist] mom_flat sample (first 50): {sample}')
+                    module_logger.log(f'[process_offspill_filelist] mom_flat sample (first 50): {sample}', 'error')
                     arr = _np.asarray(mom_flat)
                     if arr.size == 0:
-                        print('[process_offspill_filelist] mom_flat is empty')
+                        module_logger.log('[process_offspill_filelist] mom_flat is empty', 'error')
                     else:
                         try:
                             vmin = _np.nanmin(arr)
                             vmax = _np.nanmax(arr)
                             vmean = _np.nanmean(arr)
                             vstd = _np.nanstd(arr)
-                            print(f'[process_offspill_filelist] mom_flat min/max/mean/std: {vmin:.6g}/{vmax:.6g}/{vmean:.6g}/{vstd:.6g}')
+                            module_logger.log(f'[process_offspill_filelist] mom_flat min/max/mean/std: {vmin:.6g}/{vmax:.6g}/{vmean:.6g}/{vstd:.6g}', 'info')
                         except Exception as e_stat:
-                            print(f'[process_offspill_filelist] Failed computing stats: {e_stat}')
-                        # Save a histogram for visual inspection
+                            module_logger.log(f'[process_offspill_filelist] Failed computing stats: {e_stat}', 'error')
                         try:
                             import matplotlib.pyplot as _plt
                             fig_debug = _plt.figure()
-                            # use finite values only
                             finite = _np.isfinite(arr)
                             if finite.any():
                                 _plt.hist(arr[finite], bins=80)
@@ -602,16 +502,16 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
                             _plt.title('Debug: mom_mag distribution')
                             debug_fname = out_prefix + '_mom_mag_debug.png'
                             fig_debug.savefig(debug_fname)
-                            print(f'[process_offspill_filelist] Wrote debug histogram to {debug_fname}')
+                            module_logger.log(f'[process_offspill_filelist] Wrote debug histogram to {debug_fname}', 'info')
                             _plt.close(fig_debug)
                         except Exception as e_plot:
-                            print(f'[process_offspill_filelist] Failed to create debug histogram: {e_plot}')
+                            module_logger.log(f'[process_offspill_filelist] Failed to create debug histogram: {e_plot}', 'error')
                 except Exception as e_diag:
-                    print(f'[process_offspill_filelist] Failed to print mom_flat diagnostics: {e_diag}')
+                    module_logger.log(f'[process_offspill_filelist] Failed to print mom_flat diagnostics: {e_diag}', 'error')
         else:
-            print(f'[process_offspill_filelist] Skipped writing mom_mag: could not extract from combined array')
+            module_logger.log(f'[process_offspill_filelist] Skipped writing mom_mag: could not extract from combined array', 'error')
     except Exception as e:
-        print(f'[process_offspill_filelist] Could not extract mom_mag: {e}')
+        module_logger.log(f'[process_offspill_filelist] Could not extract mom_mag: {e}', 'error')
 
     return {'results': results, 'combined_filtered': combined}
 
@@ -832,21 +732,14 @@ def main(args):
     
     # now run main analysis
     named_switches = dict(zip(cut_names, new))
-    if module_logger:
-        module_logger.log(f"selection cuts to be applied : {named_switches}", "info")
-    else:
-        print("selection cuts to be applied : ", named_switches)
+    module_logger.log(f"selection cuts to be applied : {named_switches}", "info")
 
 
     # run control sample analysis:
     named_switches_offspill = dict(zip(cut_names, new))
-    if module_logger:
-        module_logger.log(f"selection cuts to be applied : {named_switches_offspill}", "info")
-    else:
-        print("selection cuts to be applied : ", named_switches_offspill)
+    module_logger.log(f"selection cuts to be applied : {named_switches_offspill}", "info")
     if getattr(args, 'control_fit', False):
         # run OffSpill mom-spectrum control-region fit (poly2) if the file exists
-
         try:
             process_offspill_filelist('OffSpill_10.txt', 
             out_prefix='offspill_control', 
@@ -856,10 +749,7 @@ def main(args):
             mom_hi=args.fitrange_hi[0], 
             jobs=16)
         except Exception as e:
-            if module_logger:
-                module_logger.log(f'OffSpill control-region fit failed: {e}', 'error')
-            else:
-                print(f'[process] OffSpill control-region fit failed: {e}')
+            module_logger.log(f'OffSpill control-region fit failed: {e}', 'error')
 
     ana_processor = AnaProcessor(args.file, args.jobs, named_switches, args.loc, args.fitrange_low[0], args.fitrange_hi[0])
     results = ana_processor.execute()
@@ -955,16 +845,10 @@ def main(args):
             n_time = 'unknown'
     else:
         n_time = 'missing'
-    if module_logger:
-        module_logger.log(f"mom entries: {n_mom}, time entries: {n_time}", "info")
-    else:
-        print(f"mom entries: {n_mom}, time entries: {n_time}")
+    module_logger.log(f"mom entries: {n_mom}, time entries: {n_time}", "info")
 
     if args.fittype == "mom1D":
-        if module_logger:
-            module_logger.log(f"Building mom 1D fit", "info")
-        else:
-            print(f"Building mom 1D fit")
+        module_logger.log(f"Building mom 1D fit", "info")
         fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(
             mom_mag,
             track_cat,
@@ -976,10 +860,7 @@ def main(args):
             constraints_dir='uncertainties',
             plot_NLL = True
         )
-        if module_logger:
-            module_logger.log(f'Fit result: {fitresult}', 'success')
-        else:
-            print('[py-fitter/main] ✅  Fit result: ', fitresult, '\n', 'for  fit')
+        module_logger.log(f'Fit result: {fitresult}', 'success')
 
         # Save fit summary for systematics studies
         try:
@@ -1007,10 +888,7 @@ def main(args):
                 )
 
     elif args.fittype == "time1D":
-        if module_logger:
-            module_logger.log(f"Building time 1D fit", "info")
-        else:
-            print(f"Building time 1D fit")
+        module_logger.log(f"Building time 1D fit", "info")
         fitresult, par, loss, combine_pdf = Unbinned_fit_time(
             time,
             track_cat,
@@ -1020,10 +898,7 @@ def main(args):
             True,
             args.verbose,
         )
-        if module_logger:
-            module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')
-        else:
-            print('[py-fitter/main] ✅ Fit result: ', fitresult, '\n', 'for ', args.fittype, ' fit')
+        module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')
 
         # Save time fit summary
         try:
@@ -1032,10 +907,7 @@ def main(args):
             print(f'[process] Failed to save time fit npz: {e_save}')
 
     elif args.fittype == "2D":
-        if module_logger:
-            module_logger.log(f"Building 2D fit", "info")
-        else:
-            print(f"Building 2D fit")
+        module_logger.log(f"Building 2D fit", "info")
         # Ensure flattened mom and time arrays match for 2D alignment
         mom_flat_len = len(ak.flatten(mom_mag, axis=None))
         time_flat_len = len(ak.flatten(time, axis=None))
@@ -1071,39 +943,13 @@ def main(args):
                     'asym',
                 )
 
-        if module_logger:
-            module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')
-        else:
-            print('[py-fitter/main]✅  Fit result: ', fitresult, '\n', 'for ', args.fittype, ' fit')
+        module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')
 
         # Save 2D fit summary
         try:
             _save_fit_npz(csv_base, fitresult, par=par, loss=loss, extra={'mom_mag': mom_mag, 'time': time})
         except Exception as e_save:
             print(f'[process] Failed to save 2D fit npz: {e_save}')
-
-        # optionally run a momentum stability scan across N slices
-        try:
-            scan_N = int(getattr(args, 'scan_mom', 0))
-        except Exception:
-            scan_N = 0
-        if scan_N and scan_N > 0:
-            mom_lo = float(args.fitrange_low[0])
-            mom_hi = float(args.fitrange_hi[0])
-            edges = np.linspace(mom_lo, mom_hi, scan_N + 1)
-            slices = [(float(edges[i]), float(edges[i+1])) for i in range(len(edges)-1)]
-            try:
-                if module_logger:
-                    module_logger.log(f'Running momentum stability scan with {scan_N} slices', 'info')
-                else:
-                    print(f'Running momentum stability scan with {scan_N} slices')
-                from fit_module import stability_scan
-                stability_scan('mom', slices, mom_mag, time, track_cat, mc_count, [mom_lo, mom_hi], [args.fitrange_low[1], args.fitrange_hi[1]], bool(args.cat), args.verbose)
-            except Exception:
-                if module_logger:
-                    module_logger.log('Momentum stability scan failed', 'error')
-                else:
-                    print('Momentum stability scan failed')
 
     else:
         raise Exception(
@@ -1117,30 +963,17 @@ def PrintArgs(args):
     prints users input parameters
     """
     print("========= [py-fitter/main]✅  Analyzing with user opts: ===========")
-    if module_logger:
-        module_logger.log('Analyzing with user opts', 'info')
-        module_logger.log(f'file: {args.file}', 'info')
-        module_logger.log(f'location: {args.loc}', 'info')
-        module_logger.log(f'number of processes (njobs - optimal is 1 per file): {args.jobs}', 'info')
-        module_logger.log(f'fittype: {args.fittype}', 'info')
-        module_logger.log(f'range: {args.fitrange_low} {args.fitrange_hi}', 'info')
-        module_logger.log(f'categorize: {args.cat}', 'info')
-        module_logger.log(f'mismatch: {args.mismatch}', 'info')
-        module_logger.log(f'verbose: {args.verbose}', 'info')
-        module_logger.log(f'interpret: {args.interpret}', 'info')
-        module_logger.log(f'setlimit: {args.setlimit}', 'info')
-    else:
-        print("========= [py-fitter/main]✅  Analyzing with user opts: ===========")
-        print("file:", args.file)
-        print("location: ", args.loc)
-        print("number of processes (njobs - optimal is 1 per file):", args.jobs)
-        print("fittype: ", args.fittype)
-        print("range: ", args.fitrange_low, args.fitrange_hi)
-        print("categorize: ", args.cat)
-        print("mismatch: ", args.mismatch)
-        print("verbose: ", args.verbose)
-        print("interpret: ", args.interpret)
-        print("setlimit: ", args.setlimit)
+    module_logger.log('Analyzing with user opts', 'info')
+    module_logger.log(f'file: {args.file}', 'info')
+    module_logger.log(f'location: {args.loc}', 'info')
+    module_logger.log(f'number of processes (njobs - optimal is 1 per file): {args.jobs}', 'info')
+    module_logger.log(f'fittype: {args.fittype}', 'info')
+    module_logger.log(f'range: {args.fitrange_low} {args.fitrange_hi}', 'info')
+    module_logger.log(f'categorize: {args.cat}', 'info')
+    module_logger.log(f'mismatch: {args.mismatch}', 'info')
+    module_logger.log(f'verbose: {args.verbose}', 'info')
+    module_logger.log(f'interpret: {args.interpret}', 'info')
+    module_logger.log(f'setlimit: {args.setlimit}', 'info')
 
 if __name__ == "__main__":
     # list of input arguments, defaults should be overridden
@@ -1155,7 +988,6 @@ if __name__ == "__main__":
     parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")
     parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")
     parser.add_argument("--verbose", default=1, help="verbose")
-    parser.add_argument("--scan_mom", type=int, default=0, help="number of momentum slices to scan for stability (0=off)")
     parser.add_argument("--loc", type=str, required=False, default='disk', help="location of files")
     parser.add_argument("--control-fit", dest='control_fit', action='store_true', help="Run control-region fit for OffSpill (default: off)")
     args = parser.parse_args()

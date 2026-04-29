@@ -34,145 +34,7 @@ class ResultsClass:
         self.rmue = 0
         self.pvalue = 0
         self.sigma = 0
-        try:
-          self.logger = Logger(print_prefix="[Results] ", verbosity=self.verbose)
-        except Exception:
-          self.logger = None
-        
-  def CalculateRmue(self, n_ce, n_dio):#FIXME requires work
-    """ we need to understand how to normalize our signal note: use asym option for quick fit"""
-    # as an estimate, use true values for POT
-    eff_DIO = 0.11
-    frac_sampled = 3.6370937564509995e-11
-    N_stopped_mu = n_dio/(frac_sampled*0.39)
-    N_nodecay = N_stopped_mu*0.61
-    Rmue = par/(N_nodecay)
-    return Rmue
-
-  def plotlimit(self, ul, alpha=0.05, CLs=True, ax=None):
-      """
-      plot pvalue scan for different values of a parameter of interest (observed, expected and +/- sigma bands)
-
-      Args:
-          ul: UpperLimit instance
-          alpha (float, default=0.05): significance level
-          CLs (bool, optional): if `True` uses pvalues as $$p_{cls}=p_{null}/p_{alt}=p_{clsb}/p_{clb}$$
-              else as $$p_{clsb} = p_{null}$
-          ax (matplotlib axis, optionnal)
-
-      """
-      if ax is None:
-          ax = plt.gca()
-
-      poivalues = ul.poinull.values
-      pvalues = ul.pvalues(CLs=CLs)
-
-      if CLs:
-          cls_clr = "r"
-          clsb_clr = "b"
-      else:
-          cls_clr = "b"
-          clsb_clr = "r"
-
-      color_1sigma = "mediumseagreen"
-      color_2sigma = "gold"
-
-      ax.plot(
-          poivalues,
-          pvalues["cls"],
-          label="Observed CL$_{s}$",
-          marker=".",
-          color="k",
-          markerfacecolor=cls_clr,
-          markeredgecolor=cls_clr,
-          linewidth=2.0,
-          ms=11,
-      )
-
-      ax.plot(
-          poivalues,
-          pvalues["clsb"],
-          label="Observed CL$_{s+b}$",
-          marker=".",
-          color="k",
-          markerfacecolor=clsb_clr,
-          markeredgecolor=clsb_clr,
-          linewidth=2.0,
-          ms=11,
-          linestyle=":",
-      )
-
-      ax.plot(
-          poivalues,
-          pvalues["clb"],
-          label="Observed CL$_{b}$",
-          marker=".",
-          color="k",
-          markerfacecolor="k",
-          markeredgecolor="k",
-          linewidth=2.0,
-          ms=11,
-      )
-
-      ax.plot(
-          poivalues,
-          pvalues["expected"],
-          label="Expected CL$_{s}-$Median",
-          color="k",
-          linestyle="--",
-          linewidth=1.5,
-          ms=10,
-      )
-
-      ax.plot(
-          [poivalues[0], poivalues[-1]],
-          [alpha, alpha],
-          color="r",
-          linestyle="-",
-          linewidth=1.5,
-      )
-
-      ax.fill_between(
-          poivalues,
-          pvalues["expected"],
-          pvalues["expected_p1"],
-          facecolor=color_1sigma,
-          label="Expected CL$_{s} \\pm 1 \\sigma$",
-          alpha=0.8,
-      )
-
-      ax.fill_between(
-          poivalues,
-          pvalues["expected"],
-          pvalues["expected_m1"],
-          facecolor=color_1sigma,
-          alpha=0.8,
-      )
-
-      ax.fill_between(
-          poivalues,
-          pvalues["expected_p1"],
-          pvalues["expected_p2"],
-          facecolor=color_2sigma,
-          label="Expected CL$_{s} \\pm 2 \\sigma$",
-          alpha=0.8,
-      )
-
-      ax.fill_between(
-          poivalues,
-          pvalues["expected_m1"],
-          pvalues["expected_m2"],
-          facecolor=color_2sigma,
-          alpha=0.8,
-      )
-
-      ax.set_ylim(-0.01, 1.1)
-      ax.set_ylabel("p-value")
-      ax.set_xlabel("parameter of interest")
-      ax.legend(loc="best", fontsize=14)
-
-      return ax
-
+        self.logger = Logger(print_prefix="[Results] ", verbosity=self.verbose)
 
   def GetSignifcance(self, par, loss, opt='freq'): #FIXME - concept, not fully tested
     """ compute significance of signal result 
@@ -184,7 +46,7 @@ class ResultsClass:
       opt : option for how to compute (either frequentist (freq) or asymptotic (asym)
     """
     
-        # the null hypothesis
+    # the null hypothesis
     sig_yield_poi = POI(par, 0)
     minimizer = zfit.minimize.Minuit()
     
@@ -201,39 +63,24 @@ class ResultsClass:
       calculator = AsymptoticCalculator(input=self.result, minimizer=minimizer) # asimov_bins=100
 
     else:
-      if self.logger:
-        self.logger.log('Invalid calculator chosen', 'error')
-      else:
-        print('[py-fitter/results_module/GetSignificance] ❌ ERROR! Invalid calculator chosen')
-      return
+      self.logger.log('Invalid calculator chosen', 'error')
       return
     
     #calculate significance
     if self.verbose > 0:
-      if self.logger:
-        self.logger.log('Calculating significance', 'info')
-        self.logger.log('If significance is inf this means numerical precision or too few toys', 'info')
-      else:
-        print('[py-fitter/results_module/GetSignificance] ✅  calculating significance')
-        print('[py-fitter/results_module/GetSignificance] ❌ CHECK: if signficance is inf this means that the numerical precision is not high enough or that the number of toys is not large enough. For example if all toys are rejected, the result is (0.0, inf)')
+      self.logger.log('Calculating significance', 'info')
+      self.logger.log('If significance is inf this means numerical precision or too few toys', 'info')
     discovery = Discovery(calculator=calculator, poinull=sig_yield_poi)
     significance = discovery.result()
 
     if self.verbose > 0:
-      if self.logger:
-        self.logger.log(f'Result signal significance: {significance}', 'info')
-      else:
-        print('[py-fitter/results_module/GetSignificance] ✅  result signal significance', significance)
+      self.logger.log(f'Result signal significance: {significance}', 'info')
     
     self.pvalue = significance[0]
     self.sigma = significance[1]
     if self.verbose > 0:
-      if self.logger:
-        self.logger.log(f'p-value: {self.pvalue}', 'info')
-        self.logger.log(f'{self.sigma} sigma', 'info')
-      else:
-        print("p-value", self.pvalue)
-        print(self.sigma,"sigma")
+      self.logger.log(f'p-value: {self.pvalue}', 'info')
+      self.logger.log(f'{self.sigma} sigma', 'info')
     
     return significance
 
@@ -256,7 +103,7 @@ class ResultsClass:
     zfit.param.set_values(loss.get_params(), self.result)
 
     # Creates a sampler that will draw events from the model
-    if self.verbose > 0 and self.logger:
+    if self.verbose > 0:
       self.logger.log('Creating sampler', 'info')
     sampler = combine_pdf.create_sampler()
 
@@ -271,10 +118,7 @@ class ResultsClass:
 
     # Samples with sig_yield. Since the model is extended the number of signal generated is drawn from a poisson distribution with lambda = sig_yield.
     if self.verbose > 0:
-      if self.logger:
-        self.logger.log(f'Resampling with N_CE = {sig_yield} as mean', 'info')
-      else:
-        print(f'[py-fitter/results_module/GetUL] ✅ resampling with N_CE = {sig_yield} as mean')
+      self.logger.log(f'Resampling with N_CE = {sig_yield} as mean', 'info')
 
     # Try the native sampler resample API, but fall back to temporarily setting
     # model parameter values with clipping if resample fails (zfit may try to
@@ -324,10 +168,7 @@ class ResultsClass:
         elif opt == 'freq':
           calculator_low_sig = FrequentistCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer, ntoysnull=1000,ntoysalt=1000)
         else:
-          if self.logger:
-            self.logger.log('Invalid limit calculator chosen', 'error')
-          else:
-            print('[py-fitter/results_module/GetUL] ❌ ERROR! Invalid limit calculator chosen')
+          self.logger.log('Invalid limit calculator chosen', 'error')
           return
     else:
       if opt == 'asym':
@@ -335,31 +176,20 @@ class ResultsClass:
       elif opt == 'freq':
         calculator_low_sig = FrequentistCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer, ntoysnull=1000,ntoysalt=1000)
       else:
-        if self.logger:
-          self.logger.log('Invalid limit calculator chosen', 'error')
-        else:
-          print('[py-fitter/results_module/GetUL] ❌ ERROR! Invalid limit calculator chosen')
+        self.logger.log('Invalid limit calculator chosen', 'error')
         return
       
     if self.verbose > 0:
-      if self.logger:
-        self.logger.log('Calculating significance for UL', 'info')
-        self.logger.log('If significance is inf this means numerical precision or too few toys', 'info')
-      else:
-        print('[py-fitter/results_module/GetUL] ✅  calculating significance')
-        print('[py-fitter/results_module/GetUL] ❌ CHECK: if signficance is inf this means that the numerical precision is not high enough or that the number of toys is not large enough. For example if all toys are rejected, the result is (0.0, inf)')
+      self.logger.log('Calculating significance for UL', 'info')
+      self.logger.log('If significance is inf this means numerical precision or too few toys', 'info')
     discovery_low_sig = Discovery(calculator=calculator_low_sig, poinull=sig_yield_poi)
     discovery_low_sig.result()
     if self.verbose > 0:
-      if self.logger:
-        self.logger.log(f'discovery result: {discovery_low_sig.result()}', 'info')
-        try:
-          self.logger.log(f'best fit params: {calculator_low_sig.bestfit.params}', 'max')
-        except Exception:
-          pass
-      else:
-        print("[py-fitter/fit_module/GetUL] ✅ discovery result",discovery_low_sig.result())
-        print(f'[py-fitter/results_module/GetUL] ✅ best fit params {calculator_low_sig.bestfit.params}')
+      self.logger.log(f'discovery result: {discovery_low_sig.result()}', 'info')
+      try:
+        self.logger.log(f'best fit params: {calculator_low_sig.bestfit.params}', 'max')
+      except Exception:
+        pass
     
     #Background only hypothesis.
     bkg_only = POI(par, 0)
@@ -380,10 +210,7 @@ class ResultsClass:
         sig_yield_scan = POIarray(par, np.linspace(0, 100, 60))
     
     if self.verbose > 0:
-        if self.logger:
-            self.logger.log(f'UL scan range: fitted POI={fitted_poi}, scan max={sig_yield_scan.value[-1] if hasattr(sig_yield_scan, "value") else "unknown"}', 'info')
-        else:
-            print(f'[py-fitter/results_module/GetUL] UL scan range: fitted POI={fitted_poi}')
+      self.logger.log(f'UL scan range: fitted POI={fitted_poi}, scan max={sig_yield_scan.value[-1] if hasattr(sig_yield_scan, "value") else "unknown"}', 'info')
 
     ul = UpperLimit(calculator=calculator_low_sig, poinull=sig_yield_scan, poialt=bkg_only)
 
@@ -391,30 +218,16 @@ class ResultsClass:
     try:
       ul.upperlimit(alpha=0.05, CLs=True)
     except Exception as e:
-      if self.logger:
-        self.logger.log(f'upperlimit() failed: {e}', 'error')
-        self.logger.log(traceback.format_exc(), 'max')
-      else:
-        print(f'[py-fitter/results_module/GetUL] ❌ upperlimit() failed: {e}')
-        import traceback as _tb
-        print(_tb.format_exc())
+      self.logger.log(f'upperlimit() failed: {e}', 'error')
+      self.logger.log(traceback.format_exc(), 'max')
 
-    # plotting of the UL scan (may be absent if upperlimit() failed)
+    # plotting of the UL scan (removed plotlimit call)
     f = plt.figure(figsize=(9, 8))
-    try:
-      plotlimit(ul, alpha=0.05, CLs=False)
-    except Exception:
-      pass
-    plt.xlabel("Nsig");
+    plt.xlabel("Nsig")
     plt.show()
     if self.verbose > 0:
-      if self.logger:
-        self.logger.log(str(ul), 'info')
-        self.logger.log(f'Result upper limit at {CL} % CL {ul}', 'success')
-      else:
-        print(ul)
-        print(f'[py-fitter/results_module/GetUL] ✅  result upper limit at {CL} % CL {ul}')
-    #plotlimit(ul, CLs=False)
+      self.logger.log(str(ul), 'info')
+      self.logger.log(f'Result upper limit at {CL} % CL {ul}', 'success')
     
     return ul
     
@@ -436,10 +249,7 @@ class ResultsClass:
             csv_writer.writerow([item])
 
     if self.verbose > 0:
-      if self.logger:
-        self.logger.log(f"Data written to {file_path}", 'success')
-      else:
-        print(f"[py-fitter/results_module/WriteFittedData] ✅ Data written to {file_path}")
+      self.logger.log(f"Data written to {file_path}", 'success')
     
   def WriteResult(self):
     """ Write result to csv file for safe keeping """
@@ -452,10 +262,7 @@ class ResultsClass:
 
     
     if self.verbose > 0:
-      if self.logger:
-        self.logger.log(f"Result written to {file_path}", "success")
-      else:
-        print(f"[py-fitter/results_module/WriteFittedData] ✅ Result written to {file_path}")
+      self.logger.log(f"Result written to {file_path}", "success")
 
   def WritePkl(self):
     """Outputs zfit result to a pkl file
@@ -470,17 +277,10 @@ class ResultsClass:
     try:
       with open(filename, 'wb') as file:
         pickle.dump(my_data, file)
-      if self.logger:
-        self.logger.log(f"List successfully saved to {filename}", "success")
-      else:
-        print(f"List successfully saved to {filename}")
+      self.logger.log(f"List successfully saved to {filename}", "success")
     except Exception as e:
-      if self.logger:
-        self.logger.log(f"Error saving list: {e}", "error")
-        self.logger.log(traceback.format_exc(), "max")
-      else:
-        print(f"Error saving list: {e}")
-        print(traceback.format_exc())
+      self.logger.log(f"Error saving list: {e}", "error")
+      self.logger.log(traceback.format_exc(), "max")
 
   def SensitivityFromMocks(self, mock_samples, fit_runner, result_key='ul', alpha=0.05, CL=0.90, verbose=0):
     """Estimate expected sensitivity from an ensemble of mock datasets.
@@ -565,10 +365,7 @@ class ResultsClass:
     }
 
     if verbose:
-      if self.logger:
-        self.logger.log(f"Sensitivity estimate: median={out['median']}, p16/p84={out['p16']}/{out['p84']}", 'info')
-      else:
-        print(f"Sensitivity estimate: median={out['median']}, p16/p84={out['p16']}/{out['p84']}")
+      self.logger.log(f"Sensitivity estimate: median={out['median']}, p16/p84={out['p16']}/{out['p84']}", 'info')
 
     return out
 
@@ -581,18 +378,8 @@ class ResultsClass:
     try:
       with open(filename, 'rb') as file:
         loaded_data = pickle.load(file)
-      if self.logger:
-        self.logger.log(f"List successfully loaded from {filename}", "success")
-        self.logger.log(str(loaded_data), "max")
-      else:
-        print(f"\nList successfully loaded from {filename}:")
-        print(loaded_data)
-        print(f"Type of loaded data: {type(loaded_data)}")
-        print(f"Is loaded_data equal to my_data? {loaded_data == my_data}")
+      self.logger.log(f"List successfully loaded from {filename}", "success")
+      self.logger.log(str(loaded_data), "max")
     except Exception as e:
-      if self.logger:
-        self.logger.log(f"Error loading list: {e}", "error")
-        self.logger.log(traceback.format_exc(), "max")
-      else:
-        print(f"Error loading list: {e}")
-        print(traceback.format_exc())
+      self.logger.log(f"Error loading list: {e}", "error")
+      self.logger.log(traceback.format_exc(), "max")
