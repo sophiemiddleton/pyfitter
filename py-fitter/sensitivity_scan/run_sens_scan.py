@@ -11,6 +11,8 @@ Usage example:
 
 """
 import argparse
+import multiprocessing as mp
+mp.set_start_method('spawn', force=True)
 import numpy as np
 import matplotlib.pyplot as plt
 import json
@@ -19,7 +21,7 @@ from pathlib import Path
 import awkward as ak
 
 from fit_module import Unbinned_fit_mom
-from sensitivity_runners import toy_scan_from_model, fit_runner_1d_ul
+from sensitivity_runners import fit_runner_2d_ul, toy_scan_from_model, fit_runner_1d_ul
 
 
 def load_1d_from_npz(path):
@@ -104,20 +106,24 @@ def main():
     if args.verbose:
         print('Starting toy scan with mu grid:', mu_grid)
 
-    results = toy_scan_from_model(
-        combine_pdf,
-        par,
-        fit_runner_1d_ul,
-        mu_grid,
+    # Use the native Python multiprocessing version for parallel toy scan
+    from sensitivity_runners import parallel_toy_scan_with_multiprocessing
+    results = parallel_toy_scan_with_multiprocessing(
+        combine_pdf=None,
+        par=None,
+        fit_runner=fit_runner_1d_ul,
+        mu_grid=mu_grid,
         ntoys=args.ntoys,
         n_per_toy=args.n_per_toy,
-        fit_runner_args=(),
-        fit_runner_kwargs={'fit_range': tuple(args.fit_range), 'constraints_dir': args.constraints_dir, 'verbose': args.verbose},
-        plot_first_n=args.plot_toys,
-        plot_dir=args.plot_dir,
-        compute_sigmas=args.compute_sigmas,
-        sig_calc_opt=args.sig_calc_opt,
-        verbose=args.verbose,
+        fit_runner_kwargs={
+            'fit_range': tuple(args.fit_range),
+            'constraints_dir': args.constraints_dir or 'uncertainties/Cosmic_test',
+            'verbose': args.verbose,
+            'nominal_data': mom,  # resample background from nominal data
+            'plot_toys': args.plot_toys,
+            'plot_dir': args.plot_dir or 'toy_plots',
+        },
+        n_workers=16,
     )
 
     # write CSV summary
@@ -188,3 +194,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+    #
+    # Example: Parallel toy scan using native Python multiprocessing is now the standard.
+    # See main() for usage.
