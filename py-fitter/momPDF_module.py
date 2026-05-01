@@ -48,7 +48,7 @@ class DIO_custom_model_2025(zfit.pdf.ZPDF):
 # FIXME - should we not just use the compoents class inputs as default?
 default_model_params = {
     'poly2' : { 'c1' : (0.47, 0.46, 0.48),'c2' : (0.011,0.0018,0.0202)},
-    'dscb'   : {'mu': (104, 103, 107), 'sigma': (0.5, 0.08, 2.0), 'alphaL': (0.422, 0, 10), 
+    'dscb'   : {'mu': (104, 100, 107), 'sigma': (0.5, 0.0, 2.0), 'alphaL': (0.422, 0, 10), 
                 'nL': (25.1, 0, 100), 'alphaR': (2.227, 0, 100), 'nR': (5.954, 0, 100)},
     'Gauss'  : {'mu'     : (100,           95,    115),'sigma'  : (10.0,           1e-3,  1e3)},
     'poly58' : {'a5'     : (8.97879e-17,    1e-17,     1e-16),

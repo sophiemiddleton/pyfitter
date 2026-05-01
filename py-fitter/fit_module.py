@@ -49,6 +49,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     fit_range = (fit_range_low, fit_range_hi)
     obs_mom = zfit.Space('x', limits=fit_range)
 
+
     # PDF components
     pars = []
     pdfs = {}
@@ -106,6 +107,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     # --- build combined PDF ---
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
+
     # --- optional: load external constraints/templates (standalone uncertainty artifacts)
     if constraints_dir is not None:
       logger.log(f"Using constraints/templates from: {constraints_dir}", "info")
@@ -115,20 +117,21 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
         # append to existing constraints list used by the loss builder
         constraints.extend(extra_constraints)
         # expose loaded templates (not automatically injected; available for later use)
-        templates = load_templates_npz(constraints_dir)
-        if templates:
-          logger.log(f'Loaded templates: {list(templates.keys())}', 'info')
+        #templates = load_templates_npz(constraints_dir)
+        #if templates:
+        #  logger.log(f'Loaded templates: {list(templates.keys())}', 'info')
       except Exception as e:
         logger.log(f'Failed to load constraints from {constraints_dir}: {e}', 'error')
-
     # Convert data to zfit Data
     mom_mag_skim = ak.nan_to_none(mom_mag)
     mom_mag_skim = ak.drop_none(mom_mag_skim)
     mom_np = ak.to_numpy(ak.flatten(mom_mag_skim, axis=None))
     mom_zfit = zfit.Data.from_numpy(array=mom_np, obs=obs_mom)
 
+
     if verbose > 0:
       logger.log("Running minimizer", "info")
+
 
     # --- Loss function creation (MODIFIED) ---
     # Build the main loss from the Extended NLL and initial constraints
@@ -170,6 +173,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     
     if verbose > 0:
       logger.log("Finished minimizing", "info")
+
       
     # --- Minos Error Calculation  ---
     if minos == True:
@@ -391,10 +395,16 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
       # MomTimeModel now returns (pdf_2d, N, mom_pdf, time_pdf)
       comp_config = mom_components[proc]
       use_advanced_model = bool(comp_config.get('advanced_pars'))
-      pdf2d, N, mom_subpdf, time_subpdf = MomTimeModel(
-          obs_mom, obs_time, mompars, timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints,
-          advanced_config=comp_config, use_advanced=use_advanced_model
-      )
+      try:
+        pdf2d, N, mom_subpdf, time_subpdf = MomTimeModel(
+            obs_mom, obs_time, mompars, timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints,
+            advanced_config=comp_config, use_advanced=use_advanced_model
+        )
+      except TypeError:
+        # backward-compatible: older MomTimeModel returned (pdf_2d, N)
+        pdf2d, N = MomTimeModel(obs_mom, obs_time, mompars, timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints, advanced_config=comp_config, use_advanced=use_advanced_model)
+        mom_subpdf = mompdf
+        time_subpdf = time_components.get(proc, {}).get('pdf', zfit.pdf.Uniform(low=fit_range_time[0], high=fit_range_time[1], obs=obs_time))
 
       pdfs[proc] = pdf2d
       norms[proc] = N

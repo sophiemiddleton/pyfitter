@@ -830,7 +830,7 @@ def main(args):
         except Exception:
             raise RuntimeError(f'Failed to build track-aligned mc_count arrays: {e_mc_expand}')
 
-    # call the fitter
+    # check mom and time sizes mathch and log counts
     if 'mom_mag' in locals():
         try:
             n_mom = len(ak.flatten(mom_mag, axis=None))
@@ -861,13 +861,11 @@ def main(args):
             plot_NLL = True
         )
         module_logger.log(f'Fit result: {fitresult}', 'success')
-
         # Save fit summary for systematics studies
         try:
-            _save_fit_npz(csv_base, fitresult, par=par, loss=loss, nlls=nlls, extra={'mom_mag': mom_mag})
+            _save_fit_npz(f"{csv_base}_mom1D", fitresult, par=par, loss=loss, nlls=nlls, extra={'mom_mag': mom_mag})
         except Exception as e_save:
-            print(f'[process] Failed to save mom fit npz: {e_save}')
-
+            module_logger.log(f'[process] Failed to save mom1D fit npz: {e_save}', 'error')
         if int(args.interpret) == 1:
             result_output = ResultsClass(mom_mag, fitresult, args.verbose)
             result_output.WriteFittedData(args.fitrange_low[0], args.fitrange_hi[0])
@@ -899,16 +897,14 @@ def main(args):
             args.verbose,
         )
         module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')
-
         # Save time fit summary
         try:
-            _save_fit_npz(csv_base, fitresult, par=par, loss=loss, extra={'time': time})
+            _save_fit_npz(f"{csv_base}_time1D", fitresult, par=par, loss=loss, extra={'time': time})
         except Exception as e_save:
-            print(f'[process] Failed to save time fit npz: {e_save}')
+            module_logger.log(f'[process] Failed to save time1D fit npz: {e_save}', 'error')
 
     elif args.fittype == "2D":
         module_logger.log(f"Building 2D fit", "info")
-        # Ensure flattened mom and time arrays match for 2D alignment
         mom_flat_len = len(ak.flatten(mom_mag, axis=None))
         time_flat_len = len(ak.flatten(time, axis=None))
         if mom_flat_len != time_flat_len:
@@ -942,14 +938,12 @@ def main(args):
                     0.90,
                     'asym',
                 )
-
         module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')
-
         # Save 2D fit summary
         try:
-            _save_fit_npz(csv_base, fitresult, par=par, loss=loss, extra={'mom_mag': mom_mag, 'time': time})
+            _save_fit_npz(f"{csv_base}_2D", fitresult, par=par, loss=loss, extra={'mom_mag': mom_mag, 'time': time})
         except Exception as e_save:
-            print(f'[process] Failed to save 2D fit npz: {e_save}')
+            module_logger.log(f'[process] Failed to save 2D fit npz: {e_save}', 'error')
 
     else:
         raise Exception(

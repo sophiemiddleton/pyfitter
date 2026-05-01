@@ -98,7 +98,7 @@ mom_components = {
     'CE': {
     'pdf': 'dscb',  # Default: simple double sided crystal ball
     'pars': {
-        'mu': (104, 103, 107), 'sigma': (0.5, 0.08, 2.0),
+        'mu': (104, 100, 110), 'sigma': (0.5, 0.0, 2.0),
         'alphaL': (0.422, 0, 10), 'nL': (25.1, 0, 100),
         'alphaR': (2.227, 0, 100), 'nR': (5.954, 0, 100)
     },
@@ -108,12 +108,7 @@ mom_components = {
     'lineColor': 'b',
     'lineStyle': '--',
     'catColor': '#ffff00',
-    'advanced_pars': {
-        'pdf_theo': 'theo_exp',
-        'treat_params_adv': 'param',
-        'fitpars_in_formatted': theo_exp_pars,
-        'nll_sources': [flat_res, flat_loss]
-    }
+    'advanced_pars': None
   },
     # Cosmics assumes eff+res+loss included from control region (Off spill)
     'Cosmic' : {'pdf' : 'poly2',
@@ -136,24 +131,23 @@ mom_components = {
         'lineColor': 'g',
         'lineStyle': ':',
         'catColor': '#e377c2',
-                'advanced_pars': {
+         'advanced_pars': None
+    }
+}
+
+
+"""
+DIO:          'advanced_pars': {
           'pdf_theo': 'theo_exp',
           'treat_params_adv': 'simul', # Use 'simul' to share parameters with CE
           'fitpars_in_formatted': theo_exp_pars_DIO,
           'nll_sources': None 
         }
-    },
-    # Radiative Pion Background (Internal + External) 
-    'RPC'    : {'pdf' : 'Gauss', # Default: assumes res+eff+loss already included from e+ control region
-            'pars' : {'mu'    : (100.26, 100.0,100.5),
-                        'sigma' : (11.96, 11.5,12.0),
-                        'decay_rate_pi'    : (-0.03846,  -0.04, -0.01)},
-            'treat_params' : 'float',
-            'startCode' : [178,179],
-            'genCode' : [None],
-            'lineColor' : 'black',
-            'lineStyle' : (0, (3, 5, 1, 5)),
-            'catColor' : 'black',
-            'advanced_pars': None } # No advanced model for RPC
-    
+CE:
+     'advanced_pars': {
+        'pdf_theo': 'theo_exp',
+        'treat_params_adv': 'param',
+        'fitpars_in_formatted': theo_exp_pars,
+        'nll_sources': [flat_res, flat_loss]
     }
+"""
