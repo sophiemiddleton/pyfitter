@@ -98,7 +98,7 @@ mom_components = {
     'CE': {
     'pdf': 'dscb',  # Default: simple double sided crystal ball
     'pars': {
-        'mu': (104, 100, 110), 'sigma': (0.5, 0.0, 2.0),
+        'mu': (104, 103, 107), 'sigma': (0.5, 0.1, 2.0),
         'alphaL': (0.422, 0, 10), 'nL': (25.1, 0, 100),
         'alphaR': (2.227, 0, 100), 'nR': (5.954, 0, 100)
     },

@@ -2,7 +2,7 @@ import awkward as ak
 from pyutils.pyselect import Select
 from pyutils.pylogger import Logger
 from pyutils.pyvector import Vector
-from cut_manager import CutManager
+from pyutils.pycut import CutManager
 import matplotlib.pyplot as plt
 
 class Analyze:
@@ -353,10 +353,9 @@ class Analyze:
 
             # If user provided named switches as a dict, apply them now
             if isinstance(self.switch, dict):
-                for cut_name, val in self.switch.items():
-                    ok = cut_manager.toggle_cut(cut_name, active=bool(val))
-                    if not ok:
-                        self.logger.log(f"Named cut switch '{cut_name}' not applied (unknown cut)", "info")
+                ok = cut_manager.toggle_cut(self.switch)
+                if not ok:
+                    self.logger.log(f"Some named cut switches not applied (unknown cut)", "info")
 
             # Diagnostic: log final active state of each cut
             for cname, cinfo in cut_manager.cuts.items():
@@ -452,12 +451,19 @@ class Analyze:
             self.define_cuts(data, cut_manager)
 
             # Set activate cuts
-            if inactive_cuts: 
-                cut_manager.toggle_cut(inactive_cuts, active=False)
+            if inactive_cuts:
+                # If inactive_cuts is a list, convert to dict
+                if isinstance(inactive_cuts, list):
+                    cut_dict = {name: False for name in inactive_cuts}
+                elif isinstance(inactive_cuts, dict):
+                    cut_dict = {name: False for name in inactive_cuts}
+                else:
+                    cut_dict = {inactive_cuts: False}
+                cut_manager.toggle_cut(cut_dict)
             
             # Calculate cut stats
             self.logger.log("Getting cut stats", "max")
-            cut_stats = cut_manager.calculate_cut_stats(data, progressive=True, active_only=True)
+            cut_stats = cut_manager.create_cut_flow(data)
         
             # Mark CE-like tracks (useful for debugging 
             data["CE_like"] = cut_manager.combine_cuts(active_only=True)
@@ -475,7 +481,7 @@ class Analyze:
 
             stats = self.get_stats_list(result)
 
-            combined_stats = cut_manager.combine_cut_stats(stats)
+            combined_stats = cut_manager.combine_cut_flows(stats)
             # Print per-file combined cut stats to terminal (do not write CSV here)
             try:
                 cut_manager.print_cut_stats(stats=combined_stats, active_only=True, csv_name=None)

@@ -212,19 +212,18 @@ class ResultsClass:
     if self.verbose > 0:
       self.logger.log(f'UL scan range: fitted POI={fitted_poi}, scan max={sig_yield_scan.value[-1] if hasattr(sig_yield_scan, "value") else "unknown"}', 'info')
 
-    ul = UpperLimit(calculator=calculator_low_sig, poinull=sig_yield_scan, poialt=bkg_only)
-
+    ul = UpperLimit(calculator=calculator_low_sig, poinull=sig_yield_scan, poialt=bkg_only, qtilde=True)
+    ul.limits_result = None  # will be populated below if successful
 
     try:
-      ul.upperlimit(alpha=0.05, CLs=True)
+      ul_limits = ul.upperlimit(alpha=0.05, CLs=True)
+      ul.limits_result = ul_limits  # attach for caller to retrieve
     except Exception as e:
       self.logger.log(f'upperlimit() failed: {e}', 'error')
       self.logger.log(traceback.format_exc(), 'max')
 
-    # plotting of the UL scan (removed plotlimit call)
-    f = plt.figure(figsize=(9, 8))
-    plt.xlabel("Nsig")
-    plt.show()
+    # plotting of the UL scan
+    # NOTE: plt.show() intentionally omitted — it blocks in subprocess workers.
     if self.verbose > 0:
       self.logger.log(str(ul), 'info')
       self.logger.log(f'Result upper limit at {CL} % CL {ul}', 'success')

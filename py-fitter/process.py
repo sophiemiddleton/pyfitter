@@ -19,7 +19,7 @@ from fit_module import *
 from results_module import ResultsClass
 from analyze import Analyze
 from mom_components import mom_components
-from cut_manager import CutManager
+from pyutils.pycut import CutManager
 from pyutils.pyprocess import Processor, Skeleton
 from pyutils.pyplot import Plot
 from pyutils.pyprint import Print
@@ -178,10 +178,12 @@ def combine_cut_flows( cut_flow_list, csv_basename: str = None):
                 prev_events = combined_cut_flow[i-1]["events_passing"]
                 cut["relative_frac"] = (events / prev_events) * 100.0 if prev_events > 0 else 0.0
 
+
     cut_manager = CutManager(verbosity=2)
     module_logger.log("================== Total Cut Flow =======================", "info")
     try:
-        cut_manager.print_cut_stats(stats=combined_cut_flow, active_only=True, csv_name=None)
+        df = cut_manager.format_cut_flow(combined_cut_flow)
+        print(df)
     except Exception as e_print:
         module_logger.log(f'[combine_cut_flows] Failed to print combined cut flow: {e_print}', 'error')
 

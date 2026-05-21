@@ -58,7 +58,11 @@ default_model_params = {
     'uniform': {}
 }
 
+# N_CE lower bound is set slightly negative so the minimizer can freely explore
+# around 0 in background-only fits without hitting a hard boundary (which would
+# cause zfit to mark the result as invalid and break the UL calculation).
 default_norms = {'CE' : 0, 'DIO' : 55000, 'Cosmic' : 5000, 'RPC' : 24}
+default_N_CE_bounds = (0.0, 1e4)  # (lower, upper) for N_CE
 
 def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_range, constraints, advanced_config=None, use_advanced=False):
     """
@@ -69,7 +73,14 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
     if isinstance(pardict, dict) and 'N' in pardict:
         N = zfit.Parameter('N_'+process, pardict['N'][0], pardict['N'][1], pardict['N'][2])
     elif process in default_norms:
-        N = zfit.Parameter('N_'+process, default_norms[process], 0, 1e6)
+        if process == 'CE':
+            # Use a negative lower bound so the minimizer can float freely around 0
+            # in background-only fits without hitting a hard boundary (which causes
+            # zfit valid=False and breaks the asymptotic UL calculator).
+            N = zfit.Parameter('N_'+process, default_norms[process],
+                               default_N_CE_bounds[0], default_N_CE_bounds[1])
+        else:
+            N = zfit.Parameter('N_'+process, default_norms[process], 0, 1e6)
     else:
         N = zfit.Parameter('N_'+process, 10, 0, 1e6)
     
@@ -118,6 +129,8 @@ def MomModel(obs_mom, params_tot, process, model, pardict, treat_params, fit_ran
     # Normalize pardict keys: allow keys with or without process suffix
     if pardict is not None:
         for par, val in pardict.items():
+            if par == 'N':
+                continue  # 'N' is handled separately above as the yield normalisation
             if par in params:
                 params[par] = val
             else:
