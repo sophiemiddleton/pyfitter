@@ -7,48 +7,7 @@ import tensorflow as tf
 import zfit
 from pdf_builder import PDFBuilder
 from pyutils.pylogger import Logger
-
-# ============================================================================
-# Custom PDF Classes (consolidated from momPDF_module.py)
-# ============================================================================
-
-# Physical constants
-m_mu = 105.194  # mass of the muon [MeV]
-
-class poly58(zfit.pdf.ZPDF):
-    """5th to 8th order polynomial for DIO background (momentum space)."""
-    _N_OBS = 1
-    _PARAMS = ['a5', 'a6', 'a7', 'a8']
-
-    def _unnormalized_pdf(self, x):
-        x = zfit.z.unstack_x(x)
-        a5, a6, a7, a8 = self.params['a5'], self.params['a6'], self.params['a7'], self.params['a8']
-        m_Al = 25133  # mass of the Aluminum atom [MeV]
-        delta = tf.nn.relu(m_mu - x - x**2 / (2 * m_Al))
-        return a5 * delta**5 + a6 * delta**6 + a7 * delta**7 + a8 * delta**8
-
-
-class DIO_custom_model_2025(zfit.pdf.ZPDF):
-    """Custom DIO model with endpoint, beta parameter, and degree shift."""
-    _N_OBS = 1
-    _PARAMS = ['DIO_endpoint', 'beta', 'degree_shift']
-
-    def _unnormalized_pdf(self, x):
-        x = zfit.z.unstack_x(x)
-        endpoint = self.params['DIO_endpoint']
-        beta = self.params['beta']
-        degree_shift = self.params['degree_shift']
-
-        delta_E = (endpoint - x)
-        is_valid = delta_E > 0
-        safe_delta_E = tf.where(is_valid, delta_E, 1.0)
-        log_delta_E_over_mu = tf.math.log(safe_delta_E / m_mu)
-
-        power = 5.0 + degree_shift
-        poly_term = beta * tf.square(log_delta_E_over_mu)
-        pdf_val = tf.pow(safe_delta_E, power) * tf.exp(poly_term)
-
-        return tf.where(is_valid, pdf_val, 0.0)
+from custom_models import poly58, DIO_custom_model_2025
 
 
 # ============================================================================
