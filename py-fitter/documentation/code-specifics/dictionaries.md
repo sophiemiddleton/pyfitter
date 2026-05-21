@@ -1,10 +1,10 @@
 # Dictionary Classes
 
-The likelihood construction depends on several input dictionary classes, helping keep track of possible models for each component:
+The likelihood construction depends on several input configuration dictionaries and physics models, helping keep track of possible models for each component:
 
-# ⚙️ `mom_components.py` - Momentum Fit Configuration
+# ⚙️ `physics_components.py` - Momentum & Time Fit Configuration
 
-This Python dictionary defines all physics processes included in the momentum likelihood fit, along with the PDF shape, initial parameters, and plotting metadata for each. This file is imported by `fit_module.py` and `momPDF_module.py`.
+This Python module consolidates all physics component dictionaries and constants for the fit, importing them into a single configuration source. It is used by `fit_module.py`, `momentum_pdf_builder.py`, and other core modules.
 
 ## 📜 `mom_components` Dictionary Structure
 
@@ -12,7 +12,7 @@ The top-level keys are the process names (e.g., `'CE'`, `'DIO'`), and the values
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| **`pdf`** | `str` | Name of the PDF model (e.g., `'dscb'`, `'uniform'`) as defined in `momPDF_module.py`. |
+| **`pdf`** | `str` | Name of the PDF model (e.g., `'dscb'`, `'uniform'`) as defined in `momentum_pdf_builder.py`. |
 | **`pars`** | `dict`/`None` | Initial values, lower bounds, and upper bounds for the PDF parameters, excluding the yield $N$ (which is automatically added). |
 | **`treat_params`** | `str` | Defines how to handle parameters: `'float'`, `'fix'`, `'constrain'`, `'param'`, or `'simul'`. |
 | **`startCode`** | `list[int]` | Monte Carlo (MC) start codes (or process IDs) used for plotting truth-level categorization. |
@@ -47,7 +47,7 @@ where $\otimes$ denotes convolution.
 
 ### Parameter Treatment in Advanced Fits
 
-When using `'theo_exp'`, the shape parameters of the resolution and loss functions are managed by the `res_components` class.
+When using `'theo_exp'`, the shape parameters of the resolution and loss functions are managed by the `res_components` class in `custom_models.py`.
 
 | `treat_params` Setting | Description |
 | :--- | :--- |
@@ -66,7 +66,7 @@ The structure of this dictionary is analogous to `mom_components.py`, but the ph
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| **`pdf`** | `str` | Name of the PDF model (e.g., `'muexp'`, `'uniform'`) from `timePDF_module.py`. |
+| **`pdf`** | `str` | Name of the PDF model (e.g., `'muexp'`, `'uniform'`) from `momentum_pdf_builder.py`. |
 | **`pars`** | `dict`/`None` | Initial values and bounds for the PDF's decay rate parameter $\lambda$. The decay rate is typically $\lambda = -1/\tau$, where $\tau$ is the characteristic lifetime (in ns). |
 | **`startCode`**, **`genCode`** | `list[int]` | Monte Carlo (MC) codes used for truth-level categorization and plotting. |
 | **`lineColor`**, `lineStyle` | `str` | Plotting styles for the PDF component line. |
@@ -87,9 +87,12 @@ The time-of-arrival fit is dominated by the lifetime of the stopped muon ($\mu^-
 
 Both the **CE Signal** and the **DIO Background** are sourced from muons stopping in the target and subsequently decaying. Therefore, they are both modeled by the `'muexp'` PDF and, crucially, share the same physical decay rate parameter, $\lambda_{\mu}$. In a simultaneous fit (not explicitly shown here but implied by physics consistency), this parameter would often be shared or highly constrained across both components.
 
-# 💻 `theo_components.py` - Theoretical Spectrum Calculation
+# 💻 `custom_models.py` - Custom Physics Models
 
-This module provides the theoretical, uncorrected momentum distribution for the Conversion Electron (CE) signal, before accounting for detector effects like resolution, energy loss, or efficiency.
+This consolidated module provides theoretical spectrum calculations, custom PDFs, and detector resolution/loss parameterization. It contains:
+- Spectrum calculation functions (`LeadingLog`, `binned_spectrum_CeLL`)
+- Custom Landau PDF (`trunc_landau`) for energy loss
+- Detector response handler (`res_components` class)
 
 ## ⚛️ Conversion Electron (CE) Spectrum
 
@@ -113,15 +116,15 @@ This function implements the theoretical calculation for the normalized differen
 
 ### Function: `binned_spectrum_CeLL(binwidth=0.1)`
 
-This function discretizes the theoretical `LeadingLog` spectrum into a binned histogram format suitable for use in the convolution fitting scheme (`'theo_exp'` PDF in `momPDF_module.py`).
+This function discretizes the theoretical `LeadingLog` spectrum into a binned histogram format suitable for use in the convolution fitting scheme (`'theo_exp'` PDF in `momentum_pdf_builder.py`).
 
 * It calculates the bin `edges` and the spectrum `values` (PDF value at the bin centers) across the momentum range from $0$ to $e_{\text{Max}}$.
 * It performs a final normalization step to ensure the sum of the binned probabilities is exactly unity (or close to unity, allowing the last bin to absorb small numerical deviations).
 * **Output:** Returns a tuple `(values, edges)` representing the binned histogram of the theoretical spectrum.
 
-# 🔍 `res_components.py` - Resolution and Energy Loss Parameterization
+# 🔍 Resolution and Energy Loss Parameterization (in `custom_models.py`)
 
-The `res_components.py` module defines the `res_components` class, which manages the modeling of detector effects—specifically, momentum resolution and energy loss—as a function of the reconstructed momentum. This class is designed to integrate these effects into the overall likelihood fit (via the `'theo_exp'` convolution PDF).
+The `res_components` class in `custom_models.py` manages the modeling of detector effects—specifically, momentum resolution and energy loss—as a function of the reconstructed momentum. This class is designed to integrate these effects into the overall likelihood fit (via the `'theo_exp'` convolution PDF).
 
 ## 🎚️ `class res_components`
 

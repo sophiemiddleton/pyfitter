@@ -7,9 +7,10 @@ The `fit_module.py` is the primary interface for performing unbinned maximum lik
 This module imports and utilizes several key custom and third-party modules:
 
 * **`zfit`**: The core library for unbinned maximum likelihood fitting.
-* **`momPDF_module.py` / `timePDF_module.py`**: Custom classes (`MomModel`, `TimeModel`, `MomTimeModel`) that build the individual Probability Density Functions (PDFs) and their normalization yields (`norms`) for each physics process.
-* **`mom_components` / `time_components`**: Dictionaries defining the PDF type (e.g., Gaussian, polynomial) and initial parameters for each background and signal process.
-* **`recoplot_module.py`**: Functions (`plotmom_fit`, `plottime_fit`) used for visualizing the fit results overlaid on the data histogram.
+* **`momentum_pdf_builder.py`**: Consolidated module containing the `MomPDFBuilder`, `TimePDFBuilder`, and `MomTimePDFBuilder` classes that build Probability Density Functions (PDFs) and normalization yields for each physics process.
+* **`physics_components.py`**: Configuration dictionaries defining the PDF type (e.g., Gaussian, polynomial) and initial parameters for each background and signal process.
+* **`custom_models.py`**: Physics models including `res_components` class for detector resolution/loss effects.
+* **`plot_module.py`**: Functions (`plotmom_fit`, `plottime_fit`) used for visualizing the fit results overlaid on the data histogram.
 
 ## 📐 Core Function: `Unbinned_fit_mom(...)`
 
@@ -20,7 +21,7 @@ Performs an unbinned maximum likelihood fit to the **track momentum magnitude**.
 1.  **Observable Space (`zfit.Space`):** Defines the fit range (e.g., $100$ to $115$ MeV/c) for the momentum observable, $x$.
 2.  **Data Conversion:** The input `awkward.Array` (`mom_mag`) is flattened, cleaned of NaNs, and converted into a `zfit.Data` object.
     > The conversion of the input data from a ragged `awkward.Array` to a flat `numpy` array is a necessary step before passing it to `zfit`, which operates on flat data structures.
-3.  **PDF Components:** It iterates over the `mom_components` dictionary, initializing an individual PDF model (e.g., Signal, DIO, RMC) for each physics process using `MomModel()`. Each model contributes a PDF and a floating yield/normalization parameter.
+3.  **PDF Components:** It iterates over the `mom_components` dictionary, initializing an individual PDF model (e.g., Signal, DIO, RMC) for each physics process using the `MomPDFBuilder` class. Each model contributes a PDF and a floating yield/normalization parameter.
 
 ### 2. Model Construction and Loss Function
 
@@ -43,7 +44,7 @@ Performs an unbinned maximum likelihood fit to the **track momentum magnitude**.
 
 Performs an unbinned maximum likelihood fit to the **track time-of-arrival**.
 
-* This function follows the exact same structure as `Unbinned_fit_mom`, but uses the `TimeModel` and iterates over the `time_components` dictionary, fitting to the time observable instead of momentum.
+* This function follows the exact same structure as `Unbinned_fit_mom`, but uses the `TimePDFBuilder` class and iterates over the `time_components` dictionary, fitting to the time observable instead of momentum.
 * The output is visualized using `plottime_fit`.
 
 ## 2D Fit: `Unbinned_2d_fit_mom_time(...)` **FIXME**
@@ -51,7 +52,7 @@ Performs an unbinned maximum likelihood fit to the **track time-of-arrival**.
 Performs a combined, simultaneous unbinned maximum likelihood fit to **both momentum and time** by treating them as independent observables in a 2D space.
 
 * **Observable Space:** Defines a combined `zfit.Space` for the two observables: `obs_2D = obs_mom * obs_time`.
-* **Model:** Uses the `MomTimeModel` to build combined 2D PDFs for each process $i$:
+* **Model:** Uses the `MomTimePDFBuilder` class to build combined 2D PDFs for each process $i$:
     $$\text{PDF}_{i}(p, t) = \text{PDF}_{\text{mom}, i}(p) \cdot \text{PDF}_{\text{time}, i}(t)$$
     This assumes statistical independence between the momentum shape and the time shape of a given process.
 * **Data Conversion:** The input momentum and time arrays are combined into a 2D NumPy array (`np.column_stack`) before being passed to `zfit.Data`.

@@ -19,15 +19,12 @@ These modules are responsible for defining the specific components (PDFs) that m
 | File | Description | Role in Analysis |
 | :--- | :--- | :--- |
 | [`fit_module.py`](code-specifics/fitmodule_py.md )| **Main Fitting Orchestrator** | Central module that takes the defined PDFs from the component modules, combines them into the full model (Signal + Backgrounds), defines the **Negative Log-Likelihood (NLL)** loss function, and executes the `zfit` minimization. |
-| [`momPDF_module.py`](code-specifics/momPDF_module_py.md) | **Momentum PDF** | Defines the probability density functions (PDFs) for the **reconstructed momentum** observable. Includes signal and various background shapes. |
-| [`timePDF_module.py`](code-specifics/TimePDF_module_py.md) | **Time PDF** | Defines the PDFs for the **reconstructed time** observable, accounting for time distribution differences between prompt and delayed components. |
-| [`mom_components.py`](code-specifics/dictionaries.md) | **Momentum PDF Definitions** | Contains the explicit mathematical implementations for momentum component shapes (e.g., Crystall Ball, Gaussian, Exponential functions) used by `momPDF_module.py`. |
-| [`time_components.py`](code-specifics/dictionaries.md) | **Time PDF Definitions** | Contains the explicit mathematical implementations for time component shapes (e.g., lifetime model, prompt beam shape) used by `timePDF_module.py`. |
-| [`res_components.py`](code-specifics/dictionaries.md) | **Detector Resolution Inputs** | Manages inputs related to the detector's finite resolution, which are crucial for modeling the observed PDFs accurately. |
+| [`momentum_pdf_builder.py`](code-specifics/momPDF_module_py.md) | **Momentum & Time PDF Builders** | Consolidated module defining probability density functions (PDFs) for both **reconstructed momentum** and **time** observables. Includes signal and background shapes with custom models. |
+| [`physics_components.py`](code-specifics/dictionaries.md) | **Physics Component Definitions** | Pure configuration file containing momentum and time component dictionaries with parameters, line styles, and configuration for all physics processes. |
+| [`custom_models.py`](code-specifics/dictionaries.md) | **Custom Physics Models** | Consolidated implementation module containing: `trunc_landau` PDF for energy loss, spectrum calculation functions (`LeadingLog`, `binned_spectrum_CeLL`), and `res_components` class for detector resolution. |
 | [`sysunc_components.py`](code-specifics/dictionaries.md) | **Systematic Uncertainties** | Manages the constraints and parameters related to systematic uncertainties (nuisance parameters) that are included in the overall likelihood function. |
-| [`theo_components.py`](code-specifics/dictionaries.md) | **Theoretical Inputs** | Manages fixed or constrained parameters related to theoretical predictions (e.g., branching ratios, physics constants) used in the fit. |
-| `landau_pdf.py` | **Specific PDF** | contains the implementation for a non-standard landau for the energy loss of a particle |
-| `helper.py` | **General Utility Functions** | Contains miscellaneous helper functions. |
+| `helper.py` | **Utility Functions** | Core utilities for lineshape loading, convolution, PDF generation, and data operations. |
+| `data_prep.py` | **Data Preparation Manager** | Centralized safe data cleaning, conversion, and validation for awkward arrays and zfit. |
 
 ## 📊 Results, Systematics, and Theoretical Inputs
 

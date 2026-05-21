@@ -10,7 +10,7 @@ The behavior of the entire pipeline is controlled by the `use_advanced` flag in 
 
 ---
 
-## 2. The Component Dictionary (`mom_components.py`)
+## 2. The Component Dictionary (`physics_components.py`)
 Each physics process (CE, DIO, Cosmic, RPC) is defined as a dictionary with two primary blocks:
 
 ### A. Simple Block (Standard)
@@ -38,13 +38,13 @@ The framework automatically detects if a "Simultaneous Fit" should be performed 
 
 |Mode | Configuration |	Behavior|
 | :--- | :--- | :--- |
-| Fixed|  `res_components(params='path.pkl')` | Uses the fixed parameters from the pickle file. No extra NLL terms added.|
-| Simultaneous	| `res_components(simul_source=(gen, mc))` | Performs a simultaneous fit of the resolution/loss using the provided data tuples. Adds get_nll to the total loss. |
+| Fixed|  `res_components(params='path.pkl')` (from `custom_models.py`) | Uses the fixed parameters from the pickle file. No extra NLL terms added.|
+| Simultaneous	| `res_components(simul_source=(gen, mc))` (from `custom_models.py`) | Performs a simultaneous fit of the resolution/loss using the provided data tuples. Adds get_nll to the total loss. |
 ---
 
 ## 4. Key Modules Functionality
 
-### `momPDF_module.py`
+### `momentum_pdf_builder.py`
 The "Factory" module. It contains the logic to:
 1.  Unpack the `advanced_pars` block and route to the correct logic branch.
 2.  Assign parameters to `zfit.Parameter` (independent) or `zfit.ComposedParameter` (shared/simultaneous).
@@ -78,7 +78,7 @@ The framework relies on specific file formats to bridge the gap between offline 
 
 ### A. Parameter Pickles (`.pkl`)
 These are serialized Python dictionaries (using `pickle` or `dill`) containing previous fit results.
-*   **Usage**: Used in `res_components` to initialize the starting values or to fix parameters for resolution (`gcb`) and energy loss (`landau`).
+*   **Usage**: Used in `res_components` (in `custom_models.py`) to initialize the starting values or to fix parameters for resolution (`gcb`) and energy loss (`landau`).
 *   **Mechanism**: The `res_components` class extracts the `'best'` or `'params'` keys to populate `zfit.Parameter` objects.
 *   **Example**: `fitpars_flat_res_entrance_gcb.pkl` provides the $\mu, \sigma, \alpha, n$ values for the experimental response.
 

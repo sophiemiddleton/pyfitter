@@ -48,7 +48,7 @@ The fit is conducted in the $\mathbf{95 < p < 115 \text{ MeV/c}}$ momentum regio
 
 ### DIO Custom Model (2025)
 
-The analysis includes a custom, physics-motivated momentum PDF for Decay-In-Orbit (DIO) implemented as `DIO_custom_model_2025` in `py-fitter/momPDF_module.py`.
+The analysis includes a custom, physics-motivated momentum PDF for Decay-In-Orbit (DIO) implemented as `DIO_custom_model_2025` in `py-fitter/momentum_pdf_builder.py`.
 
 Form (unnormalized):
 $$
@@ -65,22 +65,23 @@ Parameters
 - `degree_shift` (\(\delta\)): small shift applied to the power (typical fallback: 0).
 
 Notes
-- The model is implemented as a TensorFlow/ZFit PDF and is constructed as an extended PDF in `MomModel` (yield handled via `N` in zfit).
+- The model is implemented as a TensorFlow/ZFit PDF and is constructed as an extended PDF via the `MomPDFBuilder.build()` method (yield handled via `N` in zfit).
 - The implementation uses `tf.where`/safe-values to avoid taking `log` of non-positive arguments, improving numerical stability near the endpoint.
-- When supplying `pardict` for this model via calls to `MomModel`, initialize the parameters (endpoint, beta, degree_shift) or rely on the code defaults.
+- When supplying `pardict` for this model via the `MomPDFBuilder.build()` method, initialize the parameters (endpoint, beta, degree_shift) or rely on the code defaults.
 
 Example (simple usage):
 ```python
-# build the momentum PDF for DIO (simple path)
-PDF, N = MomModel(obs_mom, params_tot, 'DIO', 'DIO_custom_model_2025',
-                  {'endpoint': (104.97, 103.5, 106.0), 'beta': (-0.002, -0.01, 0.01), 'degree_shift': (0, -1, 1)},
-                  treat_params='float', fit_range=fit_range, constraints=constraints, use_advanced=False)
+# build the momentum PDF for DIO using the builder
+mom_builder = MomPDFBuilder()
+PDF, N, params = mom_builder.build(obs_mom, 'DIO_custom_model_2025',
+                                    {'endpoint': (104.97, 103.5, 106.0), 'beta': (-0.002, -0.01, 0.01), 'degree_shift': (0, -1, 1)},
+                                    treat_params='float')
 ```
 
 Implementation caveat
-- The class `DIO_custom_model_2025` declares parameters internally named `['DIO_endpoint','beta','degree_shift']`, while the `MomModel` lookup may use a key named `endpoint` when constructing the TF/ZFit parameters for the simple path. If you see unexpected defaults being used, ensure the `pardict` keys match the parameter lookup names (or provide both forms) so the `MomModel` zfit-parameters propagate to the PDF constructor.
+- The class `DIO_custom_model_2025` declares parameters internally named `['DIO_endpoint','beta','degree_shift']`, while the `MomPDFBuilder.build()` method may use alternate keys when constructing the TF/ZFit parameters. If you see unexpected defaults being used, ensure the `pardict` keys match the parameter lookup names (or provide both forms) so the ZFit-parameters propagate to the PDF constructor.
 
-See `py-fitter/momPDF_module.py` for the exact implementation and `py-fitter/mom_components.py` for where the model name `DIO_custom_model_2025` may be referenced in `mom_components`.
+See `py-fitter/momentum_pdf_builder.py` for the exact implementation and `py-fitter/physics_components.py` for where the model name `DIO_custom_model_2025` may be referenced in `mom_components`.
 
 ### 4. Including Constraints and Uncertainties
 
