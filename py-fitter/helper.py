@@ -4,7 +4,7 @@ import zfit
 import numpy as np
 import tensorflow as tf
 import pickle as pkl
-from landau_pdf import trunc_landau
+from custom_models import trunc_landau
 from pyutils.pylogger import Logger
 
 # Module-level logger

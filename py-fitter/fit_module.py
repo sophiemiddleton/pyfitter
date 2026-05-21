@@ -15,11 +15,10 @@ import time
 # Module-level logger
 logger = Logger(print_prefix='[fit_module] ', verbosity=2)
 
-from momPDF_module import MomModel, MomTimeModel, poly58
-from timePDF_module import TimeModel
+from momentum_pdf_builder import poly58, MomPDFBuilder, TimePDFBuilder, MomTimePDFBuilder
+from data_prep import DataPreparationManager
 from plot_module import plotmom_fit, plottime_fit, plot_variable, bin_by_bin_mom_confusion, bin_by_bin_time_confusion
-from mom_components import mom_components
-from time_components import time_components
+from physics_components import mom_components, time_components
 from uncertainty_loader import load_constraints_json, build_zfit_constraints_from_specs, load_templates_npz
 
 def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, plot_NLL=False, plot_results=True, constraints_dir=None):
@@ -62,31 +61,28 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     if verbose > 0:
       logger.log(f"components {list(mom_components.keys())}", "info")
       
+    # --- Initialize PDF Builder ---
+    mom_builder = MomPDFBuilder()
+    
     # --- Loop over Components and Build Model ---
     for proc in mom_components:
         comp_config = mom_components[proc]
-        pdf = comp_config['pdf']
-        pardict = comp_config['pars']
-        treat_params = comp_config['treat_params']
         
-        # Determine if advanced fit structure is present (truthy config required)
-        use_advanced_model = bool(comp_config.get('advanced_pars'))
-
-        # Call the updated MomModel
-        pdfs[proc], norms[proc] = MomModel(
-            obs_mom, 
-            pars, 
-            proc, 
-            pdf, 
-            pardict, 
-            treat_params, 
-            fit_range, 
-            constraints,
+        # Build PDF using the builder with cleaner keyword arguments
+        pdfs[proc], norms[proc] = mom_builder.build(
+            obs=obs_mom,
+            params_tot=pars,
+            process=proc,
+            model=comp_config['pdf'],
+            pardict=comp_config['pars'],
+            treat_params=comp_config['treat_params'],
+            fit_range=fit_range,
+            constraints=constraints,
             advanced_config=comp_config,
-            use_advanced=use_advanced_model  
+            use_advanced=bool(comp_config.get('advanced_pars'))
         )
         
-        if use_advanced_model  and comp_config.get('advanced_pars') and 'nll_sources' in comp_config['advanced_pars']:
+        if bool(comp_config.get('advanced_pars')) and 'nll_sources' in comp_config['advanced_pars']:
             sources = comp_config['advanced_pars']['nll_sources']
             if not isinstance(sources, list): 
                 sources = [sources]
@@ -122,11 +118,9 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
         #  logger.log(f'Loaded templates: {list(templates.keys())}', 'info')
       except Exception as e:
         logger.log(f'Failed to load constraints from {constraints_dir}: {e}', 'error')
+    
     # Convert data to zfit Data
-    mom_mag_skim = ak.nan_to_none(mom_mag)
-    mom_mag_skim = ak.drop_none(mom_mag_skim)
-    mom_np = ak.to_numpy(ak.flatten(mom_mag_skim, axis=None))
-    mom_zfit = zfit.Data.from_numpy(array=mom_np, obs=obs_mom)
+    mom_zfit = DataPreparationManager.to_zfit_data(mom_mag, obs_mom, name='momentum')
 
 
     if verbose > 0:
@@ -290,23 +284,29 @@ def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit
     fit_range = (fit_range_low, fit_range_hi)
     obs_time = zfit.Space('time', limits=fit_range)
     
-    #build PDF components
+    # Initialize time PDF builder
+    time_builder = TimePDFBuilder()
+    
+    # Build PDF components
     pars = []
     pdfs = {}
     norms = {}
     for proc in time_components:
-        pdf = time_components[proc]['pdf']
-        pardict = time_components[proc]['pars']
-        pdfs[proc], norms[proc] = TimeModel(obs_time, pars, proc, pdf, pardict, fit_range)
+        comp_config = time_components[proc]
+        pdfs[proc], norms[proc] = time_builder.build(
+            obs=obs_time,
+            params_tot=pars,
+            process=proc,
+            model=comp_config['pdf'],
+            pardict=comp_config.get('pars'),
+            fit_range=fit_range
+        )
 
     # build combined PDF
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # Convert data to zfit Data
-    time_skim = ak.nan_to_none(times)
-    time_skim = ak.drop_none(time_skim)
-    time_np = ak.to_numpy(ak.flatten(time_skim, axis=None))
-    time_zfit = zfit.Data.from_numpy(array=time_np, obs=obs_time)
+    time_zfit = DataPreparationManager.to_zfit_data(times, obs_time, name='time')
     
     # Loss function and minimizer
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=time_zfit)
@@ -383,36 +383,39 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
     nlls = []
     nll_sources = []
     
+    # Initialize 2D PDF builder
+    momtime_builder = MomTimePDFBuilder()
     
-    # loop over mom components
+    # Loop over mom components
     for proc in mom_components:
-      mompdf = mom_components[proc]['pdf']
-      pardict = mom_components[proc]['pars']
-      treat_params = mom_components[proc]['treat_params']
-      # time model name may be defined in time_components; fall back to None
-      timepdf = time_components.get(proc, {}).get('pdf', None)
-
-      # MomTimeModel now returns (pdf_2d, N, mom_pdf, time_pdf)
       comp_config = mom_components[proc]
-      use_advanced_model = bool(comp_config.get('advanced_pars'))
-      try:
-        pdf2d, N, mom_subpdf, time_subpdf = MomTimeModel(
-            obs_mom, obs_time, mompars, timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints,
-            advanced_config=comp_config, use_advanced=use_advanced_model
-        )
-      except TypeError:
-        # backward-compatible: older MomTimeModel returned (pdf_2d, N)
-        pdf2d, N = MomTimeModel(obs_mom, obs_time, mompars, timepars, proc, mompdf, timepdf, pardict, treat_params, fit_range_mom, constraints, advanced_config=comp_config, use_advanced=use_advanced_model)
-        mom_subpdf = mompdf
-        time_subpdf = time_components.get(proc, {}).get('pdf', zfit.pdf.Uniform(low=fit_range_time[0], high=fit_range_time[1], obs=obs_time))
+      time_model = time_components.get(proc, {}).get('pdf', 'uniform')
+
+      # Build 2D PDF using the builder (cleaner, no try/except needed!)
+      pdf2d, N, mom_subpdf, time_subpdf = momtime_builder.build(
+          obs_mom=obs_mom,
+          obs_time=obs_time,
+          mom_params_tot=mompars,
+          time_params_tot=timepars,
+          process=proc,
+          mom_model=comp_config['pdf'],
+          time_model=time_model,
+          pardict=comp_config['pars'],
+          treat_params=comp_config['treat_params'],
+          fit_range=fit_range_mom,
+          constraints=constraints,
+          advanced_config=comp_config,
+          use_advanced=bool(comp_config.get('advanced_pars'))
+      )
 
       pdfs[proc] = pdf2d
       norms[proc] = N
       mompdfs[proc] = mom_subpdf
-      # collect nll sources from either top-level 'nll' or advanced_pars['nll_sources']
+      
+      # Collect NLL sources from either top-level 'nll' or advanced_pars['nll_sources']
       if 'nll' in mom_components[proc].keys():
         nll_sources.append(mom_components[proc]['nll'])
-      adv = comp_config.get('advanced_pars') if 'comp_config' in locals() else None
+      adv = comp_config.get('advanced_pars')
       if adv and 'nll_sources' in adv:
         sources = adv['nll_sources']
         if not isinstance(sources, list):
@@ -420,7 +423,7 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
         for s in sources:
           nll_sources.append(s)
 
-      # also build a time-only (non-extended) PDF for plotting
+      # Also build a time-only (non-extended) PDF for plotting
       if proc in ('DIO', 'CE'):
         timepdfs[proc] = zfit.pdf.Exponential(zfit.Parameter(f'decay_shared_CE_DIO_plot', -1.0/864.0, floating=False), obs=obs_time)
       elif proc == 'RPC':

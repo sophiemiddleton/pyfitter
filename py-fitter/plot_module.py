@@ -4,9 +4,9 @@ import awkward as ak
 import math
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from mom_components import mom_components
-from time_components import time_components
+from physics_components import mom_components, time_components
 from pyutils.pylogger import Logger
+from data_prep import DataPreparationManager
 
 # Module logger
 try:
@@ -138,9 +138,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
         show the MC truth processes on the histogram
 
     """
-    mom_mag_skim = ak.nan_to_none(mom_mag)
-    mom_mag_skim = ak.drop_none(mom_mag_skim)
-    data = ak.to_numpy(ak.flatten(mom_mag_skim, axis=None))
+    data = DataPreparationManager.get_numpy_array(mom_mag, remove_nans=True)
     n_bins = 25
     mom_plot = np.linspace(fit_range[0], fit_range[1], n_bins)
     scale = 1 / n_bins * (fit_range[1] - fit_range[0])
@@ -234,14 +232,29 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
     #dummy_handle2 = ax1.plot([], marker="",color='white', label="Fit Components")
     for name, pdfs, N_pdfs in list_pdfs:
       pdf_plot = (pdfs.pdf(mom_plot) * N_pdfs * scale).numpy()
-      combine_plot += pdf_plot
+      if logger:
+        logger.log(f'{name}: pdf min={np.min(pdf_plot)}, max={np.max(pdf_plot)}, has_nan={np.any(np.isnan(pdf_plot))}, N_pdfs={N_pdfs}', 'info')
+      
+      # Only add to combine_plot if component has valid (non-NaN) values
+      if not np.all(np.isnan(pdf_plot)):
+        # Replace any NaN values with 0 before adding
+        pdf_plot_clean = np.nan_to_num(pdf_plot, nan=0.0)
+        combine_plot += pdf_plot_clean
+      else:
+        # Component is all NaN, skip it in combine_plot
+        pdf_plot_clean = np.zeros_like(pdf_plot)
+      
       labs_fit.append(name)
       style = mom_components.get(name, mom_components.get(name.strip(), {}))
       color = style.get('lineColor', 'k')
       ls = style.get('lineStyle', '-')
-      ax1.plot(mom_plot, pdf_plot, label=name, color=color, linestyle=ls)
+      ax1.plot(mom_plot, pdf_plot_clean, label=name, color=color, linestyle=ls)
 
-    ax1.plot(mom_plot, combine_plot, '-r', label='Total')
+    if logger:
+      logger.log(f'combine_plot min: {np.min(combine_plot)}, max: {np.max(combine_plot)}', 'info')
+    ax1.plot(mom_plot, combine_plot, '-r', label='Total', linewidth=2, zorder=100)
+    if logger:
+      logger.log('Red Total line plotted', 'info')
     #ax1.grid(True)
     ax1.set_yscale('log')
     ax1.set_xlim(fit_range)
@@ -269,12 +282,10 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
           ls = style.get('lineStyle', '-')
           proxy_handles.append(Line2D([0], [0], color=color, linestyle=ls))
           proxy_labels.append(nm)
-      # Reco MC / Mock Data
+      # Always add Mock Data and Total lines (outside inner try-except for robustness)
       proxy_handles.append(Line2D([0], [0], marker='+', color='black', linestyle=''))
       proxy_labels.append('Mock Data')
-      # Fit components heading and Total
-
-      proxy_handles.append(Line2D([0], [0], color='red'))
+      proxy_handles.append(Line2D([0], [0], color='red', linestyle='-'))
       proxy_labels.append('Total')
       ncol = 1
       fig.subplots_adjust(right=0.66)
@@ -285,7 +296,9 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
         for txt in leg.get_texts():
           txt.set_color('black')
           txt.set_alpha(1.0)
-    except Exception:
+    except Exception as e:
+      if logger:
+        logger.log(f'Legend creation failed: {e}; falling back to ax1.legend', 'warning')
       try:
         leg = ax1.legend(fontsize=10)
       except Exception:
@@ -357,9 +370,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
         show the MC truth processes on the histogram
 
     """
-    time_skim = ak.nan_to_none(time)
-    time_skim = ak.drop_none(time_skim)
-    data = ak.to_numpy(ak.flatten(time_skim, axis=None))
+    data = DataPreparationManager.get_numpy_array(time, remove_nans=True)
     n_bins = 25
     time_plot = np.linspace(fit_range[0], fit_range[1], n_bins)
     scale = 1 / n_bins * (fit_range[1] - fit_range[0])
@@ -546,16 +557,26 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
     stopped_names = ('DIO', 'CE')
     for name, pdfs, N_pdfs in list_pdfs:
       pdf_plot = (pdfs.pdf(time_plot) * N_pdfs * scale).numpy()
-      combine_plot += pdf_plot
+      
+      # Only add to combine_plot if component has valid (non-NaN) values
+      if not np.all(np.isnan(pdf_plot)):
+        # Replace any NaN values with 0 before adding
+        pdf_plot_clean = np.nan_to_num(pdf_plot, nan=0.0)
+        combine_plot += pdf_plot_clean
+        if name in stopped_names:
+          stopped_plot += pdf_plot_clean
+      else:
+        # Component is all NaN, skip it in combine_plot
+        pdf_plot_clean = np.zeros_like(pdf_plot)
+        
       if name in stopped_names:
-        stopped_plot += pdf_plot
         continue
       # plot other components individually
       labs_fit.append(name)
       style = time_components.get(name, {})
       color = style.get('lineColor', 'k')
       linestyle = style.get('lineStyle', '-')
-      ax1.plot(time_plot, pdf_plot, label=name, color=color, linestyle=linestyle)
+      ax1.plot(time_plot, pdf_plot_clean, label=name, color=color, linestyle=linestyle)
 
     # plot combined stopped muon curve (DIO + CE) if present
     if np.any(stopped_plot):

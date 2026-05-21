@@ -8,6 +8,10 @@ import argparse
 import csv
 import traceback
 import os
+import matplotlib.pyplot as _plt
+import numpy as _np
+from control_region import ControlRegion
+import pickle
 from pyutils.pylogger import Logger
 from pathlib import Path
 
@@ -18,7 +22,8 @@ module_logger = Logger(print_prefix='[process] ', verbosity=2)
 from fit_module import *
 from results_module import ResultsClass
 from analyze import Analyze
-from mom_components import mom_components
+from data_prep import DataPreparationManager, safe_float_conversion, safe_dict_get, safe_numpy_convert, safe_field_extraction
+from physics_components import mom_components
 from pyutils.pycut import CutManager
 from pyutils.pyprocess import Processor, Skeleton
 from pyutils.pyplot import Plot
@@ -252,86 +257,48 @@ def _save_fit_npz(basename, fitresult, par=None, loss=None, nlls=None, extra=Non
                 else:
                     parts = nm.rsplit('_v', 1)
                     if len(parts) == 2:
-                        try:
-                            vnum = int(parts[1])
-                            max_v = max(max_v, vnum)
-                        except Exception:
-                            pass
+                        vnum = safe_float_conversion(parts[1], default=0)
+                        max_v = max(max_v, int(vnum))
             next_v = max_v + 1
             fname = fits_dir / f"{basename}_fit_v{next_v:03d}.npz"
+        
+        # Extract parameters using safe utilities (no nested try/except)
         param_names = []
         param_values = []
         param_errors = []
-        params = None
-        try:
-            params = getattr(fitresult, 'params', None)
-        except Exception:
-            params = None
-        if params is None and isinstance(fitresult, dict) and 'params' in fitresult:
-            params = fitresult.get('params')
+        
+        # Get params from fitresult (dict-like or object)
+        params = safe_dict_get(fitresult, 'params')
+        
         if params is not None:
-            try:
-                for name in params:
-                    entry = params[name]
-                    val = None
-                    err = None
-                    if isinstance(entry, dict):
-                        val = entry.get('value', None)
-                        err = entry.get('error', None)
-                    else:
-                        val = getattr(entry, 'value', None)
-                        err = getattr(entry, 'error', None)
-                    param_names.append(name)
-                    try:
-                        param_values.append(float(val) if val is not None else float('nan'))
-                    except Exception:
-                        param_values.append(float('nan'))
-                    try:
-                        param_errors.append(float(err) if err is not None else float('nan'))
-                    except Exception:
-                        param_errors.append(float('nan'))
-            except Exception:
-                param_names = []
-                param_values = []
-                param_errors = []
+            for name in params:
+                entry = params[name]
+                val = safe_dict_get(entry, 'value')
+                err = safe_dict_get(entry, 'error')
+                
+                param_names.append(name)
+                param_values.append(safe_float_conversion(val))
+                param_errors.append(safe_float_conversion(err))
+        
+        # Build output dictionary
         tosave = {}
         tosave['param_names'] = np.array(param_names, dtype=object)
         tosave['param_values'] = np.array(param_values, dtype=float)
         tosave['param_errors'] = np.array(param_errors, dtype=float)
+        
         if loss is not None:
-            try:
-                tosave['loss'] = np.array(float(loss))
-            except Exception:
-                tosave['loss'] = np.array([repr(loss)], dtype=object)
+            tosave['loss'] = safe_numpy_convert(loss, dtype=float)
+        
         if nlls is not None:
-            try:
-                nlls_arr = np.asarray(nlls, dtype=float)
-                tosave['nlls'] = nlls_arr
-            except Exception:
-                try:
-                    tosave['nlls'] = np.array([list(nlls)], dtype=object)
-                except Exception:
-                    tosave['nlls'] = np.array([repr(nlls)], dtype=object)
+            tosave['nlls'] = safe_numpy_convert(nlls, dtype=float)
+        
         if extra is not None:
-            try:
-                if isinstance(extra, dict):
-                    for k, v in extra.items():
-                        try:
-                            import awkward as _ak
-                            if isinstance(v, _ak.highlevel.Array) or getattr(v, 'dtype', None) == object:
-                                arr = np.asarray(_ak.to_numpy(_ak.flatten(v, axis=None)))
-                            else:
-                                arr = np.asarray(v)
-                        except Exception:
-                            try:
-                                arr = np.asarray(v)
-                            except Exception:
-                                arr = np.array([repr(v)], dtype=object)
-                        tosave[k] = arr
-                else:
-                    tosave['extra'] = np.asarray(extra)
-            except Exception:
-                tosave['extra'] = np.array([repr(extra)], dtype=object)
+            if isinstance(extra, dict):
+                for k, v in extra.items():
+                    tosave[k] = safe_numpy_convert(v, default_repr=True)
+            else:
+                tosave['extra'] = safe_numpy_convert(extra, default_repr=True)
+        
         np.savez_compressed(str(fname), **tosave)
         module_logger.log(f'[process] Wrote fit summary to {fname}', 'info')
     except Exception as e:
@@ -392,7 +359,7 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
         module_logger.log(f'[process_offspill_filelist] Failed to combine arrays: {e}', 'error')
         combined = None
 
-    import pickle
+    
     try:
         with open(out_prefix + '_filtered.pkl', 'wb') as pf:
             pickle.dump({'results': results, 'combined_filtered': combined}, pf)
@@ -403,6 +370,8 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
     # Try to extract a flattened mom_mag for convenience.
     try:
         mom_flat = None
+        
+        # Primary method: use Vector utility
         try:
             selector = Select()
             trk_front = selector.select_surface(combined['trkfit'], surface_name='TT_Front')
@@ -411,41 +380,28 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
             mom_per_event = vector.get_mag(trkfit_ent, 'mom')
             mom_flat = ak.to_numpy(ak.flatten(mom_per_event, axis=None))
         except Exception as e_primary:
-            module_logger.log("Within exception block for mom_mag extraction fallback", 'error')
-            mom_flat = None
-            try:
-                mom_arr = None
-                if combined is not None:
-                    if 'trk' in combined.fields:
-                        fld = combined['trk']
-                        if 'mom' in ak.fields(fld):
-                            mom_arr = ak.flatten(fld['mom'], axis=None)
-                    if mom_arr is None and 'trkfit' in combined.fields:
-                        tf = combined['trkfit']
-                        if 'trksegs' in ak.fields(tf):
-                            ts = tf['trksegs']
-                            if 'mom' in ak.fields(ts):
-                                mom_arr = ak.flatten(ts['mom'], axis=None)
-                if mom_arr is not None:
-                    mom_flat = ak.to_numpy(mom_arr)
-            except Exception:
-                mom_flat = None
-            if mom_flat is None:
+            # Fallback 1: Try field extraction
+            mom_arr = safe_field_extraction(combined, 'trk', 'mom')
+            if mom_arr is None:
+                mom_arr = safe_field_extraction(combined, 'trkfit', 'trksegs', 'mom')
+            
+            if mom_arr is not None:
+                mom_flat = ak.to_numpy(ak.flatten(mom_arr, axis=None))
+            else:
+                # Fallback 2: Try Vector with direct access
                 try:
-                    from pyutils.pyvector import Vector as _Vector
-                    _vec = _Vector()
+                    _vec = Vector()
                     trkfit_ent = combined['trkfit']
                     mom_per_event = _vec.get_mag(trkfit_ent, 'mom')
                     mom_flat = ak.to_numpy(ak.flatten(mom_per_event, axis=None))
                 except Exception as e2:
-                    module_logger.log(f'[process_offspill_filelist] Could not extract mom_mag via primary or fallback methods: {e_primary}; {e2}', 'error')
+                    module_logger.log(f'[process_offspill_filelist] Could not extract mom_mag: primary: {e_primary}, fallback2: {e2}', 'error')
                     mom_flat = None
 
         if mom_flat is not None:
             np.savez(out_prefix + '_mom_mag.npz', mom_mag=mom_flat)
             module_logger.log(f'[process_offspill_filelist] Wrote {out_prefix}_mom_mag.npz', 'info')
             try:
-                from control_region import ControlRegion
                 cr = ControlRegion(mom_flat)
                 fit_out = cr.fit_cosmic(fit_range=(mom_lo, mom_hi), plot=True)
                 fig = fit_out.get('figure', None)
@@ -472,7 +428,6 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
             except Exception as e_cr:
                 module_logger.log(f'[process_offspill_filelist] ControlRegion fit failed: {e_cr}', 'error')
                 try:
-                    import numpy as _np
                     module_logger.log(f'[process_offspill_filelist] mom_flat type: {type(mom_flat)}, shape: {getattr(mom_flat, "shape", None)}', 'error')
                     try:
                         sample = repr(mom_flat[:50])
@@ -492,7 +447,7 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
                         except Exception as e_stat:
                             module_logger.log(f'[process_offspill_filelist] Failed computing stats: {e_stat}', 'error')
                         try:
-                            import matplotlib.pyplot as _plt
+
                             fig_debug = _plt.figure()
                             finite = _np.isfinite(arr)
                             if finite.any():
@@ -800,8 +755,7 @@ def main(args):
     # make vector mag branch
     mom_mag = vector.get_mag(trkfit_ent, 'mom')
 
-    time = ak.nan_to_none(trkfit_ent['time'])  # FIXME
-    time = ak.drop_none(time)
+    time = DataPreparationManager.clean_awkward_array(trkfit_ent['time'])
 
     # Build track-aligned mc_count arrays for momentum and time using per-event counts
     try:

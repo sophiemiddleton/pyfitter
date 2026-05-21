@@ -1,12 +1,19 @@
-# mom_components.py: Component Definitions and Theoretical Functions
+# physics_components.py
+# Consolidated physics component definitions and constants
+# Pure dictionary-based config file (no implementation details)
+
+# ============================================================================
+# PHYSICS CONSTANTS (from theo_components.py)
+# ============================================================================
+
 
 import numpy as np
 import math
 import zfit
+import pickle as pkl
 
-from theo_components import LeadingLog, binned_spectrum_CeLL
-from res_components import res_components
-from helper import *
+from custom_models import LeadingLog, binned_spectrum_CeLL, res_components
+from helper import gen_theo_exp
 
 # Efficiency from flat e- at target (can be used for all "from target" processes
 EFFICIENCY_PATH = '../common/efficiency.pkl'
@@ -92,62 +99,84 @@ theo_exp_pars_DIO.update({
     }
 })
 
+# ============================================================================
+# MOMENTUM COMPONENTS
+# ============================================================================
 
-# --- Component Dictionary ---
 mom_components = {
     'CE': {
-    'pdf': 'dscb',  # Default: simple double sided crystal ball
-    'pars': {
-        'mu': (104, 103, 107), 'sigma': (0.5, 0.1, 2.0),
-        'alphaL': (0.422, 0, 10), 'nL': (25.1, 0, 100),
-        'alphaR': (2.227, 0, 100), 'nR': (5.954, 0, 100)
+        'pdf': 'dscb',  # Double-sided crystal ball
+        'pars': {
+            'mu': (104, 103, 107),
+            'sigma': (0.5, 0.1, 2.0),
+            'alphaL': (0.422, 0, 10),
+            'nL': (25.1, 0, 100),
+            'alphaR': (2.227, 0, 100),
+            'nR': (5.954, 0, 100)
+        },
+        'treat_params': 'float',
+        'startCode': [168],
+        'genCode': [None],
+        'lineColor': 'b',
+        'lineStyle': '--',
+        'catColor': '#ffff00',
     },
-    'treat_params': 'float',
-    'startCode': [168],
-    'genCode': [None],
-    'lineColor': 'b',
-    'lineStyle': '--',
-    'catColor': '#ffff00',
-    'advanced_pars': None
-  },
-    # Cosmics assumes eff+res+loss included from control region (Off spill)
-    'Cosmic' : {'pdf' : 'poly2',
-                'pars' : { 'c1' : (0.219,0.197, 0.241),
-                           'c2' : (-0.108803,-0.130803,-0.086803)},
-                'treat_params' : 'constrain',
-                'startCode' : [None],
-                'genCode' : [44,38],
-                'lineColor' : 'm',
-                'lineStyle' : '-.',
-                'catColor' : '#1f77b4',
-                'advanced_pars': None},
- 
-    'DIO': { # Decay in Orbit Background From Target
-        'pdf': 'poly58', # Default: to what is in our generator
-        'pars': {'N_DIO' : (2000, 1000, 30000),},
+    'Cosmic': {
+        'pdf': 'poly2',
+        'pars': {
+            'c1': (0.219, 0.197, 0.241),
+            'c2': (-0.108803, -0.130803, -0.086803)
+        },
+        'treat_params': 'constrain',
+        'startCode': [None],
+        'genCode': [44, 38],
+        'lineColor': 'm',
+        'lineStyle': '-.',
+        'catColor': '#1f77b4',
+    },
+    'DIO': {
+        'pdf': 'poly58',
+        'pars': {'N_DIO': (2000, 1000, 30000)},
         'treat_params': 'fix',
         'startCode': [166, 170],
         'genCode': [None],
         'lineColor': 'g',
         'lineStyle': ':',
         'catColor': '#e377c2',
-         'advanced_pars': None
     }
 }
 
 
-"""
-DIO:          'advanced_pars': {
-          'pdf_theo': 'theo_exp',
-          'treat_params_adv': 'simul', # Use 'simul' to share parameters with CE
-          'fitpars_in_formatted': theo_exp_pars_DIO,
-          'nll_sources': None 
-        }
-CE:
-     'advanced_pars': {
-        'pdf_theo': 'theo_exp',
-        'treat_params_adv': 'param',
-        'fitpars_in_formatted': theo_exp_pars,
-        'nll_sources': [flat_res, flat_loss]
+# ============================================================================
+# TIME COMPONENTS
+# ============================================================================
+
+time_components = {
+    'Cosmic': {
+        'pdf': 'uniform',
+        'pars': None,
+        'startCode': [None],
+        'genCode': [44, 38],
+        'lineColor': 'm',
+        'lineStyle': '-.',
+        'catColor': 'violet',
+    },
+    'Muon': {
+        'pdf': 'muexp',
+        'pars': {'decay_rate_mu': (-0.001157, -0.0015, -0.001)},
+        'startCode': [168, 166, 170],
+        'genCode': [None],
+        'lineColor': 'b',
+        'lineStyle': '--',
+        'catColor': 'lightskyblue',
+    },
+    'RPC': {
+        'pdf': 'piexp',
+        'pars': {'decay_rate_pi': (-0.03846, -0.04, -0.01)},
+        'startCode': [178, 179],
+        'genCode': [None],
+        'lineColor': 'black',
+        'lineStyle': (0, (3, 5, 1, 5)),
+        'catColor': 'black',
     }
-"""
+}
