@@ -1,582 +1,439 @@
-"""Example fit_runner wrappers for `ResultsClass.SensitivityFromMocks`.
-
-These wrappers adapt the project's existing fit functions to the simple
-callable interface expected by `SensitivityFromMocks(mock_samples, fit_runner)`.
-Each runner returns a dict containing the numeric metric under key `'ul'` by
-default so it can be consumed without further unpacking.
-
-Notes:
-- The wrappers are intentionally defensive: they try to extract a numeric
-  upper limit from the `UpperLimit` object produced by `ResultsClass.GetUL`.
-  If that fails, they fall back to a proxy value (median of POI scan) so the
-  sensitivity scan can continue.
 """
+Usage: called from run_sens_scan.py — do not run directly.
+"""
+
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import numpy as np
 import awkward as ak
-import os
-import matplotlib.pyplot as plt
+import matplotlib
 import multiprocessing
 
-from fit_module import Unbinned_fit_mom, Unbinned_2d_fit_mom_time
-from results_module import ResultsClass
-from pyutils.pyprocess import Processor
+
+# ---------------------------------------------------------------------------
+# Helpers for analytical PDF evaluation (pickleable — no zfit dependency)
+# ---------------------------------------------------------------------------
+
+def _eval_poly58(x_arr, a5, a6, a7, a8):
+    """Evaluate the DIO poly58 unnormalized PDF over an array of x values."""
+    m_mu = 105.194
+    m_Al = 25133.0
+    delta = np.maximum(m_mu - x_arr - x_arr**2 / (2 * m_Al), 0.0)
+    return a5 * delta**5 + a6 * delta**6 + a7 * delta**7 + a8 * delta**8
 
 
-def _to_numeric_array(x, verbose=0):
-    """Coerce input `x` into a 1D numeric numpy array.
-
-    Handles object-dtype arrays by concatenating contained arrays/lists
-    or by elementwise float conversion with NaN fallback.
-    Returns numpy.ndarray or raises ValueError if coercion fails.
+def _eval_chebyshev2(x_arr, c1, c2, x_min, x_max):
+    """Evaluate the Chebyshev order-2 PDF (Cosmic) over an array of x values.
+    
+    Maps x -> [-1, 1] then evaluates 1 + c1*T1 + c2*T2.
     """
-    arr = np.asarray(x)
-
-    # If arr.dtype is object, attempt smarter coercions
-    if arr.dtype == object:
-        # try concatenating nested arrays/lists
-        pieces = [np.asarray(u).ravel() for u in arr]
-        if len(pieces) == 0:
-            return np.asarray([], dtype=float)
-        arr2 = np.concatenate(pieces)
-        if verbose:
-            print('[sensitivity_runners] Coerced object-array by concatenation; new shape', arr2.shape)
-        return arr2.astype(float)
-
-    # For numeric arrays, just ensure float dtype and flatten
-    return np.asarray(arr, dtype=float).ravel()
+    x_std = 2.0 * (x_arr - x_min) / (x_max - x_min) - 1.0
+    T1 = x_std
+    T2 = 2.0 * x_std**2 - 1.0
+    vals = 1.0 + c1 * T1 + c2 * T2
+    return np.maximum(vals, 0.0)
 
 
-def fit_runner_1d_ul(sample, fit_range=(95.0, 115.0), constraints_dir='uncertainties/Cosmic_test', verbose=0):
-    """Run the 1D momentum fitter on a mock sample and return an estimated UL.
+def precompute_pdf_grids(fit_result, mom_components_dict, fit_range, n_grid=5000):
+    """Evaluate each background PDF over a fine grid using the fitted parameter values.
+
+    Returns a dict keyed by process name with entries:
+        {'x': ndarray, 'weights': ndarray (normalised to sum=1)}
+
+    CE is intentionally excluded — signal events are injected analytically.
 
     Parameters
     ----------
-    sample : array-like
-      1D array-like of momentum values (numpy or awkward)
-    fit_range : tuple
-      (low, high) fit range for momentum
-    constraints_dir : str
-      directory containing `constraints.json` / `templates.npz` (optional)
-    verbose : int
-      verbosity forwarded to fit functions
-
-    Returns
-    -------
-    dict with key 'ul' (numeric upper limit) and 'fitresult' (zfit result object)
+    fit_result : zfit FitResult
+        The nominal fit result from Unbinned_fit_mom.
+    mom_components_dict : dict
+        The mom_components dictionary from mom_components.py.
+    fit_range : tuple (float, float)
+        (low, high) momentum fit range.
+    n_grid : int
+        Number of grid points for PDF evaluation.
     """
-    # Coerce sample to numeric numpy array then to awkward
-    mom_np = _to_numeric_array(sample, verbose=verbose)
-    mom_mag = ak.Array(mom_np)
-    fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(
-        mom_mag,
-        [],        # track_cat (not used for mocks)
-        [],        # count_particle_types
-        fit_range[0],
-        fit_range[1],
-        False,
-        verbose,
-        minos=False,
-        plot_NLL=False,
-        plot_results=False,
-        constraints_dir=constraints_dir,
-    )
+    x = np.linspace(fit_range[0], fit_range[1], n_grid)
+    grids = {}
 
-    # Use ResultsClass to produce an UpperLimit object and extract a numeric UL
-    rc = ResultsClass(mom_mag, fitresult, verbose=verbose)
-    # defensive check: ensure returned POI looks like a signal yield (e.g. "N_CE").
-    poi_name = getattr(par, 'name', None)
-    if poi_name is None or not (poi_name.startswith('N_') or 'CE' in poi_name.upper() or 'SIG' in poi_name.upper()):
-        return {'ul': float('nan'), 'fitresult': fitresult, 'ul_failed': True, 'error': f'Returned POI "{poi_name}" does not look like a signal yield'}
-    ul_obj = rc.GetUL(par, loss, nlls, combine_pdf, constraints, fit_range[0], fit_range[1], sig_yield=0, CL=0.90, opt='asym')
+    params = fit_result.params  # dict: name -> {'value': float, ...}
 
-    # Try to get a numeric upper limit from the returned object
-    ul_value = None
-    for meth in ('upperlimit', 'upper_limit', 'upperLimit', 'limit'):
-        if hasattr(ul_obj, meth):
-            try:
-                ul_value = float(getattr(ul_obj, meth)(alpha=0.05, CLs=True))
-                break
-            except Exception:
-                try:
-                    ul_value = float(getattr(ul_obj, meth)())
-                    break
-                except Exception:
-                    ul_value = None
-    if ul_value is None:
-        # try to use a proxy (median of POI scan) if available
-        ul_value = float(np.median(ul_obj.poinull.values)) if hasattr(ul_obj, 'poinull') and hasattr(ul_obj.poinull, 'values') else float('nan')
+    def _get(name, fallback):
+        return float(params[name]['value']) if name in params else fallback
 
-    return {'ul': float(ul_value), 'fitresult': fitresult, 'ul_obj': ul_obj, 'par': par, 'loss': loss, 'nlls': nlls, 'combine_pdf': combine_pdf, 'constraints': constraints}
+    for proc, cfg in mom_components_dict.items():
+        if proc == 'CE':
+            continue  # signal injected separately
+        pdf_name = cfg['pdf']
+        pars_cfg = cfg.get('pars', {})
 
+        if pdf_name == 'poly58':
+            a5 = _get('a5_' + proc, pars_cfg.get('a5', (8.97879e-17,))[0])
+            a6 = _get('a6_' + proc, pars_cfg.get('a6', (1.17169e-17,))[0])
+            a7 = _get('a7_' + proc, pars_cfg.get('a7', (-1.06599e-19,))[0])
+            a8 = _get('a8_' + proc, pars_cfg.get('a8', (8.14251e-20,))[0])
+            vals = _eval_poly58(x, a5, a6, a7, a8)
 
-def fit_runner_2d_ul(mom_sample, time_sample, fit_range_mom=(95.0, 115.0), fit_range_time=(400.0, 1695.0), constraints_dir='uncertainties/Cosmic_test', verbose=0):
-    """Run the 2D fitter on mock momentum+time samples and return an estimated UL.
+        elif pdf_name in ('poly2', 'poly5'):
+            c1 = _get('c1_' + proc, pars_cfg.get('c1', (0.0,))[0])
+            c2 = _get('c2_' + proc, pars_cfg.get('c2', (0.0,))[0])
+            vals = _eval_chebyshev2(x, c1, c2, fit_range[0], fit_range[1])
 
-    Parameters
-    ----------
-    mom_sample : array-like
-      1D array-like of momentum values
-    time_sample : array-like
-      1D array-like of time values (same length as flattened mom_sample)
-    fit_range_mom, fit_range_time : tuple
-      fit ranges for mom and time
-    constraints_dir : str
-      uncertainties package directory
-    verbose : int
+        elif pdf_name == 'uniform':
+            vals = np.ones(n_grid)
 
-    Returns
-    -------
-    dict with key 'ul' and 'fitresult'
-    """
-    mom_np = _to_numeric_array(mom_sample, verbose=verbose)
-    time_np = _to_numeric_array(time_sample, verbose=verbose)
-    mom_mag = ak.Array(mom_np)
-    times = ak.Array(time_np)
-    res, par, loss, combine_pdf, norms = Unbinned_2d_fit_mom_time(
-        mom_mag,
-        times,
-        [],  # track_cat
-        [],  # count_particle_types
-        [fit_range_mom[0], fit_range_mom[1]],
-        [fit_range_time[0], fit_range_time[1]],
-        False,
-        verbose,
-        plot_results=False,
-        constraints_dir=constraints_dir,
-    )
-
-    fitresult = res
-    # Use ResultsClass with flattened 1D mom sample as data
-    rc = ResultsClass(mom_mag, fitresult, verbose=verbose)
-    ul_obj = rc.GetUL(par, loss, [], combine_pdf, [], fit_range_mom[0], fit_range_mom[1], sig_yield=0, CL=0.90, opt='asym')
-
-    ul_value = None
-    try:
-        ul_value = ul_obj.upperlimit(alpha=0.05, CLs=True)
-    except Exception:
-        ul_value = float(np.median(ul_obj.poinull.values)) if hasattr(ul_obj, 'poinull') and hasattr(ul_obj.poinull, 'values') else float('nan')
-
-    return {'ul': float(ul_value), 'fitresult': fitresult, 'ul_obj': ul_obj}
-
-
-def toy_scan_from_model(combine_pdf, par, fit_runner, mu_grid, ntoys=100, n_per_toy=1000, fit_runner_args=(), fit_runner_kwargs=None, verbose=0, plot_first_n=0, plot_dir=None, compute_sigmas=False, sig_calc_opt='asym'):
-    """Run a toy-based sensitivity scan by sampling from `combine_pdf` at
-    several injected signal strengths `mu_grid`.
-
-    Parameters
-    ----------
-    combine_pdf : zfit.pdf.ZPDF
-      Extended model PDF (must provide `create_sampler()` or `sample()`)
-    par : zfit.Parameter or parameter-like
-      The parameter to set as the injected signal (POI). Pass the zfit
-      parameter object used by the model.
-    fit_runner : callable
-      Callable that accepts a single mock sample (1D array) and returns a
-      numeric metric or a dict containing key 'ul'. For 2D fits, provide a
-      fit_runner that accepts a tuple (mom, time) or two args — the function
-      will call it with a single array if it expects one argument.
-    mu_grid : iterable
-      Values of injected signal strength to scan.
-    ntoys : int
-      Number of toys per grid point.
-    n_per_toy : int
-      Number of events to sample per toy. If the sampler provides variable
-      extended sampling, this may be ignored.
-    fit_runner_args, fit_runner_kwargs : additional args forwarded to fit_runner
-    verbose : int
-      Verbosity
-
-    Returns
-    -------
-    dict mapping mu -> list of numeric metrics (one per toy) and summary stats
-    """
-    if fit_runner_kwargs is None:
-        fit_runner_kwargs = {}
-
-    results = {}
-
-    # create a sampler; prefer combine_pdf.create_sampler() if available
-    sampler = None
-    if hasattr(combine_pdf, 'create_sampler'):
-        sampler = combine_pdf.create_sampler()
-
-    for mu in mu_grid:
-        mu_vals = []
-        errors = []
-        for itoy in range(int(ntoys)):
-            try:
-                # attempt to draw a toy dataset
-                if sampler is not None:
-                    # robustly try multiple sampler APIs
-                    data = None
-                    # try common sample method names
-                    try_methods = [
-                        ('sample', lambda s, n: s.sample(n)),
-                        ('draw', lambda s, n: s.draw(n)),
-                        ('__call__', lambda s, n: s(n)),
-                    ]
-                    for name, fn in try_methods:
-                        if hasattr(sampler, name) or (name == '__call__' and callable(sampler)):
-                            try:
-                                data = fn(sampler, n_per_toy)
-                                break
-                            except Exception:
-                                data = None
-                    # try resample(+sample/draw) to set POI then sample
-                    if data is None and hasattr(sampler, 'resample'):
-                        try:
-                            sampler.resample({par: mu})
-                            for name, fn in try_methods:
-                                if hasattr(sampler, name) or (name == '__call__' and callable(sampler)):
-                                    try:
-                                        data = fn(sampler, n_per_toy)
-                                        break
-                                    except Exception:
-                                        data = None
-                        except Exception:
-                            data = None
-                    # final fallback to combine_pdf.sample if available
-                    if data is None:
-                        if hasattr(combine_pdf, 'sample'):
-                            try:
-                                data = combine_pdf.sample(n_per_toy)
-                            except Exception as e:
-                                raise RuntimeError(f"Sampler failed to produce toy: {e}")
-                        else:
-                            raise RuntimeError('No sampler available on model; cannot generate toys')
-                else:
-                    # try combine_pdf.sample if available
-                    if hasattr(combine_pdf, 'sample'):
-                        data = combine_pdf.sample(n_per_toy)
-                    else:
-                        raise RuntimeError('No sampler available on model; cannot generate toys')
-
-                # Convert sampled data into a plain numpy array expected by fit_runner
-                # Try several common sampler/data accessors (zfit.Data, SamplerData, awkward, numpy)
-                arr = None
-                try:
-                    if hasattr(data, 'to_numpy'):
-                        arr = np.asarray(data.to_numpy())
-                    elif hasattr(data, 'numpy'):
-                        arr = np.asarray(data.numpy())
-                    elif hasattr(data, 'value'):
-                        arr = np.asarray(data.value())
-                    elif hasattr(data, 'samples'):
-                        arr = np.asarray(data.samples)
-                    else:
-                        arr = np.asarray(data)
-                except Exception:
-                    try:
-                        arr = np.asarray(list(data))
-                    except Exception:
-                        # give up and pass raw object through (fit runner wrappers should handle)
-                        arr = data
-                # If we got an object-dtype array, try to coerce numeric contents
-                try:
-                    if isinstance(arr, np.ndarray) and arr.dtype == object:
-                        arr = np.asarray([np.asarray(x) for x in arr])
-                except Exception:
-                    pass
-
-                # Optional: save toy plots for the first N toys per mu
-                try:
-                    if plot_dir and plot_first_n and itoy < int(plot_first_n):
-                        odir = os.path.join(plot_dir, f"mu_{mu}")
-                        os.makedirs(odir, exist_ok=True)
-                        fname = os.path.join(odir, f"toy_{itoy}.png")
-                        plt.figure()
-                        # If 2D array with two columns, make a scatter; else histogram
-                        try:
-                            if hasattr(arr, 'ndim') and arr.ndim == 2 and arr.shape[1] == 2:
-                                plt.scatter(arr[:, 0], arr[:, 1], s=4)
-                                plt.xlabel('mom')
-                                plt.ylabel('time')
-                                plt.title(f'mu={mu} toy={itoy} (scatter)')
-                            else:
-                                plt.hist(np.asarray(arr).ravel(), bins=60, histtype='stepfilled', alpha=0.7)
-                                plt.xlabel('Momentum [MeV/c]')
-                                plt.title(f'mu={mu} toy={itoy} (hist)')
-                            plt.tight_layout()
-                            plt.savefig(fname)
-                            plt.close()
-                        except Exception:
-                            try:
-                                plt.close()
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
-
-                # choose how to call fit_runner depending on its signature
-                try:
-                    # If 2D array with two columns and runner expects two args, try splitting
-                    if hasattr(arr, 'ndim') and arr.ndim == 2 and arr.shape[1] == 2:
-                        # try calling with two separate arrays
-                        res = fit_runner(arr[:, 0], arr[:, 1], *fit_runner_args, **fit_runner_kwargs)
-                    else:
-                        res = fit_runner(arr, *fit_runner_args, **fit_runner_kwargs)
-                except TypeError:
-                    # fallback: try single-argument call
-                    res = fit_runner(arr, *fit_runner_args, **fit_runner_kwargs)
-
-                # extract numeric value and record any diagnostic errors returned by fit_runner
-                if isinstance(res, dict):
-                    ul_raw = res.get('ul', None)
-                    try:
-                        v = float(ul_raw)
-                    except Exception:
-                        v = float('nan')
-                    # if the runner flagged failure or produced NaN, record its error message
-                    if res.get('ul_failed', False) or (isinstance(v, float) and np.isnan(v)):
-                        err_msg = res.get('error', f'Invalid UL value returned: {ul_raw}')
-                        errors.append(err_msg)
-                        if verbose:
-                            print(f"Toy produced invalid UL for mu={mu} toy={itoy}; recorded error: {err_msg}")
-                        continue
-                    # optionally compute discovery significance for this toy if fit details are available
-                    sigma_val = None
-                    if compute_sigmas:
-                        try:
-                            fitres = res.get('fitresult', None)
-                            par_res = res.get('par', None)
-                            loss_res = res.get('loss', None)
-                            if fitres is not None and par_res is not None and loss_res is not None:
-                                rc = ResultsClass(arr, fitres, verbose=0)
-                                try:
-                                    sig = rc.GetSignifcance(par_res, loss_res, opt=sig_calc_opt)
-                                    # sig is (pvalue, sigma)
-                                    sigma_val = float(sig[1]) if sig is not None and len(sig) > 1 else float('nan')
-                                except Exception:
-                                    sigma_val = float('nan')
-                        except Exception:
-                            sigma_val = float('nan')
-                    else:
-                        sigma_val = None
-                else:
-                    try:
-                        v = float(res)
-                    except Exception:
-                        v = float('nan')
-                    if isinstance(v, float) and np.isnan(v):
-                        err_msg = f'Non-numeric fit_runner return: {res!r}'
-                        errors.append(err_msg)
-                        sigma_val = None
-                        if verbose:
-                            print(f"Toy produced non-numeric result for mu={mu} toy={itoy}; recorded error: {err_msg}")
-                        continue
-
-                # record sigma if computed
-                if compute_sigmas:
-                    if 'sigmas' not in locals():
-                        sigmas = []
-                    sigmas.append(sigma_val)
-
-            except Exception as e:
-                import traceback
-                err = traceback.format_exc()
-                errors.append(err)
-                if verbose:
-                    print(f"Toy generation/fit failed for mu={mu} toy={itoy}: {e}")
-                    print(err)
-                continue
-
-            mu_vals.append(v)
-
-        if len(mu_vals) == 0:
-            results[mu] = {'values': [], 'median': np.nan, 'p16': np.nan, 'p84': np.nan, 'errors': errors}
         else:
-            arr = np.array(mu_vals, dtype=float)
-            results[mu] = {
-                'values': mu_vals,
-                'median': float(np.median(arr)),
-                'p16': float(np.percentile(arr, 16)),
-                'p84': float(np.percentile(arr, 84)),
-                'errors': errors,
-            }
-        # attach sigmas if computed
-        if compute_sigmas:
-            try:
-                sig_arr = np.array(sigmas, dtype=float)
-                results[mu]['sigmas'] = list(sig_arr)
-                results[mu]['sigma_median'] = float(np.nanmedian(sig_arr))
-                results[mu]['sigma_p16'] = float(np.nanpercentile(sig_arr, 16))
-                results[mu]['sigma_p84'] = float(np.nanpercentile(sig_arr, 84))
-            except Exception:
-                results[mu]['sigmas'] = []
-                results[mu]['sigma_median'] = float('nan')
-                results[mu]['sigma_p16'] = float('nan')
-                results[mu]['sigma_p84'] = float('nan')
+            # Fallback: uniform
+            vals = np.ones(n_grid)
 
-        # clear sigmas for next mu
-        if 'sigmas' in locals():
-            del sigmas
+        # Normalize to a proper probability weight
+        total = vals.sum()
+        if total <= 0:
+            vals = np.ones(n_grid)
+            total = float(n_grid)
+        weights = vals / total
 
-        if verbose:
-            print(f"mu={mu}: n_success={len(mu_vals)}, median={results[mu]['median']}")
+        grids[proc] = {'x': x.copy(), 'weights': weights}
 
-    return results
+    return grids
 
 
-# --- Parallel toy scan utilities using pyutils.pyprocess ---
-def single_toy_task(args):
+def extract_fitted_yields(fit_result, mom_components_dict):
+    """Extract fitted yield (N) for each process from the fit result.
+
+    Falls back to the default_norms value in mom_components if not found.
+
+    Returns dict: {proc: float}
     """
-    Worker function for a single toy. Arguments should include all needed inputs.
+    from momentum_pdf_builder import mom_default_norms as default_norms
+    params = fit_result.params
+    yields = {}
+    for proc in mom_components_dict:
+        key = 'N_' + proc
+        if key in params:
+            yields[proc] = float(params[key]['value'])
+        elif proc in default_norms:
+            yields[proc] = float(default_norms[proc])
+        else:
+            yields[proc] = 0.0
+    return yields
+
+
+def extract_ce_shape_params(fit_result, mom_components_dict):
+    """Return the EXPECTED (default) CE shape parameters from mom_components.
+
+    We intentionally do NOT use the initial fit result for CE shape because the
+    initial fit is performed on background-only data that has no CE signal, so
+    the DSCB shape floats to a spurious minimum (e.g. mu_CE=100).  Instead we
+    always use the central values from the mom_components configuration, which
+    correspond to the physically expected CE signal shape (mu~104.97 MeV/c etc).
+
+    Returns dict of param_name -> value for all CE shape params.
     """
-    # args: (mu, n_per_toy, fit_range, constraints_dir, fit_runner_name, verbose,
-    #        nominal_data, plot_toys, plot_dir, toy_idx)
-    mu, n_per_toy, fit_range, constraints_dir, fit_runner_name, verbose, nominal_data, plot_toys, plot_dir, toy_idx = args
+    ce_cfg = mom_components_dict.get('CE', {})
+    pars_cfg = ce_cfg.get('pars', {})
+
+    shape_params = {}
+    for p_name, val in pars_cfg.items():
+        shape_params[p_name] = float(val[0]) if hasattr(val, '__len__') else float(val)
+
+    return shape_params
+
+
+# ---------------------------------------------------------------------------
+# Worker task
+# ---------------------------------------------------------------------------
+
+def single_toy_task_v2(args):
+    """Worker function for one toy in the improved parallel scan.
+
+    Parameters passed as a single tuple (all pickleable):
+      mu, fit_range, constraints_dir, verbose,
+      bg_yields,          # dict proc -> expected yield (float)
+      pdf_grids,          # dict proc -> {'x': ndarray, 'weights': ndarray}
+      ce_shape_params,    # dict param_name -> fixed value
+      plot_toys, plot_dir, toy_idx
+    """
+    (mu, fit_range, constraints_dir, verbose,
+     bg_yields, pdf_grids, ce_shape_params,
+     plot_toys, plot_dir, toy_idx) = args
+
     import numpy as np
     import awkward as ak
+    import copy
     import zfit
     from fit_module import Unbinned_fit_mom
     from results_module import ResultsClass
 
     rng = np.random.default_rng()
 
-    # Generate background by resampling from nominal data (background-only sample).
-    # Optionally inject Poisson(mu) CE signal events on top.
-    if nominal_data is not None and len(nominal_data) > 0:
-        mom_bkg = rng.choice(nominal_data, size=n_per_toy, replace=True)
-    else:
-        mom_bkg = rng.uniform(fit_range[0], fit_range[1], n_per_toy)
+    # ------------------------------------------------------------------
+    # 1. Generate background events by sampling from precomputed PDF grids
+    #    with Poisson-fluctuated yields.
+    # ------------------------------------------------------------------
+    mom_parts = []
+    for proc, grid in pdf_grids.items():
+        expected = bg_yields.get(proc, 0.0)
+        if expected <= 0:
+            continue
+        n = rng.poisson(expected)
+        if n > 0:
+            sampled = rng.choice(grid['x'], size=n, replace=True, p=grid['weights'])
+            mom_parts.append(sampled)
 
-    # Inject signal (CE): Poisson(mu) events, Gaussian at 104.97 MeV
+    # ------------------------------------------------------------------
+    # 2. Inject Poisson(mu) CE signal events (Gaussian at fixed shape).
+    # ------------------------------------------------------------------
+    ce_mean = ce_shape_params.get('mu', 104.97)
+    ce_sigma = ce_shape_params.get('sigma', 0.5)
     n_sig = rng.poisson(mu)
     if n_sig > 0:
-        ce_mean = 104.97
-        ce_sigma = 0.2  # MeV
         mom_sig = rng.normal(loc=ce_mean, scale=ce_sigma, size=n_sig)
-        mom = np.concatenate([mom_bkg, mom_sig])
-    else:
-        mom = mom_bkg
+        mom_parts.append(mom_sig)
 
-    # Plot and save toy data if requested
-    if plot_toys > 0 and toy_idx < plot_toys:
-        import matplotlib
-        matplotlib.use('Agg')  # for headless environments
-        import matplotlib.pyplot as plt
-        import os
-        os.makedirs(plot_dir, exist_ok=True)
-        plt.figure(figsize=(6,4))
-        plt.hist(mom, bins=50, alpha=0.7, color='C0')
-        plt.title(f'Toy sample (mu={mu}, toy={toy_idx})')
-        plt.xlabel('Momentum')
-        plt.ylabel('Entries')
-        plt.tight_layout()
-        plot_path = os.path.join(plot_dir, f'toy_mu{mu}_toy{toy_idx}.png')
-        plt.savefig(plot_path)
-        plt.close()
-    # If we ended up with 0 events, the fit will fail; bail out early.
+    if len(mom_parts) == 0:
+        print(f'[toy mu={mu} idx={toy_idx}] Empty toy — returning nan')
+        return {'mu': mu, 'ul': float('nan'), 'ul_failed': True, 'error': 'Empty toy'}
+
+    mom = np.concatenate(mom_parts)
+    # Keep only events inside the fit range
+    mom = mom[(mom >= fit_range[0]) & (mom <= fit_range[1])]
+
     if len(mom) == 0:
-        print(f'[toy mu={mu} idx={toy_idx}] Empty toy (0 events) — returning nan UL')
-        return {'mu': mu, 'ul': float('nan'), 'ul_failed': True, 'error': 'Empty toy dataset'}
+        print(f'[toy mu={mu} idx={toy_idx}] No events in fit range — returning nan')
+        return {'mu': mu, 'ul': float('nan'), 'ul_failed': True, 'error': 'No events in fit range'}
+
+    n_bkg = len(mom) - n_sig
+    print(f'[toy mu={mu} idx={toy_idx}] n_bkg≈{n_bkg}, n_sig={n_sig}, total={len(mom)}')
+
+    # ------------------------------------------------------------------
+    # 3. Optional toy plot
+    # ------------------------------------------------------------------
+    if plot_toys > 0 and toy_idx < plot_toys:
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        os.makedirs(plot_dir, exist_ok=True)
+        plt.figure(figsize=(6, 4))
+        plt.hist(mom, bins=50, alpha=0.7, color='C0')
+        plt.xlabel('Momentum [MeV/c]')
+        plt.title(f'Toy mu={mu}, toy={toy_idx}')
+        plt.tight_layout()
+        plt.savefig(os.path.join(plot_dir, f'toy_mu{mu}_toy{toy_idx}.png'))
+        plt.close()
 
     mom_ak = ak.Array(mom)
-    print(f'[toy mu={mu} idx={toy_idx}] n_bkg={len(mom_bkg)}, n_sig={n_sig}, total={len(mom)}')
 
-    if fit_runner_name == 'fit_runner_1d_ul':
-        try:
-            fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(
-                mom_ak, [], [],
-                fit_range[0], fit_range[1],
-                False, verbose,
-                minos=False, plot_NLL=False, plot_results=False,
-                constraints_dir=constraints_dir,
-            )
-        except Exception as e:
-            print(f'[toy mu={mu} idx={toy_idx}] Fit raised exception: {e}')
-            return {'mu': mu, 'ul': float('nan'), 'ul_failed': True, 'error': str(e)}
+    # ------------------------------------------------------------------
+    # 4. Build the toy fit with CE shape FIXED and background yields
+    #    initialised from the nominal fit (not default_norms).
+    #    Temporarily override mom_components inside this worker only.
+    # ------------------------------------------------------------------
+    from physics_components import mom_components
 
-        rc = ResultsClass(mom_ak, fitresult, verbose=verbose)
-        poi_name = getattr(par, 'name', None)
-        if poi_name is None or not (poi_name.startswith('N_') or 'CE' in poi_name.upper() or 'SIG' in poi_name.upper()):
-            return {'mu': mu, 'ul': float('nan'), 'ul_failed': True,
-                    'error': f'POI "{poi_name}" does not look like a signal yield'}
+    # Snapshot current state then mutate the live dict in-place.
+    # fit_module uses 'from physics_components import mom_components' which binds
+    # a reference to the dict object, not the module attribute — so we must
+    # mutate the same object rather than rebinding.
+    orig_snapshot = copy.deepcopy(mom_components)
+    fixed_components = copy.deepcopy(orig_snapshot)
 
-        # Log validity of fit before computing UL
-        try:
-            valid = fitresult.valid
-        except Exception:
-            valid = None
-        print(f'[toy mu={mu} idx={toy_idx}] fit valid={valid}, poi={poi_name}')
+    # Fix CE shape: set each shape parameter to its fitted value, treat as fixed.
+    # N_CE is NOT listed here — it is created by the 'N' special key path in
+    # MomModel and will float freely with a negative lower bound (see momPDF_module).
+    if 'CE' in fixed_components:
+        fixed_ce_pars = {}
+        for p_name, fitted_val in ce_shape_params.items():
+            fixed_ce_pars[p_name] = (fitted_val,)  # single-element tuple → fixed
+        fixed_components['CE']['pars'] = fixed_ce_pars
+        fixed_components['CE']['treat_params'] = 'fix'
+        # Widen mu_CE bounds so hepstats UL scan does not clip when profiling
+        # (hepstats internally tries values slightly outside the fitted range).
+        # With treat_params='fix' these bounds are only used if zfit falls back
+        # to a floating parameter; make them wide enough to never constrain.
+        fixed_components['CE']['pars']['mu'] = (
+            ce_shape_params.get('mu', 104.0), 90.0, 115.0)
+        fixed_components['CE']['pars']['alphaR'] = (
+            ce_shape_params.get('alphaR', 2.227), 0.0, 200.0)
 
-        ul_obj = rc.GetUL(par, loss, nlls, combine_pdf, constraints,
-                          fit_range[0], fit_range[1], sig_yield=0, CL=0.90, opt='asym')
+    # Initialise background yields from nominal fit so the minimizer starts
+    # near the expected value rather than the hardcoded default_norms values.
+    for proc, comp in fixed_components.items():
+        if proc == 'CE':
+            continue
+        fitted_n = bg_yields.get(proc, None)
+        if fitted_n is not None and fitted_n > 0:
+            # Inject as 'N' key so MomModel uses it as the yield starting value.
+            pars_copy = dict(comp.get('pars', {}))
+            pars_copy['N'] = (fitted_n, 0.0, max(fitted_n * 10, 1e4))
+            fixed_components[proc]['pars'] = pars_copy
 
-        ul_value = None
-        for meth in ('upperlimit', 'upper_limit', 'upperLimit', 'limit'):
-            if hasattr(ul_obj, meth):
-                try:
-                    ul_value = float(getattr(ul_obj, meth)(alpha=0.05, CLs=True))
-                    break
-                except Exception:
-                    try:
-                        ul_value = float(getattr(ul_obj, meth)())
-                        break
-                    except Exception:
-                        ul_value = None
+    # Apply overrides in-place
+    mom_components.clear()
+    mom_components.update(fixed_components)
 
-        # Do NOT fall back to median(poinull.values) — that always gives a
-        # meaningless midpoint of the scan grid (historically produced 25.0).
-        if ul_value is None:
-            print(f'[toy mu={mu} idx={toy_idx}] upperlimit() failed — returning nan')
-            return {'mu': mu, 'ul': float('nan'), 'ul_failed': True, 'error': 'upperlimit() returned None'}
+    try:
+        fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(
+            mom_ak, [], [],
+            fit_range[0], fit_range[1],
+            False, verbose,
+            minos=False, plot_NLL=False, plot_results=False,
+            constraints_dir=constraints_dir,
+        )
+    except Exception as e:
+        mom_components.clear()
+        mom_components.update(orig_snapshot)
+        print(f'[toy mu={mu} idx={toy_idx}] Fit exception: {e}')
+        return {'mu': mu, 'ul': float('nan'), 'ul_failed': True, 'error': str(e)}
+    finally:
+        mom_components.clear()
+        mom_components.update(orig_snapshot)
 
-        print(f'[toy mu={mu} idx={toy_idx}] ul={ul_value}')
-        return {'mu': mu, 'ul': float(ul_value)}
-    else:
+    # ------------------------------------------------------------------
+    # 5. Validity check and POI identification
+    # ------------------------------------------------------------------
+    try:
+        valid = fitresult.valid
+    except Exception:
+        valid = None
+    poi_name = getattr(par, 'name', None)
+    print(f'[toy mu={mu} idx={toy_idx}] fit valid={valid}, POI={poi_name}')
+
+    if poi_name is None or not ('CE' in poi_name.upper() or poi_name.startswith('N_')):
         return {'mu': mu, 'ul': float('nan'), 'ul_failed': True,
-                'error': f'Unknown fit_runner_name {fit_runner_name}'}
+                'error': f'POI "{poi_name}" is not a signal yield'}
 
-# For parallel toy scans, use parallel_toy_scan_with_multiprocessing (native Python, no pyutils dependency).
+    # ------------------------------------------------------------------
+    # 6. Compute upper limit via hepstats AsymptoticCalculator
+    # ------------------------------------------------------------------
+    rc = ResultsClass(mom_ak, fitresult, verbose=verbose)
+    ul_obj = rc.GetUL(par, loss, nlls, combine_pdf, constraints,
+                      fit_range[0], fit_range[1],
+                      sig_yield=0, CL=0.90, opt='asym')
 
-def parallel_toy_scan_with_multiprocessing(combine_pdf, par, fit_runner, mu_grid, ntoys=100, n_per_toy=1000, fit_runner_args=(), fit_runner_kwargs=None, n_workers=16):
+    # upperlimit() returns dict[str, float] with keys:
+    #   'observed', 'expected', 'expected_p1', 'expected_m1', 'expected_p2', 'expected_m2'
+    # GetUL attaches the result as ul_obj.limits_result; fall back to calling it directly.
+    import traceback as _tb
+    ul_value = None
+    if hasattr(ul_obj, 'limits_result') and ul_obj.limits_result is not None:
+        try:
+            ul_value = float(ul_obj.limits_result['observed'])
+        except Exception:
+            ul_value = None
+
+    if ul_value is None:
+        try:
+            ul_dict = ul_obj.upperlimit(alpha=0.05, CLs=True)
+            ul_value = float(ul_dict['observed'])
+        except Exception as e:
+            print(f'[toy mu={mu} idx={toy_idx}] upperlimit() exception: {type(e).__name__}: {e}')
+            print(_tb.format_exc())
+            ul_value = None
+
+    if ul_value is None:
+        print(f'[toy mu={mu} idx={toy_idx}] upperlimit() failed — returning nan')
+        return {'mu': mu, 'ul': float('nan'), 'ul_failed': True,
+                'error': 'upperlimit() returned None'}
+
+    print(f'[toy mu={mu} idx={toy_idx}] UL={ul_value:.3f}')
+    return {'mu': mu, 'ul': float(ul_value)}
+
+
+# ---------------------------------------------------------------------------
+# Parallel scan driver
+# ---------------------------------------------------------------------------
+
+def parallel_toy_scan_v2(mu_grid, ntoys, fit_result, mom_components_dict, fit_range,
+                          constraints_dir=None, verbose=0,
+                          plot_toys=0, plot_dir='toy_plots',
+                          n_workers=4):
+    """Run a parallelised toy sensitivity scan with improved toy generation.
+
+    Parameters
+    ----------
+    mu_grid : array-like
+        Injected signal yields to scan (N_CE values).
+    ntoys : int
+        Number of toy experiments per mu point.
+    fit_result : zfit FitResult
+        Nominal background-only fit result (used to extract PDF shapes and yields).
+    mom_components_dict : dict
+        The mom_components dict from mom_components.py.
+    fit_range : tuple (float, float)
+        Momentum fit range.
+    constraints_dir : str or None
+        Path to constraints JSON directory.
+    verbose : int
+    plot_toys : int
+        Save plots for the first N toys per mu point.
+    plot_dir : str
+    n_workers : int
+        Number of parallel worker processes.
+
+    Returns
+    -------
+    dict mapping mu -> {'values', 'median', 'p16', 'p84', 'n_success', 'n_failed'}
     """
-    Parallel toy scan using Python's multiprocessing.Pool.
+    # Pre-compute everything the workers need (all pickleable)
+    pdf_grids = precompute_pdf_grids(fit_result, mom_components_dict, fit_range)
+    bg_yields = extract_fitted_yields(fit_result, mom_components_dict)
+    ce_shape_params = extract_ce_shape_params(fit_result, mom_components_dict)
 
-    For each mu in mu_grid, generates `ntoys` toy datasets by resampling
-    from nominal_data (background) and injecting Poisson(mu) CE signal events.
-    Fits each toy with the full model and computes an upper limit on N_CE.
-    Returns a summary dict per mu.
-    """
-    import numpy as np
-    import multiprocessing
-    fit_range = (95.0, 115.0)
-    constraints_dir = 'uncertainties/Cosmic_test'
-    fit_runner_name = 'fit_runner_1d_ul'
-    verbose = 0
-    nominal_data = None
-    if hasattr(fit_runner, '__name__') and fit_runner.__name__ == 'fit_runner_1d_ul':
-        fit_runner_name = 'fit_runner_1d_ul'
-    plot_toys = 0
-    plot_dir = 'toy_plots'
-    if fit_runner_kwargs is not None:
-        fit_range = fit_runner_kwargs.get('fit_range', fit_range)
-        constraints_dir = fit_runner_kwargs.get('constraints_dir', constraints_dir)
-        verbose = fit_runner_kwargs.get('verbose', verbose)
-        nominal_data = fit_runner_kwargs.get('nominal_data', None)
-        plot_toys = fit_runner_kwargs.get('plot_toys', 0)
-        plot_dir = fit_runner_kwargs.get('plot_dir', 'toy_plots')
+    print('Fitted background yields:', {k: f'{v:.1f}' for k, v in bg_yields.items() if k != 'CE'})
+    print('Fixed CE shape params:', {k: f'{v:.4f}' for k, v in ce_shape_params.items()})
+
     tasks = []
     for mu in mu_grid:
         for toy_idx in range(ntoys):
-            tasks.append((mu, n_per_toy, fit_range, constraints_dir, fit_runner_name, verbose, nominal_data, plot_toys, plot_dir, toy_idx))
-    with multiprocessing.Pool(processes=n_workers) as pool:
-        results = pool.map(single_toy_task, tasks)
-    out = {mu: [] for mu in mu_grid}
-    for res in results:
-        out[res['mu']].append(res['ul'])
-    # Convert to summary dict per mu
+            tasks.append((
+                float(mu), tuple(fit_range),
+                constraints_dir, verbose,
+                bg_yields, pdf_grids, ce_shape_params,
+                plot_toys, plot_dir, toy_idx,
+            ))
+
+    with multiprocessing.Pool(processes=n_workers, maxtasksperchild=1) as pool:
+        raw_results = pool.map(single_toy_task_v2, tasks)
+
+    # Aggregate
+    out = {float(mu): [] for mu in mu_grid}
+    n_failed = {float(mu): 0 for mu in mu_grid}
+    for res in raw_results:
+        mu_key = float(res['mu'])
+        ul = res['ul']
+        if np.isfinite(ul):
+            out[mu_key].append(ul)
+        else:
+            n_failed[mu_key] += 1
+
     summary = {}
     for mu in mu_grid:
-        arr = np.array(out[mu], dtype=float)
-        summary[mu] = {
-            'values': list(arr),
-            'median': float(np.median(arr)) if len(arr) > 0 else float('nan'),
-            'p16': float(np.percentile(arr, 16)) if len(arr) > 0 else float('nan'),
-            'p84': float(np.percentile(arr, 84)) if len(arr) > 0 else float('nan'),
-            'errors': [],  # Could be extended to collect errors
-        }
-        print(f"mu={mu}: median UL={summary[mu]['median']}, 1σ=({summary[mu]['p16']}, {summary[mu]['p84']})")
+        mu_f = float(mu)
+        arr = np.array(out[mu_f], dtype=float)
+        n_ok = len(arr)
+        n_fail = n_failed[mu_f]
+        if n_ok > 0:
+            summary[mu_f] = {
+                'values': list(arr),
+                'median': float(np.median(arr)),
+                'p16': float(np.percentile(arr, 16)),
+                'p84': float(np.percentile(arr, 84)),
+                'n_success': n_ok,
+                'n_failed': n_fail,
+            }
+        else:
+            summary[mu_f] = {
+                'values': [],
+                'median': float('nan'),
+                'p16': float('nan'),
+                'p84': float('nan'),
+                'n_success': 0,
+                'n_failed': n_fail,
+            }
+        print(f'mu={mu_f}: n_ok={n_ok}, n_fail={n_fail}, '
+              f'median UL={summary[mu_f]["median"]:.3f}, '
+              f'1σ=({summary[mu_f]["p16"]:.3f}, {summary[mu_f]["p84"]:.3f})')
+
     return summary
