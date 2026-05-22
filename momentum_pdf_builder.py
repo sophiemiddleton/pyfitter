@@ -123,42 +123,54 @@ class MomPDFBuilder(PDFBuilder):
         N = self._get_normalization(process, params_tot, pardict)
         params_tot.append(N)
         
+        # Extract advanced configuration from component dict
         config = self.advanced_config
-        adv_model = config.get('pdf_theo')
-        adv_treat = config.get('treat_params_adv', 'float')
+        adv_pars = config.get('advanced_pars', {})
+        
+        if not adv_pars:
+            raise ValueError(f"Advanced configuration missing for process {process}")
+        
+        adv_model = adv_pars.get('pdf_theo')
+        adv_treat = adv_pars.get('treat_params_adv', 'float')
         
         if adv_model != 'theo_exp':
             raise ValueError(f"Advanced model {adv_model} not supported")
         
         # Extract formatted parameters
-        theo_exp_pars = config['fitpars_in_formatted']
+        theo_exp_pars = adv_pars['fitpars_in_formatted']
         prob, edges = theo_exp_pars['lineshape']
         info = theo_exp_pars['info']
         
-        # Map parameters from res/loss components
+        # Map parameters from res component (doConv uses resolution for convolution)
+        # Rename parameters from 'mu0_res' -> 'mu0_{process}' (e.g., 'mu0_CE')
         zpars = {}
-        for comp in ['res', 'loss']:
-            comp_obj = theo_exp_pars[comp]
-            comp_pars = comp_obj.get_params()
+        res_obj = theo_exp_pars['res']
+        res_pars = res_obj.get_params()
+        
+        for p, val in res_pars.items():
+            if p == 'info':  # Skip the info dict
+                continue
             
-            for p, val in comp_pars.items():
+            # Extract parameter base name by removing component type suffix
+            if p.endswith('_res'):
+                param_base = p[:-4]  # Remove '_res'
+                new_name = f'{param_base}_{process}'  # Rename to process name (e.g., 'mu0_CE')
+                
                 if adv_treat == 'simul':
-                    # Create composed parameter referencing the component parameter
-                    zpars[p] = zfit.ComposedParameter(
-                        f'{p}_{process}',
+                    zpars[new_name] = zfit.ComposedParameter(
+                        new_name,
                         lambda x: 1 * x,
                         params=val
                     )
                 else:
-                    # Use fixed parameter
-                    zpars[p] = val
+                    zpars[new_name] = val
                     if val not in params_tot:
                         params_tot.append(val)
         
         # Build convolution PDF
         from helper import doConv, make_HistogramPDF
-        obs_gen = zfit.Space('x', fit_range)
-        obs_res = zfit.Space('x', -10, 10)  # Standard resolution window
+        obs_gen = obs  # Use the momentum observable directly (already properly configured)
+        obs_res = zfit.Space('x', -5, 5)  # Narrower resolution window (width=10 < observable width=15)
         
         true_pdf_slice = (prob, edges)
         pdf_conv = doConv(true_pdf_slice, obs_gen, obs_res, process, info, zpars)
