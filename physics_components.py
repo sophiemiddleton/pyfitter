@@ -16,7 +16,7 @@ from custom_models import LeadingLog, binned_spectrum_CeLL, res_components
 from helper import gen_theo_exp
 
 # Efficiency from flat e- at target (can be used for all "from target" processes
-EFFICIENCY_PATH = '../common/efficiency.pkl'
+EFFICIENCY_PATH = 'common/efficiency.pkl'
 
 # --- initiate advance CE ------#
 
@@ -28,18 +28,18 @@ lineshapes_in_CE_BASE = {
 
 #------------ For a simultaneous fit including resolution (res) and loss (loss) taken from flat e- samples ------------------#
 # Load the data required for the resolution/loss likelihood terms (for simultaneous fit)
-dict_flat = pkl.load(open('../common/skimmed_flat_mom_v2.pkl','rb'))
+dict_flat = pkl.load(open('common/skimmed_flat_mom_v2.pkl','rb'))
 
 # Pass the tuple (gen, mc) to simul_source so get_nll() can unpack it
 flat_res = res_components(
-    params = '../common/fitpars_flat_res_entrance_gcb.pkl', 
+    params = 'common/fitpars_flat_res_entrance_gcb.pkl', 
     res_type = 'res', 
     pdf = 'gcb',
     simul_source = (dict_flat['entrance']['gen'], dict_flat['entrance']['mc'])
 )
 
 flat_loss = res_components(
-    params = '../common/fitpars_flat_loss_entrance_landau_unbinned.pkl',
+    params = 'common/fitpars_flat_loss_entrance_landau_unbinned.pkl',
     res_type = 'loss', 
     pdf = 'landau',
     simul_source = (dict_flat['entrance']['mc'], dict_flat['entrance']['reco'])
@@ -48,10 +48,10 @@ flat_loss = res_components(
 
 #------------ For a fixed input fit fit including resolution (res) and loss (loss) taken from flat e- samples ------------------#
 # No simul_source provided -> get_nll() will be skipped by fit_module
-flat_res_fixed  = res_components(params = '../common/fitpars_flat_res_entrance_gcb.pkl', 
+flat_res_fixed  = res_components(params = 'common/fitpars_flat_res_entrance_gcb.pkl', 
                            res_type = 'res',  pdf = 'gcb')
 flat_loss_fixed = res_components(
-    params = '../common/fitpars_flat_loss_entrance_landau_unbinned.pkl',
+    params = 'common/fitpars_flat_loss_entrance_landau_unbinned.pkl',
     res_type = 'loss', 
     pdf = 'landau')
     
