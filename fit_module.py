@@ -10,10 +10,11 @@ from typing import List, Tuple, Optional, Any
 from zfit.result import FitResult
 import traceback
 from pyutils.pylogger import Logger
+from config import GLOBAL_VERBOSITY
 import time
 
 # Module-level logger
-logger = Logger(print_prefix='[fit_module] ', verbosity=2)
+logger = Logger(print_prefix='[fit_module] ', verbosity=GLOBAL_VERBOSITY)
 
 from momentum_pdf_builder import poly58, MomPDFBuilder, TimePDFBuilder, MomTimePDFBuilder
 from data_prep import DataPreparationManager
@@ -21,7 +22,7 @@ from plot_module import plotmom_fit, plottime_fit, plot_variable, bin_by_bin_mom
 from physics_components import mom_components, time_components
 from uncertainty_loader import load_constraints_json, build_zfit_constraints_from_specs, load_templates_npz
 
-def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, minos=False, plot_NLL=False, plot_results=True, constraints_dir=None):
+def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi, plot_truth=False, verbose=0, minos=False, plot_NLL=False, plot_results=True, constraints_dir=None):
     """
     ----------
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
@@ -34,7 +35,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
         gives track catagory (corresponds to index in component list)
     fit_range_low, fit_range_hi : float, float
         min and max of fit range (args in the main function)
-    plot_cat: bool
+    plot_truth: bool
         show the MC truth processes on the histogram
     verbose : 1
         print progress statements and debug printouts
@@ -190,7 +191,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
 
 
       try:
-        plotmom_fit(mom_mag, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_cat)
+        plotmom_fit(mom_mag, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_truth)
         ts = int(time.time())
         fname = f"fit_mom_{ts}.png"
         try:
@@ -205,51 +206,8 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     # --- NLL Scan Plotting  ---
     if plot_NLL and plot_results:
       # performs optional scan to draw NLL plot:
-      best_nll = result.fmin
-      logger.log(f"Best fit nsig: {result.params[pars[0]]['value']:.2f}", 'info')
-      logger.log(f"Minimum NLL: {best_nll:.2f}", 'info')
-
-      scan_range = np.linspace(0,float(pars[0].value())+float(pars[0].value())*0.5, 41)
-      nll_values = []
-
-      logger.log('Starting NLL scan...', 'info')
-      # Loop over the scan range for the signal yield
-      for n in scan_range:
-          with pars[0].set_value(n):
-              pars[0].floating = False
-              
-              minimizer.minimize(loss )
-              nll_values.append(loss.value())  
-              pars[0].floating = True
-
-      logger.log('Scan complete', 'info')
-
-      # Find true number:
-      data_signal = ak.mask(mom_mag, count_particle_types == 168)
-      data_signal = np.array(ak.flatten(data_signal, axis=None))
-      
-      delta_nll = np.array(nll_values) - best_nll
-      fig, ax = plt.subplots()
-      ax.plot(scan_range, delta_nll)
-      #ax.plot([len(data_signal),len(data_signal)], [min(delta_nll),max(delta_nll)], 'k--')
-      true_signal = len(data_signal)
-      ax.axvline(true_signal, color='red', linestyle='--', label=f'True $N_{{sig}}$: {true_signal:.1f}')
-      ax.legend()
-      ax.text(true_signal + 5, 4, f'True $N_{{sig}} = {true_signal:.1f}$',
-                verticalalignment='top', horizontalalignment='left', color='red')
-
-      ax.set_xlabel('$N_{sig}$')
-      ax.set_ylabel('$-2\Delta \ln(L)$')
-      ax.set_title('NLL Scan for $N_{sig}$')
-      ax.grid(True)
-      ts = int(time.time())
-      fname_nll = f"fit_mom_nll_{ts}.png"
-      try:
-        plt.savefig(fname_nll)
-        logger.log(f"Saved NLL scan to {fname_nll}", "info")
-      except Exception as e:
-        logger.log(f"Failed to save NLL scan: {e}", "error")
-      plt.close()
+      from plot_module import plot_nll_scan
+      plot_nll_scan(pars, loss, minimizer, mom_mag, count_particle_types, result, fit_range, verbose=verbose)
 
     # produce bin-by-bin momentum confusion plot (true vs fitted fractions)
     if plot_results:
@@ -263,7 +221,7 @@ def Unbinned_fit_mom(mom_mag, track_cat, count_particle_types, fit_range_low, fi
     logger.log(f'Selected POI for return: {getattr(poi, "name", repr(poi))}', 'info')
     return result, poi, loss, aux_nlls, combine_pdf, constraints
 
-def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit_range_hi, plot_cat=False, verbose=0, plot_results=True):
+def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, plot_truth=False, verbose=0, plot_NLL=False, plot_results=True):
     """
     Configures and calls the unbinned maximum likelihood fit for time using zfit
 
@@ -273,7 +231,7 @@ def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit
         your data array post-processing
     fit_range_low, fit_range_hi : float, float
         min and max of fit range (args in the main function)
-    plot_cat: bool
+    plot_truth: bool
         show the MC truth processes on the histogram
     verbose : 1
         print progress statements and debug printouts
@@ -323,12 +281,19 @@ def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit
       logger.log('fit is valid', 'success')
     else:
       logger.log('fit is not valid', 'warning')
+    
+    # --- NLL Scan Plotting  ---
+    if plot_NLL and plot_results:
+      # performs optional scan to draw NLL plot:
+      from plot_module import plot_nll_scan
+      plot_nll_scan(pars, loss, minimizer, times, count_particle_types, result, fit_range, verbose=verbose)
+    
     # Plot after fit (optional)
     if plot_results:
       if verbose > 0:
         logger.log('Plotting time fit', 'info')
       try:
-        plottime_fit(times, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in time_components.keys()], True)
+        plottime_fit(times, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in time_components.keys()], plot_truth)
         ts = int(time.time())
         fname_t = f"fit_time_{ts}.png"
         try:
@@ -352,7 +317,7 @@ def Unbinned_fit_time(times, track_cat, count_particle_types, fit_range_low, fit
     logger.log(f'Selected POI for return (time fit): {getattr(poi, "name", repr(poi))}', 'info')
     return result, poi, loss, combine_pdf
 
-def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fit_range_mom, fit_range_time, plot_cat=False, verbose=0, plot_results=True, constraints_dir=None):
+def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom, fit_range_time, plot_truth=False, verbose=0, plot_NLL=False, plot_results=True, constraints_dir=None):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum and time using zfit
 
@@ -362,7 +327,7 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
         your data array post-processing
     fit_range_mom, fit_range_time : [float, float] [float, float]
         min and max of fit ranges for each dimension (args in the main function)
-    plot_cat: bool
+    plot_truth: bool
         show the MC truth processes on the histogram
     verbose : 1
         print progress statements and debug printouts
@@ -483,6 +448,13 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
       logger.log("2D fit is valid", 'success')
     else:
       logger.log("2D fit is not valid", 'info')
+    
+    # --- NLL Scan Plotting  ---
+    if plot_NLL and plot_results:
+      # performs optional scan to draw NLL plot:
+      from plot_module import plot_nll_scan
+      plot_nll_scan(pars, loss, minimizer, mom_mag, count_particle_types, result, fit_range_mom, verbose=verbose)
+    
     # Plot after fit (optional)
     if plot_results:
       if verbose > 0:
@@ -490,7 +462,7 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
 
       # plot time fit — pass the time-only PDFs (projection of 2D) and yields
       try:
-        plottime_fit(times, count_particle_types, fit_range_time, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_cat)
+        plottime_fit(times, count_particle_types, fit_range_time, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_truth)
         ts = int(time.time())
         fname_time_2d = f"fit_2d_time_{ts}.png"
         try:
@@ -504,7 +476,7 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, track_cat, count_particle_types, fi
 
       # plot mom fit using the 1D momentum sub-PDFs (projections)
       try:
-        plotmom_fit(mom_mag, count_particle_types, fit_range_mom, [(proc, mompdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_cat)
+        plotmom_fit(mom_mag, count_particle_types, fit_range_mom, [(proc, mompdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_truth)
         fname_mom_2d = f"fit_2d_mom_{ts}.png"
         try:
           plt.savefig(fname_mom_2d)

@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import zfit
 import tensorflow as tf
 from pyutils.pylogger import Logger
+from config import GLOBAL_VERBOSITY
 
 from typing import Tuple, Dict, Any, Optional
 import numpy as np
@@ -10,7 +11,7 @@ import awkward as ak
 
 import zfit
 
-logger = Logger(print_prefix='[control_region] ', verbosity=2)
+logger = Logger(print_prefix='[control_region] ', verbosity=GLOBAL_VERBOSITY)
 
 def _to_numpy_flat(arr: any) -> np.ndarray:
     if isinstance(arr, ak.Array) or hasattr(arr, 'layout'):
@@ -206,7 +207,7 @@ class ControlRegion:
 
         # optionally save and/or print parameters
         if print_params:
-            print('[ControlRegion.fit_cosmic] Fitted parameters:')
+            logger.log('Fitted parameters:', 'info')
             for k, v in params_out.items():
                 # try to extract hesse error
                 err = None
@@ -215,16 +216,16 @@ class ControlRegion:
                 except Exception:
                     err = None
                 if isinstance(err, dict) and 'error' in err:
-                    print(f'  {k}: {v} ± {err["error"]}')
+                    logger.log(f'  {k}: {v} ± {err["error"]}', 'debug')
                 else:
-                    print(f'  {k}: {v}')
+                    logger.log(f'  {k}: {v}', 'debug')
 
         if save_plot is not None and out.get('figure', None) is not None:
             try:
                 out['figure'].savefig(save_plot)
-                print(f'[ControlRegion.fit_cosmic] Saved fit figure to {save_plot}')
+                logger.log(f'Saved fit figure to {save_plot}', 'info')
             except Exception as e:
-                print(f'[ControlRegion.fit_cosmic] Failed to save figure: {e}')
+                logger.log(f'Failed to save figure: {e}', 'error')
 
         return out
 
@@ -307,20 +308,20 @@ class ControlRegion:
             out['figure'] = fig
 
         if print_params:
-            print('[ControlRegion.fit_rpc] Fitted parameters:')
+            logger.log('Fitted parameters:', 'info')
             try:
-                print(f"  mean: {out['mean']} ± {out.get('mean_err', 'N/A')}")
-                print(f"  sigma: {out['sigma']} ± {out.get('sigma_err', 'N/A')}")
-                print(f"  norm: {out['norm']}")
+                logger.log(f"  mean: {out['mean']} ± {out.get('mean_err', 'N/A')}", 'debug')
+                logger.log(f"  sigma: {out['sigma']} ± {out.get('sigma_err', 'N/A')}", 'debug')
+                logger.log(f"  norm: {out['norm']}", 'debug')
             except Exception:
-                print('  (unable to format parameters)')
+                logger.log('  (unable to format parameters)', 'warning')
 
         if save_plot is not None and out.get('figure', None) is not None:
             try:
                 out['figure'].savefig(save_plot)
-                print(f'[ControlRegion.fit_rpc] Saved fit figure to {save_plot}')
+                logger.log(f'Saved fit figure to {save_plot}', 'info')
             except Exception as e:
-                print(f'[ControlRegion.fit_rpc] Failed to save figure: {e}')
+                logger.log(f'Failed to save figure: {e}', 'error')
 
         return out
 

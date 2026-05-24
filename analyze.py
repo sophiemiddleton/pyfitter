@@ -3,6 +3,7 @@ from pyutils.pyselect import Select
 from pyutils.pylogger import Logger
 from pyutils.pyvector import Vector
 from pyutils.pycut import CutManager
+from config import GLOBAL_VERBOSITY
 import matplotlib.pyplot as plt
 
 class Analyze:
@@ -289,7 +290,7 @@ class Analyze:
 
             #16. pz/pt cut: compute pz/pt robustly using pyutils.Vector
             try:
-                vec = Vector(verbosity=0)
+                vec = Vector(verbosity=self.verbosity)
                 # restrict to tracker-front segments for vector creation
                 trkfit_ent = ak.mask(data['trkfit']["trksegs"], at_trk_front)
                 vec3 = vec.get_vector(trkfit_ent, 'mom')
@@ -339,7 +340,7 @@ class Analyze:
 
 
             # 15. momentum selection
-            vector = Vector()
+            vector = Vector(verbosity=self.verbosity)
             trkfit_ent = ak.mask(data['trkfit']["trksegs"], at_trk_front)
             mom_mag = vector.get_mag(trkfit_ent, 'mom')
             in_mom_range = ((self.mom_lo < mom_mag) & (mom_mag < self.mom_hi))
@@ -362,7 +363,7 @@ class Analyze:
                 try:
                     self.logger.log(f"Cut '{cname}': active={cinfo['active']}", "info")
                 except Exception:
-                    print(f"Cut '{cname}': active={cinfo.get('active', 'UNKNOWN')}")
+                    self.logger.log(f"Cut '{cname}': active={cinfo.get('active', 'UNKNOWN')}", 'debug')
 
             self.logger.log("All cuts defined", "success")
 
@@ -451,16 +452,9 @@ class Analyze:
             self.define_cuts(data, cut_manager)
 
             # Set activate cuts
-            if inactive_cuts:
-                # If inactive_cuts is a list, convert to dict
-                if isinstance(inactive_cuts, list):
-                    cut_dict = {name: False for name in inactive_cuts}
-                elif isinstance(inactive_cuts, dict):
-                    cut_dict = {name: False for name in inactive_cuts}
-                else:
-                    cut_dict = {inactive_cuts: False}
-                cut_manager.toggle_cut(cut_dict)
-            
+            if inactive_cuts: 
+                cut_manager.toggle_cut(inactive_cuts, active=False)
+    
             # Calculate cut stats
             self.logger.log("Getting cut stats", "max")
             cut_stats = cut_manager.create_cut_flow(data)
@@ -469,7 +463,7 @@ class Analyze:
             data["CE_like"] = cut_manager.combine_cuts(active_only=True)
             # Apply cuts
             data_CE = self.apply_cuts(data, cut_manager) # Just CE-like tracks 
-                  
+            
             # Compile all results
             self.logger.log("Analysis completed", "success")
 
@@ -479,17 +473,8 @@ class Analyze:
                 "filtered_data": data_CE
             }
 
-            stats = self.get_stats_list(result)
-
-            combined_stats = cut_manager.combine_cut_flows(stats)
-            # Print per-file combined cut stats to terminal (do not write CSV here)
-            try:
-                cut_manager.print_cut_stats(stats=combined_stats, active_only=True, csv_name=None)
-            except Exception:
-                self.logger.log('Failed to print per-file combined cut stats', 'error')
-            
             return result
-            
+    
         except Exception as e:
             self.logger.log(f"Error during analysis execution: {e}", "error")  
             return None, None

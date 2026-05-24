@@ -7,6 +7,7 @@ import zfit
 import tensorflow as tf
 import pickle as pkl
 from pyutils.pylogger import Logger
+from config import GLOBAL_VERBOSITY
 
 
 # ============================================================================
@@ -214,10 +215,7 @@ def binned_spectrum_CeLL(binwidth: float = 0.1):
 # ============================================================================
 
 # Module-level logger
-try:
-    logger = Logger(print_prefix='[custom_models] ', verbosity=2)
-except Exception:
-    logger = None
+logger = Logger(print_prefix='[custom_models] ', verbosity=GLOBAL_VERBOSITY)
 
 
 class res_components:
@@ -252,10 +250,7 @@ class res_components:
                     self.fitpars[f"loc{ip}_{res_type}"]   = zfit.Parameter(f"loc{ip}_{res_type}",   0.0, -5.0, 5.0)
                     self.fitpars[f"scale{ip}_{res_type}"] = zfit.Parameter(f"scale{ip}_{res_type}", 1.0,  0.0, 5.0)
                 else:
-                    if logger:
-                        logger.log("res_components only supports gcb or landau pdfs", 'error')
-                    else:
-                        print("ERROR: res_components only supports gcb or landau pdfs. Exiting...")
+                    logger.log("res_components only supports gcb or landau pdfs", 'error')
                     exit()
         else:
             if isinstance(params,str):

@@ -7,15 +7,13 @@ import matplotlib.ticker as ticker
 from physics_components import mom_components, time_components
 from pyutils.pylogger import Logger
 from data_prep import DataPreparationManager
+from config import GLOBAL_VERBOSITY
 
 # Module logger
-try:
-  logger = Logger(print_prefix='[plot_module] ', verbosity=2)
-except Exception:
-  logger = None
+logger = Logger(print_prefix='[plot_module] ', verbosity=GLOBAL_VERBOSITY)
 
 
-def _get_leg_handles_labels(ax):
+def get_leg_handles_labels(ax):
   try:
     handles, labels = ax.get_legend_handles_labels()
     # filter out empty or matplotlib-internal labels
@@ -47,7 +45,7 @@ def plot_variable(val_overlay, val_label, filenames, lo, hi, cut_lo, cut_hi, mc_
   Plots distributions of the given parameter (val), splitting by process code.
 
   try:
-      handles, labels = _get_leg_handles_labels(ax1)
+      handles, labels = get_leg_handles_labels(ax1)
     ncol = max(1, min(4, (len(labels) + 1) // 2))
     if labels:
       fig.subplots_adjust(right=0.68)
@@ -101,7 +99,7 @@ def plot_variable(val_overlay, val_label, filenames, lo, hi, cut_lo, cut_hi, mc_
     fig = plt.gcf()
     ncol = max(1, min(6, len(columns)))
     fig.subplots_adjust(top=0.80)
-    handles, labels = _get_leg_handles_labels(plt.gca())
+    handles, labels = get_leg_handles_labels(plt.gca())
     if labels:
       # reserve space on right for legend and place legend inside reserved margin
       fig.subplots_adjust(right=0.66)
@@ -119,7 +117,7 @@ def plot_variable(val_overlay, val_label, filenames, lo, hi, cut_lo, cut_hi, mc_
   plt.savefig(str(filenames)+"_selection.pdf", bbox_inches='tight')
   plt.close()
 
-def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
+def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None):
     """
     Configures and draws the 1D histogram of momentum, with the combined fit and residuals plot underneath
 
@@ -134,7 +132,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
         min and max of fit ranges for each dimension (args in the main function)
     list_pdfs: (proc,pdfs[proc],norms[proc])
         process, pdf and normalization associated with that process (one per physics process)
-    cat: bool
+    plot_truth : bool
         show the MC truth processes on the histogram
 
     """
@@ -149,14 +147,11 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
 
     fig, (ax1, ax2) = plt.subplots(2,1, height_ratios=[3,1])
     
-    # run catagorization and plot
-    if cat is None:
-      if logger:
-        logger.log('cat option is None; will not include MC truth', 'info')
-      else:
-        print("[py-fitter/plot_module/plotmom_fit] ❌ cat option is {cat}, will not include MC truth")
+    # run categorization and plot
+    if plot_truth is None:
+      logger.log('plot_truth option is None; will not include MC truth', 'info')
     
-    if cat is not None:
+    if plot_truth is not None:
       mom_mag = ak.drop_none(mom_mag)
       # use fit_range bounds for selection instead of hard-coded values
       lo, hi = float(fit_range[0]), float(fit_range[1])
@@ -203,7 +198,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
         
       """
       for iproc, proc in enumerate(mom_components.keys()):
-          print(iproc, proc.ljust(10)+':', len(sets[iproc+1]))
+          logger.log(f'{iproc} {proc.ljust(10)}: {len(sets[iproc+1])}', 'debug')
       """
       if logger:
         logger.log('======= True Events in Fit Range =======', 'info')
@@ -213,14 +208,6 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
         logger.log(f'N IPA {len(data_ipa)}', 'info')
         logger.log(f'N DIO {len(data_dio)}', 'info')
         logger.log(f'N CELL {len(data_signal)}', 'info')
-      else:
-        print("======= True Events in Fit Range =======")
-        print("N Cosmics", len(data_cosmics))
-        print("N iRPC", len(data_irpc))
-        print("N eRPC", len(data_erpc))
-        print("N IPA", len(data_ipa))
-        print("N DIO", len(data_dio))
-        print("N CELL", len(data_signal))
     else:
         ax1.hist(data, color='black', bins=n_bins, range=fit_range, histtype='step')
     dummy_handle3 = ax1.plot([], marker="+",color='black', label="Mock Data")
@@ -265,7 +252,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
     try:
       from matplotlib.lines import Line2D
       from matplotlib.patches import Patch
-      handles0, labels0 = _get_leg_handles_labels(ax1)
+      handles0, labels0 = get_leg_handles_labels(ax1)
      
       proxy_handles = []
       proxy_labels = []
@@ -323,10 +310,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
         err.append(0)
         dev.append(0)
     if len(data_hist) == 0:
-       if logger:
-         logger.log('histogram empty', 'info')
-       else:
-         print('[py-fitter/plot_module/plotmom_fit] ⚠️ WARNING! histogram empty')
+       logger.log('histogram empty', 'warning')
 
     ax2.errorbar(mom_plot, dev , yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3)
     # add horizontal line at zero for residuals
@@ -344,14 +328,11 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, cat=None):
     try:
       plot_yield_comparison(mom_mag, mc_count, list_pdfs, filename_prefix='yield_compare_mom')
     except Exception:
-      if logger:
-        logger.log('yield comparison (mom) failed', 'info')
-      else:
-        print('yield comparison (mom) failed')
+      logger.log('yield comparison (mom) failed', 'warning')
     # note: plot_yield_comparison belongs with momentum and time plotting callers
     
 
-def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
+def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None):
     """
     Configures and draws the 1D histogram of time, with the combined fit and residuals plot underneath
 
@@ -366,7 +347,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
         min and max of fit ranges for each dimension (args in the main function)
     list_pdfs: (proc,pdfs[proc],norms[proc])
         process, pdf and normalization associated with that process (one per physics process)
-    cat: bool
+    plot_truth : bool
         show the MC truth processes on the histogram
 
     """
@@ -381,18 +362,12 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
 
     fig, (ax1, ax2) = plt.subplots(2,1, height_ratios=[3,1])
     
-    # run catagorization and plot
-    if logger:
-      logger.log(f'Cat {cat}', 'max')
-    else:
-        print("Cat",cat)
-    if cat is None:
-      if logger:
-        logger.log('cat option is None; will not include MC truth', 'info')
-      else:
-        print("[py-fitter/plot_module/plottime_fit] ❌ cat option is {cat}, will not include MC truth")
+    # run categorization and plot
+    logger.log(f'Plot_truth {plot_truth}', 'debug')
+    if plot_truth is None:
+      logger.log('plot_truth option is None; will not include MC truth', 'info')
     
-    if cat is not None:
+    if plot_truth is not None:
         # Align mc_count and time explicitly. Prefer keeping awkward arrays with matching per-event counts.
         try:
           # compute per-event counts for time and mc_count (if mc_count is awkward)
@@ -416,10 +391,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
               time = time_flat
             else:
               if mc_arr.size == 1 and time_flat.size > 0:
-                if logger:
-                  logger.log(f'mc_count length 1; broadcasting value {mc_arr[0]} to length {len(time_flat)}', 'info')
-                else:
-                  print(f'[plot_module] mc_count length 1; broadcasting value {mc_arr[0]} to length {len(time_flat)}')
+                logger.log(f'mc_count length 1; broadcasting value {mc_arr[0]} to length {len(time_flat)}', 'info')
                 mc_count = np.full(len(time_flat), mc_arr[0], dtype=mc_arr.dtype)
                 time = time_flat
               else:
@@ -427,10 +399,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
                   f'plot_module.plottime_fit: mc_count/time length mismatch ({len(mc_arr)} vs {len(time_flat)}). '
                   'Do not silently truncate — provide track-aligned `mc_count` (one entry per flattened time) or adjust selection.'
                 )
-                if logger:
-                  logger.log(msg, 'error')
-                else:
-                  print(msg)
+                logger.log(msg, 'error')
                 raise ValueError(msg)
         except Exception:
           # If mc_count is not awkward or counts computation failed, fallback to flattened logic
@@ -445,10 +414,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
             time = time_flat
           else:
             if mc_arr.size == 1 and time_flat.size > 0:
-              if logger:
-                logger.log(f'mc_count length 1; broadcasting value {mc_arr[0]} to length {len(time_flat)}', 'info')
-              else:
-                print(f'[plot_module] mc_count length 1; broadcasting value {mc_arr[0]} to length {len(time_flat)}')
+              logger.log(f'mc_count length 1; broadcasting value {mc_arr[0]} to length {len(time_flat)}', 'info')
               mc_count = np.full(len(time_flat), mc_arr[0], dtype=mc_arr.dtype)
               time = time_flat
             else:
@@ -456,17 +422,11 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
                 f'plot_module.plottime_fit: mc_count/time length mismatch ({len(mc_arr)} vs {len(time_flat)}). '
                 'Do not silently truncate — provide track-aligned `mc_count` (one entry per flattened time) or adjust selection.'
               )
-              if logger:
-                logger.log(msg, 'error')
-              else:
-                print(msg)
+              logger.log(msg, 'error')
               raise ValueError(msg)
     if cat is not None:
         time = ak.drop_none(time)
-        if logger:
-          logger.log('filling list', 'max')
-        else:
-          print("filling list")
+        logger.log('filling list', 'debug')
         # use fit_range bounds for time selection
         lo, hi = float(fit_range[0]), float(fit_range[1])
         data_signal = ak.mask(time, mc_count == 168)
@@ -513,10 +473,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
             datasets_filled.append(dat)
             colors_filled.append(colors[i])
             labels_filled.append(labs_true[i])
-          if logger:
-            logger.log(f'len(colors_filled)={len(colors_filled)}', 'max')
-          else:
-            print(len(colors_filled))
+          logger.log(f'len(colors_filled)={len(colors_filled)}', 'debug')
         dummy_handle1 = ax1.plot([], marker="",color='white', label="Reco. MC")
 
         n,bins,patch = ax1.hist(datasets_filled,range=(fit_range[0],fit_range[1]), color=colors_filled, label=labels_filled, bins=25, edgecolor='black', linewidth=0.8,histtype="bar", stacked=True)
@@ -524,7 +481,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
         
         """
         for iproc, proc in enumerate(mom_components.keys()):
-            print(iproc, proc.ljust(10)+':', len(sets[iproc+1]))
+            logger.log(f'{iproc} {proc.ljust(10)}: {len(sets[iproc+1])}', 'debug')
         """
         if logger:
           logger.log('======= True Events in Fit Range =======', 'info')
@@ -534,14 +491,6 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
           logger.log(f'N IPA {len(data_ipa)}', 'info')
           logger.log(f'N DIO {len(data_dio)}', 'info')
           logger.log(f'N CELL {len(data_signal)}', 'info')
-        else:
-          print("======= True Events in Fit Range =======")
-          print("N Cosmics", len(data_cosmics))
-          print("N iRPC", len(data_irpc))
-          print("N eRPC", len(data_erpc))
-          print("N IPA", len(data_ipa))
-          print("N DIO", len(data_dio))
-          print("N CELL", len(data_signal))
     else:
         ax1.hist(data, color='black', bins=n_bins, range=fit_range, histtype='step')
     dummy_handle3 = ax1.plot([], marker="+",color='black', label="Mock Data")
@@ -659,7 +608,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
         err.append(0)
         dev.append(0)
     if len(data_hist) == 0:
-       print('[py-fitter/plot_module/plottime_fit] ⚠️ WARNING! histogram empty')
+       logger.log('histogram empty', 'warning')
 
     ax2.errorbar(time_plot, dev , yerr=err, color='None', marker='+', markerfacecolor='black', ecolor='black', capsize=3)
     # add horizontal line at zero for residuals
@@ -677,10 +626,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, cat=None):
     try:
       plot_yield_comparison(mom_mag, mc_count, list_pdfs, filename_prefix='yield_compare_mom')
     except Exception:
-      if logger:
-        logger.log('yield comparison (mom) failed', 'info')
-      else:
-        print('yield comparison (mom) failed')
+      logger.log('yield comparison (mom) failed', 'warning')
     # note: plot_yield_comparison belongs with momentum and time plotting callers
 
 
@@ -744,6 +690,12 @@ def plot_yield_comparison(data, mc_count, list_pdfs, filename_prefix='yield_comp
                 codes = []
         expected.append(_count_for_codes(data, mc_count, codes))
 
+    # Always print yield comparison
+    print("================== Fitted vs True Yields =======================")
+    for p, f, e in zip(procs, fitted, expected):
+        print(f"  {p:12s}:  Fitted={f:8.1f}  True={e:8d}")
+    print("="*60)
+
     # plot side-by-side bars
     x = np.arange(len(procs))
     width = 0.35
@@ -757,7 +709,7 @@ def plot_yield_comparison(data, mc_count, list_pdfs, filename_prefix='yield_comp
     ax.set_xticks(x)
     ax.set_xticklabels(procs, rotation=45, ha='right')
     try:
-      handles, labels = _get_leg_handles_labels(ax)
+      handles, labels = get_leg_handles_labels(ax)
       ncol = max(1, min(4, (len(labels) + 1) // 2))
       if labels:
         fig.subplots_adjust(right=0.66)
@@ -790,15 +742,9 @@ def plot_yield_comparison(data, mc_count, list_pdfs, filename_prefix='yield_comp
     try:
         plt.tight_layout()
         plt.savefig(fname)
-        if logger:
-            logger.log(f"Saved yield comparison to {fname}", 'info')
-        else:
-            print(f"Saved yield comparison to {fname}")
+        logger.log(f"Saved yield comparison to {fname}", 'info')
     except Exception as e:
-        if logger:
-            logger.log(f"Failed to save yield comparison: {e}", 'error')
-        else:
-            print(f"Failed to save yield comparison: {e}")
+        logger.log(f"Failed to save yield comparison: {e}", 'error')
     plt.close(fig)
 
 
@@ -843,10 +789,7 @@ def bin_by_bin_mom_confusion(mom_mag, mc_count, list_pdfs, fit_range, bin_width=
     # align lengths by trimming the longer array to preserve per-event pairing
     if len(mc_arr) != len(mom_flat):
       nmin = min(len(mc_arr), len(mom_flat))
-      if logger:
-        logger.log(f'mc_count/mom_mag length mismatch in bin_by_bin_mom_confusion ({len(mc_arr)} vs {len(mom_flat)}); trimming to {nmin}', 'info')
-      else:
-        print(f'[plot_module] mc_count/mom_mag length mismatch in bin_by_bin_mom_confusion ({len(mc_arr)} vs {len(mom_flat)}); trimming to {nmin}')
+      logger.log(f'mc_count/mom_mag length mismatch in bin_by_bin_mom_confusion ({len(mc_arr)} vs {len(mom_flat)}); trimming to {nmin}', 'info')
       mc_arr = mc_arr[:nmin]
       mom_flat = mom_flat[:nmin]
 
@@ -931,7 +874,7 @@ def bin_by_bin_mom_confusion(mom_mag, mc_count, list_pdfs, fit_range, bin_width=
     ax.set_title('Bin-by-bin true vs fitted relative yields (momentum)')
     ax.set_ylim(0.0, ymax)
     try:
-      handles0, labels0 = _get_leg_handles_labels(ax)
+      handles0, labels0 = get_leg_handles_labels(ax)
 
       ncol = 1
       if labels0:
@@ -948,37 +891,31 @@ def bin_by_bin_mom_confusion(mom_mag, mc_count, list_pdfs, fit_range, bin_width=
     try:
       plt.tight_layout()
       plt.savefig(fname)
-      if logger:
-        logger.log(f'Saved momentum confusion plot to {fname}', 'info')
-      else:
-        print(f'Saved momentum confusion plot to {fname}')
+      logger.log(f'Saved momentum confusion plot to {fname}', 'info')
     except Exception as e:
-      if logger:
-        logger.log(f'Failed to save momentum confusion plot: {e}', 'error')
-      else:
-        print(f'Failed to save momentum confusion plot: {e}')
+      logger.log(f'Failed to save momentum confusion plot: {e}', 'error')
     plt.close(fig)
     # Print summary totals to terminal for quick inspection
-    print('\nMomentum bin-by-bin confusion summary:')
+    logger.log('Momentum bin-by-bin confusion summary:', 'info')
     for p in procs:
       ttrue = int(np.nan_to_num(totals_true[p], nan=0.0))
       tfit = int(np.nan_to_num(np.round(totals_fit[p]), nan=0.0))
-      print(f"  {p}: true N = {ttrue}, fitted N = {tfit}")
+      logger.log(f"  {p}: true N = {ttrue}, fitted N = {tfit}", 'info')
 
     # Print per-bin arrays for each process: true counts, fitted counts, and relative fractions
     try:
-      print('\nBin centers (MeV):')
-      print(np.array2string(centers, precision=2, separator=', '))
+      logger.log('Bin centers (MeV):', 'debug')
+      logger.log(np.array2string(centers, precision=2, separator=', '), 'debug')
       for p in procs:
         tcounts = np.nan_to_num(true_counts[p], nan=0.0)
         fcounts = np.nan_to_num(fitted_counts[p], nan=0.0)
         tfr = np.nan_to_num(true_frac[procs.index(p)], nan=0.0)
         ffr = np.nan_to_num(fit_frac[procs.index(p)], nan=0.0)
-        print(f"\nProcess {p}:")
-        print('  True counts per bin:   ', np.array2string(tcounts, precision=3, separator=', '))
-        print('  Fitted counts per bin: ', np.array2string(fcounts, precision=3, separator=', '))
-        print('  True frac per bin:     ', np.array2string(tfr, precision=3, separator=', '))
-        print('  Fit frac per bin:      ', np.array2string(ffr, precision=3, separator=', '))
+        logger.log(f"Process {p}:", 'debug')
+        logger.log('  True counts per bin:   ' + np.array2string(tcounts, precision=3, separator=', '), 'debug')
+        logger.log('  Fitted counts per bin: ' + np.array2string(fcounts, precision=3, separator=', '), 'debug')
+        logger.log('  True frac per bin:     ' + np.array2string(tfr, precision=3, separator=', '), 'debug')
+        logger.log('  Fit frac per bin:      ' + np.array2string(ffr, precision=3, separator=', '), 'debug')
     except Exception:
       pass
 
@@ -1025,10 +962,7 @@ def bin_by_bin_time_confusion(time_arr, mc_count, list_pdfs, fit_range, bin_widt
     # align lengths by trimming the longer array to preserve per-event pairing
     if len(mc_arr) != len(time_flat):
         nmin = min(len(mc_arr), len(time_flat))
-        if logger:
-            logger.log(f'mc_count/time length mismatch in bin_by_bin_time_confusion ({len(mc_arr)} vs {len(time_flat)}); trimming to {nmin}', 'info')
-        else:
-            print(f'[plot_module] mc_count/time length mismatch in bin_by_bin_time_confusion ({len(mc_arr)} vs {len(time_flat)}); trimming to {nmin}')
+        logger.log(f'mc_count/time length mismatch in bin_by_bin_time_confusion ({len(mc_arr)} vs {len(time_flat)}); trimming to {nmin}', 'info')
         mc_arr = mc_arr[:nmin]
         time_flat = time_flat[:nmin]
 
@@ -1105,7 +1039,7 @@ def bin_by_bin_time_confusion(time_arr, mc_count, list_pdfs, fit_range, bin_widt
     ax.set_title('Bin-by-bin true vs fitted relative yields (time)')
     ax.set_ylim(0.0, ymax)
     try:
-      handles0, labels0 = _get_leg_handles_labels(ax)
+      handles0, labels0 = get_leg_handles_labels(ax)
       ncol = 1
       if labels0:
         fig.subplots_adjust(right=0.66)
@@ -1120,37 +1054,103 @@ def bin_by_bin_time_confusion(time_arr, mc_count, list_pdfs, fit_range, bin_widt
     try:
       plt.tight_layout()
       plt.savefig(fname)
-      if logger:
-        logger.log(f'Saved time confusion plot to {fname}', 'info')
-      else:
-        print(f'Saved time confusion plot to {fname}')
+      logger.log(f'Saved time confusion plot to {fname}', 'info')
     except Exception as e:
-      if logger:
-        logger.log(f'Failed to save time confusion plot: {e}', 'error')
-      else:
-        print(f'Failed to save time confusion plot: {e}')
+      logger.log(f'Failed to save time confusion plot: {e}', 'error')
     plt.close(fig)
 
-    print('\nTime bin-by-bin confusion summary:')
+    logger.log('Time bin-by-bin confusion summary:', 'info')
     for p in procs:
       ttrue = int(np.nan_to_num(totals_true[p], nan=0.0))
       tfit = int(np.nan_to_num(np.round(totals_fit[p]), nan=0.0))
-      print(f"  {p}: true N = {ttrue}, fitted N = {tfit}")
+      logger.log(f"  {p}: true N = {ttrue}, fitted N = {tfit}", 'info')
 
     try:
-      print('\nBin centers (ns):')
-      print(np.array2string(centers, precision=2, separator=', '))
+      logger.log('Bin centers (ns):', 'debug')
+      logger.log(np.array2string(centers, precision=2, separator=', '), 'debug')
       for p in procs:
         tcounts = np.nan_to_num(true_counts[p], nan=0.0)
         fcounts = np.nan_to_num(fitted_counts[p], nan=0.0)
         tfr = np.nan_to_num(true_frac[procs.index(p)], nan=0.0)
         ffr = np.nan_to_num(fit_frac[procs.index(p)], nan=0.0)
-        print(f"\nProcess {p}:")
-        print('  True counts per bin:   ', np.array2string(tcounts, precision=3, separator=', '))
-        print('  Fitted counts per bin: ', np.array2string(fcounts, precision=3, separator=', '))
-        print('  True frac per bin:     ', np.array2string(tfr, precision=3, separator=', '))
-        print('  Fit frac per bin:      ', np.array2string(ffr, precision=3, separator=', '))
+        logger.log(f"Process {p}:", 'debug')
+        logger.log('  True counts per bin:   ' + np.array2string(tcounts, precision=3, separator=', '), 'debug')
+        logger.log('  Fitted counts per bin: ' + np.array2string(fcounts, precision=3, separator=', '), 'debug')
+        logger.log('  True frac per bin:     ' + np.array2string(tfr, precision=3, separator=', '), 'debug')
+        logger.log('  Fit frac per bin:      ' + np.array2string(ffr, precision=3, separator=', '), 'debug')
     except Exception:
       pass
 
     return {'bins': centers, 'true_counts': true_counts, 'fitted_counts': fitted_counts, 'true_frac': true_frac, 'fit_frac': fit_frac, 'totals_true': totals_true, 'totals_fit': totals_fit}
+
+def plot_nll_scan(pars, loss, minimizer, mom_mag, count_particle_types, result, fit_range, verbose=0):
+    """
+    Perform and plot an NLL scan over signal yield range.
+
+    Parameters
+    ----------
+    pars : list
+        List of fit parameters (first one assumed to be signal yield)
+    loss : zfit loss
+        Loss function for minimization
+    minimizer : zfit minimizer
+        Minimizer object to use
+    mom_mag : awkward array
+        Momentum magnitude data
+    count_particle_types : awkward array
+        Particle type codes for filtering signal
+    result : zfit result
+        Fit result containing best-fit value
+    fit_range : tuple
+        (low, high) bounds for fit range
+    verbose : int, optional
+        Verbosity level (default: 0)
+    """
+    import time as _time
+
+    if verbose > 0:
+        logger.log('Starting NLL scan...', 'info')
+    
+    best_nll = result.fmin
+    logger.log(f"Best fit nsig: {result.params[pars[0]]['value']:.2f}", 'info')
+    logger.log(f"Minimum NLL: {best_nll:.2f}", 'info')
+
+    scan_range = np.linspace(0, float(pars[0].value()) + float(pars[0].value())*0.5, 41)
+    nll_values = []
+
+    # Loop over the scan range for the signal yield
+    for n in scan_range:
+        with pars[0].set_value(n):
+            pars[0].floating = False
+            
+            minimizer.minimize(loss)
+            nll_values.append(loss.value())  
+            pars[0].floating = True
+
+    logger.log('Scan complete', 'info')
+
+    # Find true number:
+    data_signal = ak.mask(mom_mag, count_particle_types == 168)
+    data_signal = np.array(ak.flatten(data_signal, axis=None))
+    
+    delta_nll = np.array(nll_values) - best_nll
+    fig, ax = plt.subplots()
+    ax.plot(scan_range, delta_nll)
+    true_signal = len(data_signal)
+    ax.axvline(true_signal, color='red', linestyle='--', label=f'True $N_{{sig}}$: {true_signal:.1f}')
+    ax.legend()
+    ax.text(true_signal + 5, 4, f'True $N_{{sig}} = {true_signal:.1f}$',
+            verticalalignment='top', horizontalalignment='left', color='red')
+
+    ax.set_xlabel('$N_{sig}$')
+    ax.set_ylabel(r'$-2\Delta \ln(L)$')
+    ax.set_title('NLL Scan for $N_{sig}$')
+    ax.grid(True)
+    ts = int(_time.time())
+    fname_nll = f"fit_mom_nll_{ts}.png"
+    try:
+        plt.savefig(fname_nll)
+        logger.log(f"Saved NLL scan to {fname_nll}", "info")
+    except Exception as e:
+        logger.log(f"Failed to save NLL scan: {e}", "error")
+    plt.close()

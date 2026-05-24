@@ -14,9 +14,10 @@ from control_region import ControlRegion
 import pickle
 from pyutils.pylogger import Logger
 from pathlib import Path
+from config import GLOBAL_VERBOSITY
 
 # Module-level logger
-module_logger = Logger(print_prefix='[process] ', verbosity=2)
+module_logger = Logger(print_prefix='[process] ', verbosity=GLOBAL_VERBOSITY)
 
 
 from fit_module import *
@@ -42,8 +43,6 @@ class AnaProcessor(Skeleton):
         
         This method sets up all the parameters needed for this specific analysis.
         """
-        # Call the parent class's __init__ method first
-        # This ensures we have all the base functionality properly set up
         super().__init__()
 
         # Now override parameters from the Skeleton with the ones we need
@@ -90,7 +89,7 @@ class AnaProcessor(Skeleton):
           self.use_remote = False
         self.location = str(location)     # File location
         self.max_workers = jobs      # Limit the number of workers
-        self.verbosity = 2         # Set verbosity 
+        self.verbosity = GLOBAL_VERBOSITY         # Set verbosity from global config
         self.use_processes = True  # Use processes rather than threads
         
         cuts_list = cuts if cuts is not None else []
@@ -184,13 +183,13 @@ def combine_cut_flows( cut_flow_list, csv_basename: str = None):
                 cut["relative_frac"] = (events / prev_events) * 100.0 if prev_events > 0 else 0.0
 
 
-    cut_manager = CutManager(verbosity=2)
-    module_logger.log("================== Total Cut Flow =======================", "info")
+    cut_manager = CutManager(verbosity=GLOBAL_VERBOSITY)
+    print("================== Total Cut Flow =======================")
     try:
         df = cut_manager.format_cut_flow(combined_cut_flow)
         print(df)
     except Exception as e_print:
-        module_logger.log(f'[combine_cut_flows] Failed to print combined cut flow: {e_print}', 'error')
+        module_logger.log(f'[combine_cut_flows] Failed to format cut flow: {e_print}', 'error')
 
     csv_name = "cut_stats.csv" if not csv_basename else f"{csv_basename}.csv"
     try:
@@ -227,7 +226,7 @@ def combine_arrays(results):
     return ak.concatenate(arrays_to_combine)
 
 
-def _save_fit_npz(basename, fitresult, par=None, loss=None, nlls=None, extra=None):
+def save_fit_npz(basename, fitresult, par=None, loss=None, nlls=None, extra=None):
     """Save a compact NPZ summary of a fit result for systematics studies.
 
     Produces <basename>_fit.npz containing:
@@ -305,7 +304,7 @@ def _save_fit_npz(basename, fitresult, par=None, loss=None, nlls=None, extra=Non
         module_logger.log(f'[process] Failed to write fit NPZ: {e}', 'error')
 
 
-def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
+def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt', #FIXME should use dataset definitions instead of hardcoding
                              out_prefix: str = 'offspill_control',
                              location: str = 'local',
                              cuts=None,
@@ -376,7 +375,7 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
             selector = Select()
             trk_front = selector.select_surface(combined['trkfit'], surface_name='TT_Front')
             trkfit_ent = ak.mask(combined['trkfit']["trksegs"], trk_front)
-            vector = Vector()
+            vector = Vector(verbosity=GLOBAL_VERBOSITY)
             mom_per_event = vector.get_mag(trkfit_ent, 'mom')
             mom_flat = ak.to_numpy(ak.flatten(mom_per_event, axis=None))
         except Exception as e_primary:
@@ -388,9 +387,9 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
             if mom_arr is not None:
                 mom_flat = ak.to_numpy(ak.flatten(mom_arr, axis=None))
             else:
-                # Fallback 2: Try Vector with direct access
+                # Fallback: Try Vector with direct access
                 try:
-                    _vec = Vector()
+                    _vec = Vector(verbosity=GLOBAL_VERBOSITY)
                     trkfit_ent = combined['trkfit']
                     mom_per_event = _vec.get_mag(trkfit_ent, 'mom')
                     mom_flat = ak.to_numpy(ak.flatten(mom_per_event, axis=None))
@@ -475,41 +474,7 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt',
 
 
     
-def categorize_tracks( data, mismatch=False):
-    array_tmp = ak.copy(data['trkmc'])
 
-    i_mask = (array_tmp['trkmcsim']['rank'] == 0) & (array_tmp['trkmcsim']['nhits'] > 0)
-    for branch in ak.fields(array_tmp):
-        for leaf in ak.fields(array_tmp[branch]):
-            if array_tmp[branch].layout.minmax_depth[1] > 2:
-                mask_vec = ak.broadcast_arrays(array_tmp[branch],i_mask,depth_limit=3)[1]
-                array_tmp[branch,leaf] = ak.mask(array_tmp[branch,leaf], mask_vec)
-            else:
-                array_tmp[branch,leaf] = ak.mask(array_tmp[branch,leaf], i_mask)
-
-    if mismatch:
-        pStartCode = ak.max(ak.flatten(array_tmp['trkmcsim']['startCode'],axis=2),axis=1,mask_identity=True)
-        pGenCode = ak.max(ak.flatten(array_tmp['trkmcsim']['gen'],axis=2),axis=1,mask_identity=True)
-
-    else:
-        pStartCode = ak.flatten(ak.drop_none(array_tmp['trkmcsim']['startCode']),axis=2,mask_identity=True)
-        pGenCode = ak.flatten(ak.drop_none(array_tmp['trkmcsim']['gen']),axis=2,mask_identity=True)
-    pStartCode = ak.fill_none(pStartCode,-1)
-    pGenCode = ak.fill_none(pGenCode,-1)
-  
-    categories = ak.zeros_like(pStartCode)
-    for icat, idict in enumerate(mom_components.values()):
-        startCodes = idict['startCode']
-        genCodes = idict['genCode']
-        goodCode = ak.zeros_like(pStartCode,dtype=bool)
-        for startCode in startCodes:
-            for genCode in genCodes:
-                goodStartCode = ak.ones_like(pStartCode,dtype=bool) if startCode is None else (pStartCode == startCode)
-                goodGenCode = ak.ones_like(pGenCode,dtype=bool) if genCode is None else (pGenCode == genCode)
-                goodCode = goodCode | (goodStartCode & goodGenCode)
-        
-        categories = categories + (icat+1) * (goodCode)
-    return categories
 
 def count_particle_types(data):
   """
@@ -539,7 +504,7 @@ def count_particle_types(data):
   # Use ak.firsts to safely get the first element or None if the list is empty
   proc_codes = ak.firsts(data['trkmc']['trkmcsim', 'startCode'], axis=1) 
   gen_codes = ak.firsts(data['trkmc']['trkmcsim', 'gen'], axis=1)
-  vector = Vector()
+  vector = Vector(verbosity=GLOBAL_VERBOSITY)
 
   #rhos = vector.get_rho(data['trkmc','trkmcsim'],'pos')
   vec = vector.get_vector(branch=data['trkmc','trkmcsim'],vector_name='pos')
@@ -670,7 +635,7 @@ def main(args):
     cut_names = [
         "is_reco_electron", #True
         "has_downstream",
-        "trkfront", 
+        "has_trk_front", 
         "good_trkqual",
         "good_trkpid",
         "within_t0",
@@ -729,13 +694,6 @@ def main(args):
 
     combine_cutflows = combine_cut_flows(cutlist, csv_basename=csv_base)
 
-    # Categorize tracks if requested
-    if int(args.cat) == 1:
-        track_cat = categorize_tracks(pre_fit, args.mismatch)  # just pre-fit here
-        track_cat = ak.broadcast_arrays(pre_fit['trkfit']['trksegs', 'time'], track_cat)[1]
-    else:
-        track_cat = []
-
     # Run mc_count
     mc_count = count_particle_types(pre_fit)
 
@@ -745,13 +703,7 @@ def main(args):
 
     trkfit_ent = ak.mask(pre_fit['trkfit']["trksegs"], trk_front)
 
-    if int(args.cat) == 1:
-        track_cat = ak.mask(track_cat, trk_front)
-        track_cat = ak.flatten(track_cat, axis=None)
-    else:
-        track_cat = []
-
-    vector = Vector()
+    vector = Vector(verbosity=GLOBAL_VERBOSITY)
     # make vector mag branch
     mom_mag = vector.get_mag(trkfit_ent, 'mom')
 
@@ -803,23 +755,47 @@ def main(args):
         n_time = 'missing'
     module_logger.log(f"mom entries: {n_mom}, time entries: {n_time}", "info")
 
+    # Save nominal momentum (and time) arrays for downstream sensitivity studies
+    try:
+        mom_flat = ak.to_numpy(ak.flatten(mom_mag, axis=None))
+        time_flat = ak.to_numpy(ak.flatten(time, axis=None))
+        
+        # Save to file for sensitivity scan
+        if csv_base:
+            npz_out = f"{csv_base}_mom_mag.npz"
+            tosave_sens = {'mom_mag': mom_flat}
+            if len(time_flat) > 0 and len(time_flat) == len(mom_flat):
+                tosave_sens['time'] = time_flat
+            np.savez_compressed(npz_out, **tosave_sens)
+            module_logger.log(f'Saved nominal data for sensitivity studies to {npz_out}', 'info')
+    except Exception as e_sens:
+        module_logger.log(f'[process] Failed to save nominal data NPZ for sensitivity scan: {e_sens}', 'warning')
+
     if args.fittype == "mom1D":
         module_logger.log(f"Building mom 1D fit", "info")
         fitresult, par, loss, nlls, combine_pdf, constraints = Unbinned_fit_mom(
             mom_mag,
-            track_cat,
             mc_count_track_mom,
             args.fitrange_low[0],
             args.fitrange_hi[0],
-            True,
-            args.verbose,
+            plot_truth=True,
+            verbose=args.verbose,
             constraints_dir='uncertainties',
-            plot_NLL = True
+            plot_NLL=True
         )
-        module_logger.log(f'Fit result: {fitresult}', 'success')
+        # Print full fit result
+        print("\n================== 1D Momentum Fit Result =======================")
+        try:
+            if hasattr(fitresult, 'params'):
+                print(fitresult)
+            else:
+                print(fitresult)
+        except Exception as e:
+            print(f"Could not print fit result: {e}")
+        print("="*60 + "\n")
         # Save fit summary for systematics studies
         try:
-            _save_fit_npz(f"{csv_base}_mom1D", fitresult, par=par, loss=loss, nlls=nlls, extra={'mom_mag': mom_mag})
+            save_fit_npz(f"{csv_base}_mom1D", fitresult, par=par, loss=loss, nlls=nlls, extra={'mom_mag': mom_mag})
         except Exception as e_save:
             module_logger.log(f'[process] Failed to save mom1D fit npz: {e_save}', 'error')
         if int(args.interpret) == 1:
@@ -829,33 +805,44 @@ def main(args):
             result_output.GetSignifcance(par, loss, 'asym')
             if int(args.setlimit) == 1:
                 result_output.GetUL(
-                    par,
-                    loss,
-                    nlls,
-                    combine_pdf,
-                    constraints,
-                    args.fitrange_low[0],
-                    args.fitrange_hi[0],
-                    fitresult.params['N_CE']['value'],
-                    0.90,
-                    'asym',
+                    poi=par,
+                    loss=loss,
+                    nlls=nlls,
+                    model=combine_pdf,
+                    constraints=constraints,
+                    fit_range_low=args.fitrange_low[0],
+                    fit_range_hi=args.fitrange_hi[0],
+                    signal_yield=fitresult.params['N_CE']['value'],
+                    cl=0.90,
+                    method='asym',
                 )
 
     elif args.fittype == "time1D":
         module_logger.log(f"Building time 1D fit", "info")
         fitresult, par, loss, combine_pdf = Unbinned_fit_time(
             time,
-            track_cat,
             mc_count_track_time,
             float(args.fitrange_low[1]),
             float(args.fitrange_hi[1]),
-            True,
-            args.verbose,
+            plot_truth=True,
+            verbose=args.verbose,
+            plot_NLL=True,
+            plot_results=True
         )
-        module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')
+
+        # Print full fit result
+        print("\n================== 1D Time Fit Result =======================")
+        try:
+            if hasattr(fitresult, 'params'):
+                print(fitresult)
+            else:
+                print(fitresult)
+        except Exception as e:
+            print(f"Could not print fit result: {e}")
+        print("="*60 + "\n")
         # Save time fit summary
         try:
-            _save_fit_npz(f"{csv_base}_time1D", fitresult, par=par, loss=loss, extra={'time': time})
+            save_fit_npz(f"{csv_base}_time1D", fitresult, par=par, loss=loss, extra={'time': time})
         except Exception as e_save:
             module_logger.log(f'[process] Failed to save time1D fit npz: {e_save}', 'error')
 
@@ -868,12 +855,13 @@ def main(args):
         fitresult, par, loss, combine_pdf, norms = Unbinned_2d_fit_mom_time(
             mom_mag,
             time,
-            track_cat,
             mc_count_track_mom,
             [args.fitrange_low[0], args.fitrange_hi[0]],
             [args.fitrange_low[1], args.fitrange_hi[1]],
-            bool(args.cat),
-            args.verbose,
+            plot_truth=False,
+            verbose=args.verbose,
+            plot_NLL=True,
+            plot_results=True,
             constraints_dir='uncertainties',
         )
         if int(args.interpret) == 1:
@@ -883,21 +871,30 @@ def main(args):
             result_output.GetSignifcance(par, loss, 'asym')
             if int(args.setlimit) == 1:
                 result_output.GetUL(
-                    par,
-                    loss,
-                    nlls,
-                    combine_pdf,
-                    constraints,
-                    args.fitrange_low[0],
-                    args.fitrange_hi[0],
-                    fitresult.params['N_CE']['value'],
-                    0.90,
-                    'asym',
+                    poi=par,
+                    loss=loss,
+                    nlls=nlls,
+                    model=combine_pdf,
+                    constraints=constraints,
+                    fit_range_low=args.fitrange_low[0],
+                    fit_range_hi=args.fitrange_hi[0],
+                    signal_yield=fitresult.params['N_CE']['value'],
+                    cl=0.90,
+                    method='asym',
                 )
-        module_logger.log(f'Fit result: {fitresult} for {args.fittype}', 'success')
+        # Print full fit result
+        print("\n================== 2D Fit Result =======================")
+        try:
+            if hasattr(fitresult, 'params'):
+                print(fitresult)
+            else:
+                print(fitresult)
+        except Exception as e:
+            print(f"Could not print fit result: {e}")
+        print("="*60 + "\n")
         # Save 2D fit summary
         try:
-            _save_fit_npz(f"{csv_base}_2D", fitresult, par=par, loss=loss, extra={'mom_mag': mom_mag, 'time': time})
+            save_fit_npz(f"{csv_base}_2D", fitresult, par=par, loss=loss, extra={'mom_mag': mom_mag, 'time': time})
         except Exception as e_save:
             module_logger.log(f'[process] Failed to save 2D fit npz: {e_save}', 'error')
 
@@ -919,8 +916,6 @@ def PrintArgs(args):
     module_logger.log(f'number of processes (njobs - optimal is 1 per file): {args.jobs}', 'info')
     module_logger.log(f'fittype: {args.fittype}', 'info')
     module_logger.log(f'range: {args.fitrange_low} {args.fitrange_hi}', 'info')
-    module_logger.log(f'categorize: {args.cat}', 'info')
-    module_logger.log(f'mismatch: {args.mismatch}', 'info')
     module_logger.log(f'verbose: {args.verbose}', 'info')
     module_logger.log(f'interpret: {args.interpret}', 'info')
     module_logger.log(f'setlimit: {args.setlimit}', 'info')
@@ -935,8 +930,6 @@ if __name__ == "__main__":
     parser.add_argument("--fitrange_hi", type=float, default=[110,1650], nargs='+',help="maximum to fit  ordered mom, time")
     parser.add_argument("--interpret", type=int, default=0, help="allows for significance evaluation")
     parser.add_argument("--setlimit", type=int, default=0, help="assumes low signal and will try to set limit")
-    parser.add_argument("--cat", type=int, default=0, help="Categorize tracks by MC matching")
-    parser.add_argument("--mismatch", type=int, default=0, help="This is an old sample with MC - reco trk mismatch")
     parser.add_argument("--verbose", default=1, help="verbose")
     parser.add_argument("--loc", type=str, required=False, default='disk', help="location of files")
     parser.add_argument("--control-fit", dest='control_fit', action='store_true', help="Run control-region fit for OffSpill (default: off)")

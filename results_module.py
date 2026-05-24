@@ -343,10 +343,7 @@ class ResultsClass:
           v = float(res)
       except Exception as e:
         if verbose:
-          if self.logger:
-            self.logger.log(f"Mock {i} fit failed: {e}", 'error')
-          else:
-            print(f"Mock {i} fit failed: {e}")
+          self.logger.log(f"Mock {i} fit failed: {e}", 'error')
         continue
       vals.append(v)
 
