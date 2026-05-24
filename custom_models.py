@@ -39,7 +39,7 @@ class poly58(zfit.pdf.ZPDF):
 
 
 class DIO_custom_model_2025(zfit.pdf.ZPDF):
-    """Custom DIO model with endpoint, beta parameter, and degree shift."""
+    """Custom DIO model with endpoint, beta parameter, and degree shift. From Sam Zhou"""
     _N_OBS = 1
     _PARAMS = ['DIO_endpoint', 'beta', 'degree_shift']
 
@@ -62,7 +62,7 @@ class DIO_custom_model_2025(zfit.pdf.ZPDF):
 
 
 # ============================================================================
-# TRUNCATED LANDAU PDF (from landau_pdf.py)
+# TRUNCATED LANDAU PDF (from landau_pdf.py) From Susan Dittmer
 # ============================================================================
 # Truncated version of landau implementation from https://github.com/boostorg/math/blob/master/include/boost/math/distributions/landau.hpp
 # Truncation is at x < 64 to simplify math (this should be sufficient for Mu2e energy loss)

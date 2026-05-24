@@ -4,7 +4,7 @@ import awkward as ak
 import math
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from physics_components import mom_components, time_components
+from model.physics_components import mom_components, time_components
 from pyutils.pylogger import Logger
 from data_prep import DataPreparationManager
 from config import GLOBAL_VERBOSITY
@@ -424,7 +424,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None):
               )
               logger.log(msg, 'error')
               raise ValueError(msg)
-    if cat is not None:
+    if plot_truth is not None:
         time = ak.drop_none(time)
         logger.log('filling list', 'debug')
         # use fit_range bounds for time selection

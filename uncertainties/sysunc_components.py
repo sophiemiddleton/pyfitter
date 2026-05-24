@@ -1,83 +1,260 @@
-# file holds a list of systematic uncertainties and their expected scale
 """
-Here I list some of the major sources of mostly uncertainties.
-Each background is characterized as follows:
+Systematic uncertainty inventory and specifications.
 
-* 'type' : 
-      - a 'shift' is a straight +/- Value in units of MeV/c
-      - a 'frac' means its a percentage on the chosen component
-      - a 'shape' means that this is a shape uncertainty and the noted parameter in the shape has a 1sigma error of the quoted value
-* 'sim' :
-      - True means that  this is currently from simualtion, several of these can be measured using early data
-* 'process'
-      - describes the physics process that uncertainty relates to, can be 'all'
-* 'component'
-      - where to apply this uncertainty
-        - 'mom' i.e. this has specific impact on the momentum spectrum e.g. a shift in scale
-        - 'both' this could effect the yield of events in both momentum and time
+Each systematic is characterized by:
+  - 'type': 'shift' (fixed offset in MeV/c), 'frac' (fractional), or 'shape' (parameter variation)
+  - 'process': physics process ('CE', 'DIO', 'RPC', 'Cosmics', 'all')
+  - 'component': impact (['mom'], ['time'], or ['mom', 'time'])
+  - 'value': [plus, minus] variation (± 1σ)
+  - 'source': 'simulation' | 'data-driven' | 'theory'
+  - 'status': 'implemented' | 'planned' | 'on-hold'
+  - 'method': How to propagate (e.g., 'refit', 'reweight', 'constraint')
+  - 'notes': Additional context
+
+References:
+  - SU2020: Sustainability update 2020
+  - G4: Geant4 simulation studies
 """
+
 sysunc_components = {
-    ##### General #######
-    'Abs_Mom_Scale' : {
-                'type' : 'shift',
-                'sim' : True
-                'process': 'all',
-                'component' : ['mom'],
-                'value' : [0.1, 0.1]# MeV - SU2020 discussed for DIO, resulting in large uncertainty on cut and count [plus, minus] allowing for assymetric values
-                }
-    'Mom_Res' : {?}
-           
-      ###### DIO #########
-      'DIO_Theory' : {
-                'type' : 'frac',
-                'sim' : True
-                'process' : 'DIO'
-                'component' : ['mom','time'],
-                'value' : [0.025, 0.025]
-                }
-                
-       ###### RPC ########
-       'RPC_rate' : {
-                'type' : 'frac',
-                'sim' : True,
-                'process' : 'RPC'
-                'component' : ['mom','time'],
-                'value' : [0.093, 0.093] # from use of magneisum = 9.3%
-       
-       }
-       'pion_rate' : {
-                'type' : 'frac',
-                'sim' : True,
-                'process' : 'RPC'
-                'component' : ['mom','time'],
-                'value' : [0.27, 0.09] # -27% to +9 % from G4 studies
-       
-       }
-       'internalconv_rate' : {
-                'type' : 'frac', # means that 0.025=2.5% not necessarily 2.5 MeV
-                'sim' : True, # means that we expect to have a better value from a data driven value
-                'process' : 'RPC',
-                'component' : ['mom','time'],
-                'value' : [0.0045, 0.0045] # -27% to +9 % from G4 studies
-       
-       }
-       # What's missing? OOT RPC, extinction uncertainty etc. 
-       ##### Cosmics #######   
-       'CRV_eff' : {
-                'type' : 'frac',
-                'sim' : True,
-                'process' : 'Cosmics',
-                'component' : ['mom','time'],
-                'value' : [0.04, 0.04] # from CRV studies detailed in SU2020
-       
-       }
-       'generator' : {
-                'type' : 'frac',
-                'sim' : True,
-                'process' : 'Cosmics',
-                'component' : ['mom','time'],
-                'value' : [0.20,0.20] # from comparisons of generators
-       
-       }
-       # What's missing? CRV aginig
-      }
+    ##### ===== GENERAL ===== #####
+    
+    'Abs_Mom_Scale': {
+        'type': 'shift',
+        'process': 'all',
+        'component': ['mom'],
+        'value': [0.1, 0.1],  # MeV
+        'source': 'simulation',
+        'status': 'implemented',
+        'method': 'refit',
+        'notes': 'Absolute momentum scale shift; impacts efficiency cuts (SU2020). Asymmetric variations allowed.'
+    },
+    
+    'Mom_Resolution': {
+        'type': 'shape',
+        'process': 'all',
+        'component': ['mom'],
+        'value': [0.05, 0.05],  # sigma variation in MeV
+        'source': 'simulation',
+        'status': 'planned',
+        'method': 'refit_convolution',
+        'notes': 'Momentum resolution smearing; affects all processes. Requires simultaneous flat-e fit adjustment.'
+    },
+    
+    ##### ===== DIO BACKGROUND ===== #####
+    
+    'DIO_Theory': {
+        'type': 'frac',
+        'process': 'DIO',
+        'component': ['mom', 'time'],
+        'value': [0.025, 0.025],  # 2.5%
+        'source': 'theory',
+        'status': 'implemented',
+        'method': 'constraint',
+        'fit_param': 'N_DIO',
+        'notes': 'DIO cross-section / form-factor uncertainty. Apply as Gaussian constraint on N_DIO.'
+    },
+    
+    'DIO_PDF_Variant': {
+        'type': 'shape',
+        'process': 'DIO',
+        'component': ['mom'],
+        'value': [0.0, 0.0],  # qualitative (use template swap)
+        'source': 'theory',
+        'status': 'planned',
+        'method': 'template_swap',
+        'notes': 'Alternative DIO PDF shapes (e.g., Szafron vs other calculations); discrete variation.'
+    },
+    
+    ##### ===== RPC BACKGROUND ===== #####
+    
+    'RPC_Rate': {
+        'type': 'frac',
+        'process': 'RPC',
+        'component': ['mom', 'time'],
+        'value': [0.093, 0.093],  # 9.3% from magnesium composition
+        'source': 'simulation',
+        'status': 'implemented',
+        'method': 'constraint',
+        'fit_param': 'N_RPC',
+        'notes': 'RPC stopping power and composition uncertainty. Apply as constraint on N_RPC.'
+    },
+    
+    'Pion_Rate': {
+        'type': 'frac',
+        'process': 'RPC',
+        'component': ['mom', 'time'],
+        'value': [0.27, 0.09],  # -27% to +9% from G4
+        'source': 'simulation',
+        'status': 'implemented',
+        'method': 'constraint',
+        'fit_param': 'N_RPC',
+        'notes': 'Pion production in RPC affects RPC yield; asymmetric from Geant4 studies.'
+    },
+    
+    'InternalConv_Rate': {
+        'type': 'frac',
+        'process': 'RPC',
+        'component': ['mom', 'time'],
+        'value': [0.0045, 0.0045],  # 0.45%
+        'source': 'simulation',
+        'status': 'planned',
+        'method': 'constraint',
+        'fit_param': 'N_RPC',
+        'notes': 'Internal conversion in RPC affects RPC yield; expected to improve with data-driven measurement.'
+    },
+    
+    'OOT_RPC': {
+        'type': 'frac',
+        'process': 'RPC',
+        'component': ['time'],
+        'value': [0.15, 0.15],  # Placeholder
+        'source': 'simulation',
+        'status': 'on-hold',
+        'method': 'constraint',
+        'fit_param': 'N_RPC',
+        'notes': 'Out-of-time RPC backgrounds affect RPC yield; requires time-window studies.'
+    },
+    
+    ##### ===== COSMIC BACKGROUND ===== #####
+    
+    'CRV_Efficiency': {
+        'type': 'frac',
+        'process': 'Cosmics',
+        'component': ['mom', 'time'],
+        'value': [0.04, 0.04],  # 4%
+        'source': 'simulation',
+        'status': 'implemented',
+        'method': 'constraint',
+        'fit_param': 'N_Cosmic',
+        'notes': 'Cosmic ray veto efficiency affects cosmic yield; from CRV detector studies (SU2020).'
+    },
+    
+    'Cosmic_Generator': {
+        'type': 'frac',
+        'process': 'Cosmics',
+        'component': ['mom', 'time'],
+        'value': [0.20, 0.20],  # 20%
+        'source': 'simulation',
+        'status': 'implemented',
+        'method': 'constraint',
+        'fit_param': 'N_Cosmic',
+        'notes': 'Cosmic ray generator model differences affect cosmic yield; measured via cross-comparison.'
+    },
+    
+    'CRV_Aging': {
+        'type': 'frac',
+        'process': 'Cosmics',
+        'component': ['time'],
+        'value': [0.10, 0.10],  # Placeholder
+        'source': 'data-driven',
+        'status': 'on-hold',
+        'method': 'constraint',
+        'fit_param': 'N_Cosmic',
+        'notes': 'CRV detector aging effects affect cosmic yield; needs long-term data characterization.'
+    },
+    
+    'c1_Cosmic': {
+        'type': 'shape',
+        'process': 'Cosmics',
+        'component': ['mom'],
+        'value': [0.022, 0.022],
+        'source': 'simulation',
+        'status': 'implemented',
+        'method': 'constraint',
+        'fit_param': 'c1_Cosmic',
+        'notes': 'Gaussian prior on Chebyshev coefficient c1 for Cosmic poly2 spectrum shape.'
+    },
+    
+    'c2_Cosmic': {
+        'type': 'shape',
+        'process': 'Cosmics',
+        'component': ['mom'],
+        'value': [0.022, 0.022],
+        'source': 'simulation',
+        'status': 'implemented',
+        'method': 'constraint',
+        'fit_param': 'c2_Cosmic',
+        'notes': 'Gaussian prior on Chebyshev coefficient c2 for Cosmic poly2 spectrum shape.'
+    },
+    
+    ##### ===== EXPERIMENTAL SYSTEMATICS ===== #####
+    
+    'Timing_Calibration': {
+        'type': 'shift',
+        'process': 'all',
+        'component': ['time'],
+        'value': [0.05, 0.05],  # ns
+        'source': 'simulation',
+        'status': 'planned',
+        'method': 'refit',
+        'fit_param': None,
+        'notes': 'Time-of-flight calibration offset; affects all timing-based cuts.'
+    },
+    
+    'Detector_Efficiency': {
+        'type': 'frac',
+        'process': 'all',
+        'component': ['mom', 'time'],
+        'value': [0.02, 0.02],  # 2%
+        'source': 'simulation',
+        'status': 'planned',
+        'method': 'reweight',
+        'fit_param': None,
+        'notes': 'Overall detector tracking efficiency; scale all yields uniformly (affects all components).'
+    },
+    
+    'Alignment': {
+        'type': 'shape',
+        'process': 'all',
+        'component': ['mom'],
+        'value': [0.05, 0.05],  # Effective scale variation
+        'source': 'simulation',
+        'status': 'on-hold',
+        'method': 'refit',
+        'notes': 'Tracker alignment; treated as secondary momentum scale effect.'
+    },
+}
+
+
+# ============================================================================
+# Utility functions
+# ============================================================================
+
+def validate_sysunc_spec(spec):
+    """Validate a systematic uncertainty specification dictionary."""
+    required_keys = {'type', 'process', 'component', 'value', 'source', 'status', 'method'}
+    if not required_keys.issubset(spec.keys()):
+        missing = required_keys - spec.keys()
+        raise ValueError(f"Missing required keys: {missing}")
+    
+    if spec['type'] not in {'shift', 'frac', 'shape'}:
+        raise ValueError(f"Invalid type: {spec['type']}")
+    
+    if spec['status'] not in {'implemented', 'planned', 'on-hold'}:
+        raise ValueError(f"Invalid status: {spec['status']}")
+    
+    if not isinstance(spec['value'], (list, tuple)) or len(spec['value']) != 2:
+        raise ValueError(f"value must be [plus, minus] pair, got {spec['value']}")
+    
+    return True
+
+
+def get_implemented_systematics():
+    """Return only systematics with status='implemented'."""
+    return {k: v for k, v in sysunc_components.items() if v.get('status') == 'implemented'}
+
+
+def get_systematics_by_process(process):
+    """Filter systematics by physics process."""
+    return {k: v for k, v in sysunc_components.items() if v.get('process') in {process, 'all'}}
+
+
+def get_systematics_by_component(component):
+    """Filter systematics affecting a given component ('mom' or 'time')."""
+    return {k: v for k, v in sysunc_components.items() if component in v.get('component', [])}
+
+
+def get_constraints_only():
+    """Return systematics designed for constraint-based propagation."""
+    return {k: v for k, v in sysunc_components.items() if v.get('method') == 'constraint' and v.get('status') == 'implemented'}

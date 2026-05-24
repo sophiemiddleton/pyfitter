@@ -13,7 +13,7 @@ import zfit
 
 logger = Logger(print_prefix='[control_region] ', verbosity=GLOBAL_VERBOSITY)
 
-def _to_numpy_flat(arr: any) -> np.ndarray:
+def to_numpy_flat(arr: any) -> np.ndarray:
     if isinstance(arr, ak.Array) or hasattr(arr, 'layout'):
         a = ak.to_numpy(ak.flatten(ak.drop_none(arr), axis=None))
     else:
@@ -49,11 +49,11 @@ class ControlRegion:
         - If `arr` is a simple numeric/awkward array of floats, return flattened numpy.
         - If `arr` is an awkward record containing fields named 'mom' (e.g. 'trk','trkfit'),
           attempt to find and flatten the first matching field.
-        - Otherwise return the result of `_to_numpy_flat(arr)` which will raise or return empty.
+        - Otherwise return the result of `to_numpy_flat(arr)` which will raise or return empty.
         """
-        # If it's already a numeric array, _to_numpy_flat will handle it
+        # If it's already a numeric array, to_numpy_flat will handle it
         try:
-            a_try = _to_numpy_flat(arr)
+            a_try = to_numpy_flat(arr)
             if a_try.size:
                 return a_try
         except Exception:
@@ -112,7 +112,7 @@ class ControlRegion:
             pass
 
         # fallback to converting directly (may raise)
-        return _to_numpy_flat(arr)
+        return to_numpy_flat(arr)
 
     def fit_cosmic(self,
                    fit_range: Tuple[float, float] = (80.0, 150.0),
@@ -131,7 +131,7 @@ class ControlRegion:
         if zfit is None:
             raise RuntimeError('zfit is required for fitting (install zfit).')
 
-        mom_np = _to_numpy_flat(self.mom_mag)
+        mom_np = to_numpy_flat(self.mom_mag)
         lo, hi = float(fit_range[0]), float(fit_range[1])
         obs_mom = zfit.Space('x', limits=(lo, hi))
 
@@ -246,7 +246,7 @@ class ControlRegion:
         if zfit is None:
             raise RuntimeError('zfit is required for fitting (install zfit).')
 
-        mom_np = _to_numpy_flat(self.mom_mag)
+        mom_np = to_numpy_flat(self.mom_mag)
         lo, hi = float(fit_range[0]), float(fit_range[1])
         obs_mom = zfit.Space('x', limits=(lo, hi))
 

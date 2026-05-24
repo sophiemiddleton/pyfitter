@@ -24,7 +24,7 @@ from fit_module import *
 from results_module import ResultsClass
 from analyze import Analyze
 from data_prep import DataPreparationManager, safe_float_conversion, safe_dict_get, safe_numpy_convert, safe_field_extraction
-from physics_components import mom_components
+from model.physics_components import mom_components
 from pyutils.pycut import CutManager
 from pyutils.pyprocess import Processor, Skeleton
 from pyutils.pyplot import Plot
@@ -781,7 +781,8 @@ def main(args):
             plot_truth=True,
             verbose=args.verbose,
             constraints_dir='uncertainties',
-            plot_NLL=True
+            plot_NLL=True,
+            plot_results=True
         )
         # Print full fit result
         print("\n================== 1D Momentum Fit Result =======================")

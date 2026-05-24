@@ -19,10 +19,10 @@ logger = Logger(print_prefix='[fit_module] ', verbosity=GLOBAL_VERBOSITY)
 from momentum_pdf_builder import poly58, MomPDFBuilder, TimePDFBuilder, MomTimePDFBuilder
 from data_prep import DataPreparationManager
 from plot_module import plotmom_fit, plottime_fit, plot_variable, bin_by_bin_mom_confusion, bin_by_bin_time_confusion
-from physics_components import mom_components, time_components
+from model.physics_components import mom_components, time_components
 from uncertainty_loader import load_constraints_json, build_zfit_constraints_from_specs, load_templates_npz
 
-def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi, plot_truth=False, verbose=0, minos=False, plot_NLL=False, plot_results=True, constraints_dir=None):
+def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi, plot_truth=False, verbose=0, minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/outputs'):
     """
     ----------
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
@@ -106,7 +106,7 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
 
 
     # --- optional: load external constraints/templates (standalone uncertainty artifacts)
-    if constraints_dir is not None:
+    if constraints_dir is not None and os.path.exists(os.path.join(constraints_dir, 'constraints.json')):
       logger.log(f"Using constraints/templates from: {constraints_dir}", "info")
       try:
         specs = load_constraints_json(constraints_dir)
@@ -119,16 +119,29 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
         #  logger.log(f'Loaded templates: {list(templates.keys())}', 'info')
       except Exception as e:
         logger.log(f'Failed to load constraints from {constraints_dir}: {e}', 'error')
+    elif constraints_dir is not None:
+      logger.log(f"No constraints found at {constraints_dir}", 'info')
     
     # Convert data to zfit Data
     mom_zfit = DataPreparationManager.to_zfit_data(mom_mag, obs_mom, name='momentum')
 
+    # Log all constraints being applied
+    logger.log(f"Total constraints: {len(constraints)}", 'info')
+    for i, c in enumerate(constraints):
+      c_type = type(c).__name__
+      # Extract parameter info from constraint
+      param_info = "unknown"
+      if hasattr(c, 'params') and c.params:
+        param_info = ', '.join([p.name for p in c.params if hasattr(p, 'name')])
+      elif hasattr(c, '_params') and c._params:
+        param_info = ', '.join([p.name for p in c._params if hasattr(p, 'name')])
+      logger.log(f"  Constraint {i+1}: {c_type} on {param_info}", 'info')
 
     if verbose > 0:
       logger.log("Running minimizer", "info")
 
 
-    # --- Loss function creation (MODIFIED) ---
+    # --- Loss function creation ---
     # Build the main loss from the Extended NLL and initial constraints
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=mom_zfit, constraints=constraints)
     
@@ -189,8 +202,8 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
         logger.log('Plotting results', 'info')
       logger.log(str(pars), 'max')
 
-
       try:
+        plt.figure()
         plotmom_fit(mom_mag, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_truth)
         ts = int(time.time())
         fname = f"fit_mom_{ts}.png"
@@ -293,6 +306,7 @@ def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, 
       if verbose > 0:
         logger.log('Plotting time fit', 'info')
       try:
+        plt.figure()
         plottime_fit(times, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in time_components.keys()], plot_truth)
         ts = int(time.time())
         fname_t = f"fit_time_{ts}.png"
@@ -301,12 +315,13 @@ def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, 
           logger.log(f"Saved time-fit figure to {fname_t}", "info")
         except Exception as e:
           logger.log(f"Failed to save time-fit figure: {e}", "error")
+        plt.close()
       except Exception as e:
         logger.log(f'plottime_fit failed: {e}', 'error')
 
       # produce bin-by-bin time confusion plot (true vs fitted fractions)
       try:
-        bin_by_bin_time_confusion(times, count_particle_types, [(proc, timepdfs[proc], norms[proc]) for proc in time_components.keys()], fit_range, bin_width=50.0, filename_prefix='time_confusion_1d')
+        bin_by_bin_time_confusion(times, count_particle_types, [(proc, pdfs[proc], norms[proc]) for proc in time_components.keys()], fit_range, bin_width=50.0, filename_prefix='time_confusion_1d')
       except Exception as e:
         logger.log(f'Failed to produce bin-by-bin time confusion plot: {e}', 'error')
 
@@ -317,7 +332,7 @@ def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, 
     logger.log(f'Selected POI for return (time fit): {getattr(poi, "name", repr(poi))}', 'info')
     return result, poi, loss, combine_pdf
 
-def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom, fit_range_time, plot_truth=False, verbose=0, plot_NLL=False, plot_results=True, constraints_dir=None):
+def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom, fit_range_time, plot_truth=False, verbose=0, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/outputs'):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum and time using zfit
 
@@ -431,6 +446,18 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
       except Exception as e:
         logger.log(f'Failed to get NLL from source: {e}', 'warning')
 
+    # Log all constraints being applied
+    logger.log(f"Total constraints: {len(constraints)}", 'info')
+    for i, c in enumerate(constraints):
+      c_type = type(c).__name__
+      # Extract parameter info from constraint
+      param_info = "unknown"
+      if hasattr(c, 'params') and c.params:
+        param_info = ', '.join([p.name for p in c.params if hasattr(p, 'name')])
+      elif hasattr(c, '_params') and c._params:
+        param_info = ', '.join([p.name for p in c._params if hasattr(p, 'name')])
+      logger.log(f"  Constraint {i+1}: {c_type} on {param_info}", 'info')
+
     # Loss function and minimizer
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit, constraints=constraints)
     for nll in nlls:
@@ -459,11 +486,12 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
     if plot_results:
       if verbose > 0:
         logger.log("Plotting 2D fit results", 'info')
+      ts = int(time.time())
 
       # plot time fit — pass the time-only PDFs (projection of 2D) and yields
       try:
+        plt.figure()
         plottime_fit(times, count_particle_types, fit_range_time, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_truth)
-        ts = int(time.time())
         fname_time_2d = f"fit_2d_time_{ts}.png"
         try:
           plt.savefig(fname_time_2d)
@@ -476,6 +504,7 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
 
       # plot mom fit using the 1D momentum sub-PDFs (projections)
       try:
+        plt.figure()
         plotmom_fit(mom_mag, count_particle_types, fit_range_mom, [(proc, mompdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_truth)
         fname_mom_2d = f"fit_2d_mom_{ts}.png"
         try:
@@ -498,6 +527,8 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
         bin_by_bin_time_confusion(times, count_particle_types, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range_time, bin_width=50.0, filename_prefix='time_confusion_2d')
       except Exception as e:
         logger.log(f'Failed to produce bin-by-bin time confusion plot: {e}', 'error')
+      
+      plt.close('all')
     
     # Signal yield is always N_CE (first parameter in mompars)
     poi = pars[0] if pars else None

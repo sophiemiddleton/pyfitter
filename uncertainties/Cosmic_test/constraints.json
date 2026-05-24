@@ -1,12 +1,5 @@
 [
   {
-    "name": "N_Cosmic",
-    "type": "norm",
-    "default": 431,
-    "prior": { "dist": "gauss", "mean": 431, "sigma": 21 },
-    "notes": "Gaussian prior on Cosmic yield (absolute). Matches parameter name N_Cosmic created by MomModel."
-  },
-  {
     "name": "c1_Cosmic",
     "type": "parametric",
     "default": 0.219,

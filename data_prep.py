@@ -1,4 +1,4 @@
-"""data_prep.py: Centralized data preparation utilities for awkward arrays.
+"""Centralized data preparation utilities for awkward arrays.
 
 Consolidates repeated patterns for cleaning, flattening, and converting
 awkward arrays to zfit-compatible formats. Also includes safe conversion

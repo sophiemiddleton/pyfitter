@@ -1,0 +1,69 @@
+[
+  {
+    "name": "N_DIO",
+    "pname": "N_DIO",
+    "prior": {
+      "dist": "gauss",
+      "mean": 6203.668046900134,
+      "sigma": 155.09170117250335
+    },
+    "contributions": [
+      "DIO_Theory"
+    ],
+    "notes": "DIO_Theory: DIO cross-section / form-factor uncertainty. Apply as Gaussian constraint on N_DIO."
+  },
+  {
+    "name": "N_RPC",
+    "pname": "N_RPC",
+    "prior": {
+      "dist": "gauss",
+      "mean": 8.608486094644797e-05,
+      "sigma": 1.7861996711922876e-05
+    },
+    "contributions": [
+      "RPC_Rate",
+      "Pion_Rate"
+    ],
+    "notes": "RPC_Rate: RPC stopping power and composition uncertainty. Apply as constraint on N_RPC.; Pion_Rate: Pion production in RPC affects RPC yield; asymmetric from Geant4 studies."
+  },
+  {
+    "name": "N_Cosmic",
+    "pname": "N_Cosmic",
+    "prior": {
+      "dist": "gauss",
+      "mean": 287.6868173317257,
+      "sigma": 58.67682781511489
+    },
+    "contributions": [
+      "CRV_Efficiency",
+      "Cosmic_Generator"
+    ],
+    "notes": "CRV_Efficiency: Cosmic ray veto efficiency affects cosmic yield; from CRV detector studies (SU2020).; Cosmic_Generator: Cosmic ray generator model differences affect cosmic yield; measured via cross-comparison."
+  },
+  {
+    "name": "c1_Cosmic",
+    "pname": "c1_Cosmic",
+    "prior": {
+      "dist": "gauss",
+      "mean": 0.0,
+      "sigma": 0.022
+    },
+    "contributions": [
+      "c1_Cosmic"
+    ],
+    "notes": "c1_Cosmic: Gaussian prior on Chebyshev coefficient c1 for Cosmic poly2 spectrum shape."
+  },
+  {
+    "name": "c2_Cosmic",
+    "pname": "c2_Cosmic",
+    "prior": {
+      "dist": "gauss",
+      "mean": 0.0,
+      "sigma": 0.022
+    },
+    "contributions": [
+      "c2_Cosmic"
+    ],
+    "notes": "c2_Cosmic: Gaussian prior on Chebyshev coefficient c2 for Cosmic poly2 spectrum shape."
+  }
+]

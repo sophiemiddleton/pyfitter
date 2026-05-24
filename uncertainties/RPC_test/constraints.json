@@ -1,0 +1,18 @@
+[
+  {
+    "name": "c1_RPC",
+    "type": "parametric",
+    "default": -0.54,
+    "prior": { "dist": "gauss", "mean": -0.54, "sigma": 0.0062 },
+    "notes": "Gaussian prior on Chebyshev coefficient c1 for the RPC poly2 model."
+  }
+  ,
+  {
+    "name": "c2_RPC",
+    "type": "parametric",
+    "default": -0.1792,
+    "prior": { "dist": "gauss", "mean": -0.1792, "sigma": 0.0682 },
+    "notes": "Gaussian prior on Chebyshev coefficient c2 for the RPC poly2 model."
+  }
+  
+]
