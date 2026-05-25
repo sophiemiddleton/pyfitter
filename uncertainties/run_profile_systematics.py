@@ -59,6 +59,7 @@ logger = SimpleLogger(verbosity=1)
 from uncertainties.model.sysunc_components import sysunc_components, get_implemented_systematics, get_systematics_by_component
 import copy
 from model import physics_components
+from uncertainties.waterfall_plotter import WaterfallPlotter
 
 
 # Mapping of fit parameter names to (component_name, component_dict) for dynamic treat_params modification
@@ -530,6 +531,35 @@ class ProfileLikelihoodRunner:
         ])
         
         return "\n".join(lines)
+    
+    def generate_plots(self) -> Dict[str, Path]:
+        """
+        Generate publication-quality plots (waterfall, etc.).
+        
+        Returns dict of {plot_type: output_path}
+        """
+        if not self.results:
+            self.logger.log("No results to plot", 'warning')
+            return {}
+        
+        plotter = WaterfallPlotter(output_dir=str(self.output_dir))
+        plots = {}
+        
+        try:
+            # Generate waterfall plot
+            stat_unc = self.baseline_result['poi_uncertainty']
+            output_file = plotter.plot_waterfall(
+                self.results,
+                stat_uncertainty=stat_unc,
+                title=f'Profile Likelihood Systematic Impacts (Baseline N_CE = {self.baseline_result["poi_value"]:.1f})',
+                output_file='profile_waterfall.png'
+            )
+            plots['waterfall'] = output_file
+            self.logger.log(f"Waterfall plot saved: {output_file}", 'success')
+        except Exception as e:
+            self.logger.log(f"Failed to generate waterfall plot: {e}", 'error')
+        
+        return plots
 
 
 # ============================================================================
@@ -587,6 +617,12 @@ def main():
                 runner.baseline_result = baseline_info
         
         print(runner.produce_impact_summary())
+        
+        # Generate plots
+        logger.log("Generating publication plots...", 'info')
+        plots = runner.generate_plots()
+        for plot_type, path in plots.items():
+            logger.log(f"  {plot_type}: {path}", 'success')
         return
     
     # Main workflow
@@ -633,6 +669,12 @@ def main():
         # Save and summarize
         runner.save_results()
         print(runner.produce_impact_summary())
+        
+        # Generate plots
+        logger.log("Generating publication plots...", 'info')
+        plots = runner.generate_plots()
+        for plot_type, path in plots.items():
+            logger.log(f"  {plot_type}: {path}", 'success')
         
     except Exception as e:
         logger.log(f"Fatal error: {e}", 'error')
