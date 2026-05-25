@@ -14,7 +14,7 @@ from custom_models import poly58, DIO_custom_model_2025
 # Default Parameters (consolidated from momPDF_module.py and timePDF_module.py)
 # ============================================================================
 
-# Momentum model defaults
+# Momentum model defaults #FIXME model specific parameters should ideally be defined within the component dicts in sysunc_components.py to ensure they are properly varied in systematics studies. This is a temporary consolidation for the PDF builders.
 mom_default_model_params = {
     'poly2': {'c1': (0.47, 0.46, 0.48), 'c2': (0.011, 0.0018, 0.0202)},
     'dscb': {'mu': (104, 100, 107), 'sigma': (0.5, 0.0, 2.0), 'alphaL': (0.422, 0, 10),
@@ -41,10 +41,8 @@ time_default_model_params = {
 time_default_norms = {'Cosmic': 35, 'RPC': 39, 'Muon': 55600}
 
 # Module-level logger
-try:
-    logger = Logger(print_prefix='[momentum_pdf_builder] ', verbosity=2)
-except Exception:
-    logger = None
+logger = Logger(print_prefix='[momentum_pdf_builder] ', verbosity=2)
+
 
 # Shared parameters cache for MomTimeModel
 _shared_time_params = {}

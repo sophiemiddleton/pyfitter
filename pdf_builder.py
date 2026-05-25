@@ -6,10 +6,7 @@ import zfit
 from pyutils.pylogger import Logger
 
 # Module-level logger
-try:
-    logger = Logger(print_prefix='[pdf_builder] ', verbosity=2)
-except Exception:
-    logger = None
+logger = Logger(print_prefix='[pdf_builder] ', verbosity=2)
 
 
 class PDFBuilder(ABC):

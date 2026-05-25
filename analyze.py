@@ -389,11 +389,7 @@ class Analyze:
         self.logger.log("Applying cuts to data", "info")
         
         try:
-            #check mc truth codes before cuts
-            #mc_parts = self.mc_pre_cuts(data)
-            
-            # Copy the array 
-            # This is memory intensive but the easiest solution for what I'm trying to do
+
             data_cut = ak.copy(data) 
             
             # Combine cuts

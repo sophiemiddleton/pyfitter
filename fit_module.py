@@ -90,13 +90,13 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
                 sources = [sources]
             
             for nll_source in sources:
-                # Use getattr to safely check for 'simul_source' without crashing
+
                 sim_data = getattr(nll_source, 'simul_source', None)
                 
                 if sim_data is not None:
                     if verbose > 0:
                       logger.log(f"Activating simultaneous fit for: {proc}", "info")
-                    # Only call get_nll if data is actually present to unpack
+
                     aux_nlls.extend(nll_source.get_nll(pars))
                 else:
                     if verbose > 0:
@@ -199,20 +199,14 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
       
     # Plot after fit (optional)
     if plot_results:
-      if verbose > 0:
-        logger.log('Plotting results', 'info')
-      logger.log(str(pars), 'max')
 
       try:
         plt.figure()
         plotmom_fit(mom_mag, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_truth)
         ts = int(time.time())
         fname = f"fit_mom_{ts}.png"
-        try:
-          plt.savefig(fname)
-          logger.log(f"Saved fit figure to {fname}", "info")
-        except Exception as e:
-          logger.log(f"Failed to save fit figure: {e}", "error")
+        plt.savefig(fname)
+        logger.log(f"Saved fit figure to {fname}", "info")
         plt.close()
       except Exception as e:
         logger.log(f'plotmom_fit failed: {e}', 'error')
@@ -304,18 +298,14 @@ def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, 
     
     # Plot after fit (optional)
     if plot_results:
-      if verbose > 0:
-        logger.log('Plotting time fit', 'info')
+
       try:
         plt.figure()
         plottime_fit(times, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in time_components.keys()], plot_truth)
         ts = int(time.time())
         fname_t = f"fit_time_{ts}.png"
-        try:
-          plt.savefig(fname_t)
-          logger.log(f"Saved time-fit figure to {fname_t}", "info")
-        except Exception as e:
-          logger.log(f"Failed to save time-fit figure: {e}", "error")
+        plt.savefig(fname_t)
+        logger.log(f"Saved time-fit figure to {fname_t}", "info")
         plt.close()
       except Exception as e:
         logger.log(f'plottime_fit failed: {e}', 'error')
@@ -485,8 +475,6 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
     
     # Plot after fit (optional)
     if plot_results:
-      if verbose > 0:
-        logger.log("Plotting 2D fit results", 'info')
       ts = int(time.time())
 
       # plot time fit — pass the time-only PDFs (projection of 2D) and yields
@@ -494,11 +482,8 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
         plt.figure()
         plottime_fit(times, count_particle_types, fit_range_time, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_truth)
         fname_time_2d = f"fit_2d_time_{ts}.png"
-        try:
-          plt.savefig(fname_time_2d)
-          logger.log(f"Saved 2D-fit figure to {fname_time_2d}", "info")
-        except Exception as e:
-          logger.log(f"Failed to save 2D-fit figure: {e}", "error")
+        plt.savefig(fname_time_2d)
+        logger.log(f"Saved 2D-fit figure to {fname_time_2d}", "info")
         plt.close()
       except Exception as e:
         logger.log(f'plottime_fit failed: {e}', 'error')
@@ -508,11 +493,8 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
         plt.figure()
         plotmom_fit(mom_mag, count_particle_types, fit_range_mom, [(proc, mompdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_truth)
         fname_mom_2d = f"fit_2d_mom_{ts}.png"
-        try:
-          plt.savefig(fname_mom_2d)
-          logger.log(f"Saved 2D-fit figure to {fname_mom_2d}", "info")
-        except Exception as e:
-          logger.log(f"Failed to save 2D-fit figure: {e}", "error")
+        plt.savefig(fname_mom_2d)
+        logger.log(f"Saved 2D-fit figure to {fname_mom_2d}", "info")
         plt.close()
       except Exception as e:
         logger.log(f'plotmom_fit failed: {e}', 'error')
