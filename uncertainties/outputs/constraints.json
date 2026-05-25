@@ -1,11 +1,24 @@
 [
   {
+    "name": "N_CE",
+    "pname": "N_CE",
+    "prior": {
+      "dist": "gauss",
+      "mean": 0.0,
+      "sigma": 1.0
+    },
+    "contributions": [
+      "CE_Tracking_Efficiency"
+    ],
+    "notes": "CE_Tracking_Efficiency: Signal tracking efficiency uncertainty; placeholder value pending detailed study."
+  },
+  {
     "name": "N_DIO",
     "pname": "N_DIO",
     "prior": {
       "dist": "gauss",
-      "mean": 6203.668046900134,
-      "sigma": 155.09170117250335
+      "mean": 6212.5,
+      "sigma": 155.3125
     },
     "contributions": [
       "DIO_Theory"
@@ -17,35 +30,35 @@
     "pname": "N_RPC",
     "prior": {
       "dist": "gauss",
-      "mean": 8.608486094644797e-05,
-      "sigma": 1.7861996711922876e-05
+      "mean": 2.2,
+      "sigma": 0.45660939251723665
     },
     "contributions": [
       "RPC_Rate",
-      "Pion_Rate"
+      "Pion_Rate",
+      "InternalConv_Rate"
     ],
-    "notes": "RPC_Rate: RPC stopping power and composition uncertainty. Apply as constraint on N_RPC.; Pion_Rate: Pion production in RPC affects RPC yield; asymmetric from Geant4 studies."
+    "notes": "RPC_Rate: RPC stopping power and composition uncertainty. Apply as constraint on N_RPC.; Pion_Rate: Pion production in RPC affects RPC yield; asymmetric from Geant4 studies.; InternalConv_Rate: Internal conversion in RPC affects RPC yield; expected to improve with data-driven measurement."
   },
   {
     "name": "N_Cosmic",
     "pname": "N_Cosmic",
     "prior": {
       "dist": "gauss",
-      "mean": 287.6868173317257,
-      "sigma": 58.67682781511489
+      "mean": 402.7,
+      "sigma": 16.108
     },
     "contributions": [
-      "CRV_Efficiency",
-      "Cosmic_Generator"
+      "CRV_Efficiency"
     ],
-    "notes": "CRV_Efficiency: Cosmic ray veto efficiency affects cosmic yield; from CRV detector studies (SU2020).; Cosmic_Generator: Cosmic ray generator model differences affect cosmic yield; measured via cross-comparison."
+    "notes": "CRV_Efficiency: Cosmic ray veto efficiency affects cosmic yield; from CRV detector studies (SU2020)."
   },
   {
     "name": "c1_Cosmic",
     "pname": "c1_Cosmic",
     "prior": {
       "dist": "gauss",
-      "mean": 0.0,
+      "mean": 0.219,
       "sigma": 0.022
     },
     "contributions": [
@@ -58,12 +71,38 @@
     "pname": "c2_Cosmic",
     "prior": {
       "dist": "gauss",
-      "mean": 0.0,
+      "mean": -0.108803,
       "sigma": 0.022
     },
     "contributions": [
       "c2_Cosmic"
     ],
     "notes": "c2_Cosmic: Gaussian prior on Chebyshev coefficient c2 for Cosmic poly2 spectrum shape."
+  },
+  {
+    "name": "c1_RPC",
+    "pname": "c1_RPC",
+    "prior": {
+      "dist": "gauss",
+      "mean": -0.54,
+      "sigma": 0.0062
+    },
+    "contributions": [
+      "c1_RPC"
+    ],
+    "notes": "c1_RPC: Gaussian prior on Chebyshev coefficient c1 for RPC poly2 spectrum shape."
+  },
+  {
+    "name": "c2_RPC",
+    "pname": "c2_RPC",
+    "prior": {
+      "dist": "gauss",
+      "mean": -0.1792,
+      "sigma": 0.0682
+    },
+    "contributions": [
+      "c2_RPC"
+    ],
+    "notes": "c2_RPC: Gaussian prior on Chebyshev coefficient c2 for RPC poly2 spectrum shape."
   }
 ]
