@@ -924,7 +924,7 @@ def PrintArgs(args):
 if __name__ == "__main__":
     # list of input arguments, defaults should be overridden
     parser = argparse.ArgumentParser(description='command arguments', formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--file", type=str, required=True, help="filename or file list name (text file list,fullpaths)")
+    parser.add_argument("--file", type=str, required=False, help="filename or file list name (text file list,fullpaths)")
     parser.add_argument("--jobs", type=int, required=False, default=1,help="use if more than one file, should be nfiles")
     parser.add_argument("--fittype", type=str, default="mom1D", help="fittype implemented opts: mom1D, time1D, momtime2D")
     parser.add_argument("--fitrange_low", type=float, default=[95,475], nargs='+', help="minimum to fit ordered mom, time")

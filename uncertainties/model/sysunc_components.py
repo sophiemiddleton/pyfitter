@@ -41,6 +41,21 @@ sysunc_components = {
         'notes': 'Momentum resolution smearing; affects all processes. Requires simultaneous flat-e fit adjustment.'
     },
     
+    ##### ===== SIGNAL (CE) ===== #####
+    
+    'CE_Tracking_Efficiency': {
+        'type': 'frac',
+        'process': 'CE',
+        'component': ['mom', 'time'],
+        'value': [0.01, 0.01],  # 1% placeholder (or absolute if nominal is 0)
+        'abs_value': [1.0, 1.0],  # Absolute uncertainty fallback: ±1 event
+        'source': 'simulation',
+        'status': 'implemented',
+        'method': 'constraint',
+        'fit_param': 'N_CE',
+        'notes': 'Signal tracking efficiency uncertainty; 1% of yield, or ±1 event if yield is 0.'
+    },
+    
     ##### ===== DIO BACKGROUND ===== #####
     
     'DIO_Theory': {
@@ -98,7 +113,7 @@ sysunc_components = {
         'component': ['mom', 'time'],
         'value': [0.0045, 0.0045],  # 0.45%
         'source': 'simulation',
-        'status': 'planned',
+        'status': 'implemented',
         'method': 'constraint',
         'fit_param': 'N_RPC',
         'notes': 'Internal conversion in RPC affects RPC yield; expected to improve with data-driven measurement.'
@@ -108,7 +123,7 @@ sysunc_components = {
         'type': 'frac',
         'process': 'RPC',
         'component': ['time'],
-        'value': [0.15, 0.15],  # Placeholder
+        'value': [0.00001, 0.00001],  # Placeholder
         'source': 'simulation',
         'status': 'on-hold',
         'method': 'constraint',
@@ -136,7 +151,7 @@ sysunc_components = {
         'component': ['mom', 'time'],
         'value': [0.20, 0.20],  # 20%
         'source': 'simulation',
-        'status': 'implemented',
+        'status': 'on-hold',
         'method': 'constraint',
         'fit_param': 'N_Cosmic',
         'notes': 'Cosmic ray generator model differences affect cosmic yield; measured via cross-comparison.'
@@ -159,6 +174,7 @@ sysunc_components = {
         'process': 'Cosmics',
         'component': ['mom'],
         'value': [0.022, 0.022],
+        'param_value': 0.219,
         'source': 'simulation',
         'status': 'implemented',
         'method': 'constraint',
@@ -171,11 +187,38 @@ sysunc_components = {
         'process': 'Cosmics',
         'component': ['mom'],
         'value': [0.022, 0.022],
+        'param_value': -0.108803,
         'source': 'simulation',
         'status': 'implemented',
         'method': 'constraint',
         'fit_param': 'c2_Cosmic',
         'notes': 'Gaussian prior on Chebyshev coefficient c2 for Cosmic poly2 spectrum shape.'
+    },
+
+    'c1_RPC': {
+        'type': 'shape',
+        'process': 'RPC',
+        'component': ['mom'],
+        'value': [0.0062, 0.0062],
+        'param_value': -0.54,
+        'source': 'simulation',
+        'status': 'implemented',
+        'method': 'constraint',
+        'fit_param': 'c1_RPC',
+        'notes': 'Gaussian prior on Chebyshev coefficient c1 for RPC poly2 spectrum shape.'
+    },
+    
+    'c2_RPC': {
+        'type': 'shape',
+        'process': 'RPC',
+        'component': ['mom'],
+        'value': [0.0682, 0.0682],
+        'param_value': -0.1792,
+        'source': 'simulation',
+        'status': 'implemented',
+        'method': 'constraint',
+        'fit_param': 'c2_RPC',
+        'notes': 'Gaussian prior on Chebyshev coefficient c2 for RPC poly2 spectrum shape.'
     },
     
     ##### ===== EXPERIMENTAL SYSTEMATICS ===== #####

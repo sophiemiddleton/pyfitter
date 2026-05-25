@@ -17,10 +17,17 @@ Each method is tailored to its use case and tracks:
 import numpy as np
 import json
 import os
+import sys
 from typing import Dict, Tuple, Any, Optional, List, Callable
 from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from pyutils.pylogger import Logger
-from sysunc_components import (
+
+# Import from model subdirectory
+from uncertainties.model.sysunc_components import (
     sysunc_components, 
     validate_sysunc_spec,
     get_constraints_only,
@@ -90,9 +97,14 @@ class UncertaintyPropagator:
             if spec.get('type') == 'frac' and nominal_yields is not None:
                 if param_name in nominal_yields:
                     nominal = nominal_yields[param_name]
-                    plus_var = plus_var * nominal
-                    minus_var = minus_var * nominal
-                    self.logger.log(f"{name}: Scaled fractional uncertainty by nominal {param_name}={nominal:.1f}", 'info')
+                    # Use absolute uncertainty if nominal is 0 or very small, and abs_value is defined
+                    if nominal == 0.0 and 'abs_value' in spec:
+                        plus_var, minus_var = spec['abs_value']
+                        self.logger.log(f"{name}: Using absolute uncertainty {plus_var:.2f} (nominal {param_name}=0)", 'info')
+                    else:
+                        plus_var = plus_var * nominal
+                        minus_var = minus_var * nominal
+                        self.logger.log(f"{name}: Scaled fractional uncertainty by nominal {param_name}={nominal:.1f}", 'info')
                 else:
                     self.logger.log(f"{name}: No nominal yield for {param_name}, skipping", 'warn')
                     continue
@@ -120,12 +132,22 @@ class UncertaintyPropagator:
             
             # Set mean based on parameter type
             # For yield parameters (N_*), mean should be the nominal yield value
-            # For shape parameters, mean should be 0
+            # For shape parameters with param_value, mean should be the parameter value
             if param_name in (nominal_yields or {}):
                 mean = nominal_yields[param_name]
             else:
-                mean_shift = (sigma_plus - sigma_minus) / 2
-                mean = mean_shift
+                # Check if any contributing systematic has a param_value field
+                mean = None
+                for c in contributions:
+                    spec = sysunc_components.get(c['sys_name'])
+                    if spec and spec.get('param_value') is not None:
+                        mean = spec.get('param_value')
+                        break
+                
+                # If no param_value found, use mean_shift (for backward compatibility)
+                if mean is None:
+                    mean_shift = (sigma_plus - sigma_minus) / 2
+                    mean = mean_shift
             
             # Combine notes from all contributors
             all_notes = '; '.join(f"{c['sys_name']}: {c['notes']}" for c in contributions)
@@ -345,6 +367,8 @@ class UncertaintyPropagator:
             'CRV_Aging': 'N_Cosmic',
             'c1_Cosmic': 'c1_Cosmic',
             'c2_Cosmic': 'c2_Cosmic',
+            'c1_RPC': 'c1_RPC',
+            'c2_RPC': 'c2_RPC',
         }
         return param_map.get(sys_name, sys_name)
     

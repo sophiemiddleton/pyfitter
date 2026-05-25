@@ -6,7 +6,7 @@ Simple, one-time tool to create constraints.json for use in fits.
 
 Usage
 -----
-# Generate constraints from MDS3c data (default 2D fit, 95-115 MeV/c, 700-1700 ns)
+# Generate constraints from MDS3c data (default 2D fit, 95-115 MeV/c, 500-1695 ns)
 python generate_constraints.py
 
 # Use different data file
@@ -44,7 +44,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from uncertainty_propagation import UncertaintyPropagator
-from sysunc_components import get_implemented_systematics, get_constraints_only
+from uncertainties.model.sysunc_components import get_implemented_systematics, get_constraints_only
 
 
 def main():
@@ -62,8 +62,8 @@ def main():
                        help='Fit type: mom1D or 2D (default: 2D)')
     parser.add_argument('--fit-range-mom', type=float, nargs=2, default=[95, 115],
                        help='Momentum fit range (low high), default: 95 115')
-    parser.add_argument('--fit-range-time', type=float, nargs=2, default=[700, 1700],
-                       help='Time fit range (low high), default: 700 1700')
+    parser.add_argument('--fit-range-time', type=float, nargs=2, default=[500, 1695],
+                       help='Time fit range (low high), default: 500 1695')
     parser.add_argument('--nominal-yields', type=str,
                        help='JSON string with nominal yields (overrides fit), e.g. \'{"N_CE": 18.5, "N_DIO": 6400}\'')
     parser.add_argument('--validate', action='store_true',
@@ -139,7 +139,7 @@ def main():
                         fit_range_time=fit_range_time,
                         constraints_dir=None,
                         verbose=0,
-                        plot_results=False
+                        plot_results=True
                     )
                 else:  # mom1D
                     result, poi, loss, _, _, _ = Unbinned_fit_mom(
@@ -147,7 +147,7 @@ def main():
                         fit_range_mom[0], fit_range_mom[1],
                         constraints_dir=None,
                         verbose=0,
-                        plot_results=False
+                        plot_results=True
                     )
                 
                 # Extract nominal yields from fit
@@ -175,7 +175,7 @@ def main():
         print(f"\n✓ Constraints generated: {outfile}")
         
         # Show summary
-        from sysunc_components import sysunc_components
+        from uncertainties.model.sysunc_components import sysunc_components
         n_constraints = len([s for s in (args.systematics or get_constraints_only().keys()) 
                             if s in sysunc_components])
         print(f"  Total constraints: {n_constraints}")

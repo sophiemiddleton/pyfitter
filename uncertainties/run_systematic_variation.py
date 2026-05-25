@@ -56,7 +56,7 @@ class SimpleLogger:
 
 logger = SimpleLogger(verbosity=1)
 
-from sysunc_components import sysunc_components, get_implemented_systematics, get_systematics_by_component
+from uncertainties.model.sysunc_components import sysunc_components, get_implemented_systematics, get_systematics_by_component
 from uncertainty_propagation import UncertaintyPropagator
 
 
@@ -102,9 +102,12 @@ class SystematicVariationRunner:
             }
             
             # Load time data if using 2D fit
-            if self.fit_type == '2d' and 'time' in data:
+            if self.fit_type == '2D' and 'time' in data:
                 self.baseline_data['time'] = data['time']
                 self.logger.log(f"Loaded time data for 2D fit", 'info')
+            elif self.fit_type == '2D' and 'time' not in data:
+                raise ValueError(f"2D fit requested but NPZ file {self.data_file} does not contain 'time' data. "
+                               "Make sure the file was generated with a 2D fit that includes time.")
             
             self.logger.log(f"Loaded baseline data from {self.data_file}", 'info')
             self.logger.log(f"  Momentum points: {len(self.baseline_data['mom_mag'])}", 'info')
@@ -115,7 +118,8 @@ class SystematicVariationRunner:
             self.logger.log(f"Failed to load {self.data_file}: {e}", 'error')
             raise
     
-    def fit_baseline(self, fit_range: Tuple[float, float] = (95, 115)) -> Dict[str, Any]:
+    def fit_baseline(self, fit_range: Tuple[float, float] = (95, 115), 
+                     fit_range_time: Tuple[float, float] = (700, 1700)) -> Dict[str, Any]:
         """
         Run baseline fit (Phase 1: with all constraints).
         
@@ -138,7 +142,7 @@ class SystematicVariationRunner:
                     self.baseline_data.get('time'),
                     4,
                     fit_range_mom=fit_range,
-                    fit_range_time=(700, 1700),
+                    fit_range_time=fit_range_time,
                     constraints_dir='uncertainties/outputs',
                     verbose=0,
                     plot_results=False
@@ -176,13 +180,103 @@ class SystematicVariationRunner:
             self.logger.log(f"Baseline fit failed: {e}", 'error')
             raise
     
+    def _get_baseline_yields_from_constraints(self) -> Dict[str, float]:
+        """Extract baseline yields from constraints.json."""
+        constraints_file = self.output_dir / 'constraints.json'
+        if not constraints_file.exists():
+            raise FileNotFoundError(f"Constraints file not found: {constraints_file}")
+        
+        with open(constraints_file, 'r') as f:
+            constraints = json.load(f)
+        
+        yields = {}
+        for constraint in constraints:
+            # constraints.json uses 'name' field for parameter name
+            param_name = constraint.get('name') or constraint.get('parameter', '')
+            if param_name.startswith('N_'):
+                # Constraints use 'prior.mean' for nominal value
+                nominal = constraint.get('prior', {}).get('mean', 0.0)
+                yields[param_name] = nominal
+        
+        return yields
+    
+    def _create_modified_constraints(self, systematic_name: str, direction: str) -> Path:
+        """
+        Create modified constraints for fractional systematic variation.
+        
+        For frac systematics, we modify the constraint mean to force a varied yield,
+        then refit to measure N_CE response.
+        
+        Returns path to modified constraints file.
+        """
+        # Load baseline constraints
+        constraints_file = self.output_dir / 'constraints.json'
+        with open(constraints_file, 'r') as f:
+            constraints = json.load(f)
+        
+        # Get spec and calculate varied yield
+        spec = sysunc_components.get(systematic_name)
+        plus_frac, minus_frac = spec['value']
+        frac = plus_frac if direction == 'plus' else -minus_frac
+        
+        # Map systematic to parameter
+        param_map = {
+            'DIO_Theory': 'N_DIO',
+            'RPC_Rate': 'N_RPC',
+            'Pion_Rate': 'N_RPC',
+            'InternalConv_Rate': 'N_RPC',
+            'CRV_Efficiency': 'N_Cosmic',
+            'Cosmic_Generator': 'N_Cosmic',
+            'CE_Tracking_Efficiency': 'N_CE',
+        }
+        param_name = param_map.get(systematic_name)
+        if param_name is None:
+            raise ValueError(f"Unknown parameter mapping for {systematic_name}")
+        
+        # Find and modify the constraint for this parameter
+        modified = False
+        for constraint in constraints:
+            # constraints.json uses 'name' field for parameter name
+            constraint_param = constraint.get('name') or constraint.get('parameter')
+            if constraint_param == param_name:
+                # Apply fractional variation to the nominal value
+                # Constraints use 'prior.mean' field for the nominal value
+                original_val = constraint.get('prior', {}).get('mean', 0.0)
+                original_sigma = constraint.get('prior', {}).get('sigma', 0.1)
+                
+                # For zero nominal values, apply absolute shift instead of fractional
+                if original_val == 0.0:
+                    # Shift by the constraint width
+                    varied_val = original_sigma if frac > 0 else -original_sigma
+                else:
+                    # Apply fractional variation
+                    varied_val = original_val * (1 + frac)
+                
+                constraint['prior']['mean'] = varied_val
+                self.logger.log(
+                    f"Modified {param_name} constraint: {original_val:.2f} → {varied_val:.2f}",
+                    'info'
+                )
+                modified = True
+                break
+        
+        if not modified:
+            raise ValueError(f"Could not find constraint for {param_name}")
+        
+        # Save modified constraints to temp file
+        mod_constraints_file = self.output_dir / f"constraints__{systematic_name}__{direction}.json"
+        with open(mod_constraints_file, 'w') as f:
+            json.dump(constraints, f, indent=2)
+        
+        return mod_constraints_file
+    
     def apply_variation(self, systematic_name: str, direction: str = 'plus') -> Tuple[Dict, Dict]:
         """
-        Apply a single systematic variation and return modified data.
+        Apply a single systematic variation and return modified data or constraints.
         
         Returns:
-          - varied_data: modified data dict
-          - metadata: applied variation details
+          - varied_data: modified data dict (for shift/shape) or baseline data (for frac)
+          - metadata: applied variation details, including any constraints to use
         """
         if self.baseline_data is None:
             raise RuntimeError("Call load_baseline_data() first")
@@ -206,13 +300,14 @@ class SystematicVariationRunner:
                 self.baseline_data['mom_mag'], systematic_name, direction
             )
         elif spec['type'] == 'frac':
-            # For fractional systematics, we'd need to vary yields
-            # For now, store metadata indicating this should be fixed in fit
+            # For fractional systematics, create modified constraints
+            mod_constraints_file = self._create_modified_constraints(systematic_name, direction)
             metadata = {
                 'systematic': systematic_name,
                 'type': 'frac',
                 'direction': direction,
-                'note': 'Fraction type - will be handled via parameter fixing in Phase 2.1'
+                'modified_constraints': str(mod_constraints_file),
+                'note': 'Fraction type - handled via modified constraints in fit'
             }
         else:
             raise ValueError(f"Unsupported variation type: {spec['type']}")
@@ -220,7 +315,8 @@ class SystematicVariationRunner:
         return varied_data, metadata
     
     def run_fit_variation(self, systematic_name: str, direction: str = 'plus',
-                         fit_range: Tuple[float, float] = (95, 115)) -> Optional[Dict[str, Any]]:
+                         fit_range: Tuple[float, float] = (95, 115),
+                         fit_range_time: Tuple[float, float] = (700, 1700)) -> Optional[Dict[str, Any]]:
         """
         Run a single systematic variation: apply variation, fit, collect metrics.
         
@@ -247,6 +343,34 @@ class SystematicVariationRunner:
                 metadata=json.dumps(var_metadata)
             )
             
+            # Determine which constraints to use
+            constraints_dir = 'uncertainties/outputs'
+            if 'modified_constraints' in var_metadata:
+                # For frac systematics, use the modified constraints file
+                # We need to pass the directory that contains this file
+                constraints_dir = str(self.output_dir)
+                # Also rename/copy the modified file to the standard name temporarily
+                mod_constraints_file = Path(var_metadata['modified_constraints'])
+                temp_constraints_file = self.output_dir / 'constraints_temp.json'
+                with open(mod_constraints_file, 'r') as src, open(temp_constraints_file, 'w') as dst:
+                    dst.write(src.read())
+                # For this fit, we'll load from temp file
+                # But fit_module loads from 'constraints.json', so we need a different approach
+                # Better: modify constraints.json temporarily
+                original_constraints_file = self.output_dir / 'constraints.json'
+                backup_constraints_file = self.output_dir / 'constraints_backup.json'
+                
+                # Backup original
+                if not backup_constraints_file.exists():
+                    with open(original_constraints_file, 'r') as src:
+                        with open(backup_constraints_file, 'w') as dst:
+                            dst.write(src.read())
+                
+                # Use modified constraints
+                with open(mod_constraints_file, 'r') as src:
+                    with open(original_constraints_file, 'w') as dst:
+                        dst.write(src.read())
+            
             # Run fit on varied data
             if self.fit_type == '2D':
                 result, poi, loss, _, _ = Unbinned_2d_fit_mom_time(
@@ -254,10 +378,10 @@ class SystematicVariationRunner:
                     varied_data.get('time'),
                     4,
                     fit_range_mom=fit_range,
-                    fit_range_time=(700, 1700),
-                    constraints_dir='uncertainties/outputs',
+                    fit_range_time=fit_range_time,
+                    constraints_dir=constraints_dir,
                     verbose=0,
-                    plot_results=False
+                    plot_results=True
                 )
             else:  # 1d
                 result, poi, loss, _, _, _ = Unbinned_fit_mom(
@@ -265,10 +389,16 @@ class SystematicVariationRunner:
                     4,
                     fit_range[0],
                     fit_range[1],
-                    constraints_dir='uncertainties/outputs',
+                    constraints_dir=constraints_dir,
                     verbose=0,
-                    plot_results=False
+                    plot_results=True
                 )
+            
+            # Restore original constraints if modified
+            if 'modified_constraints' in var_metadata and backup_constraints_file.exists():
+                with open(backup_constraints_file, 'r') as src:
+                    with open(original_constraints_file, 'w') as dst:
+                        dst.write(src.read())
             
             # Get value and uncertainties
             poi_value = float(poi.value())
@@ -312,7 +442,8 @@ class SystematicVariationRunner:
             return None
     
     def run_multiple_variations(self, systematics: list, 
-                               fit_range: Tuple[float, float] = (95, 115)):
+                               fit_range: Tuple[float, float] = (95, 115),
+                               fit_range_time: Tuple[float, float] = (700, 1700)):
         """Run variations for multiple systematics."""
         self.logger.log(f"Running {len(systematics)} systematics (both directions)...", 'info')
         
@@ -323,7 +454,7 @@ class SystematicVariationRunner:
             
             for direction in ['plus', 'minus']:
                 try:
-                    result = self.run_fit_variation(sys_name, direction, fit_range)
+                    result = self.run_fit_variation(sys_name, direction, fit_range, fit_range_time)
                     if result:
                         self.results[f"{sys_name}_{direction}"] = result
                 except Exception as e:
@@ -413,7 +544,9 @@ def main():
     parser.add_argument('--all-implemented', action='store_true',
                        help='Run all implemented systematics')
     parser.add_argument('--fit-range', type=float, nargs=2, default=[95, 115],
-                       help='Fit range (low high)')
+                       help='Fit range for momentum (low high, default: 95 115)')
+    parser.add_argument('--fit-range-time', type=float, nargs=2, default=[500, 1695],
+                       help='Fit range for time (low high, default: 500 1695)')
     parser.add_argument('--outdir', type=str, default='uncertainties/outputs',
                        help='Output directory')
     parser.add_argument('--collect', action='store_true',
@@ -460,7 +593,7 @@ def main():
         runner = SystematicVariationRunner(args.data, output_dir=args.outdir, 
                                            fit_type=args.fittype, verbose=args.verbose)
         runner.load_baseline_data()
-        runner.fit_baseline(tuple(args.fit_range))
+        runner.fit_baseline(tuple(args.fit_range), tuple(args.fit_range_time))
         
         # Determine which systematics to run
         if args.systematic:
@@ -473,7 +606,7 @@ def main():
             parser.print_help()
             return
         
-        runner.run_multiple_variations(systematics, tuple(args.fit_range))
+        runner.run_multiple_variations(systematics, tuple(args.fit_range), tuple(args.fit_range_time))
         runner.save_results()
         print(runner.produce_impact_summary())
         

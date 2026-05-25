@@ -5,6 +5,7 @@ import awkward as ak
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import zfit
+import os
 from zfit.minimizers.strategy import FailMinimizeNaN
 from typing import List, Tuple, Optional, Any
 from zfit.result import FitResult

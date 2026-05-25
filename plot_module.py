@@ -192,8 +192,12 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None):
           datasets_filled.append(dat)
           colors_filled.append(colors[i])
           labels_filled.append(labs_true[i])
+      
       dummy_handle1 = ax1.plot([], marker="", color='white', label="Reco. MC")
-      n,bins,patch = ax1.hist(datasets_filled, range=(fit_range[0],fit_range[1]), color=colors_filled, label=labels_filled, bins=25, histtype="bar", stacked=True, edgecolor='black', linewidth=0.8,)
+      
+      # Only plot histogram if there are datasets to plot
+      if len(datasets_filled) > 0:
+        n,bins,patch = ax1.hist(datasets_filled, range=(fit_range[0], fit_range[1]), color=colors_filled, label=labels_filled, bins=25, histtype="bar", stacked=True, edgecolor='black', linewidth=0.8)
 
         
       """
@@ -468,15 +472,16 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None):
         colors_filled = []
         labels_filled = []
         for i, dat in enumerate(datasets):
-
-          if len(dat) !=0:
+          if len(dat) != 0:
             datasets_filled.append(dat)
             colors_filled.append(colors[i])
             labels_filled.append(labs_true[i])
-          logger.log(f'len(colors_filled)={len(colors_filled)}', 'debug')
-        dummy_handle1 = ax1.plot([], marker="",color='white', label="Reco. MC")
-
-        n,bins,patch = ax1.hist(datasets_filled,range=(fit_range[0],fit_range[1]), color=colors_filled, label=labels_filled, bins=25, edgecolor='black', linewidth=0.8,histtype="bar", stacked=True)
+        
+        dummy_handle1 = ax1.plot([], marker="", color='white', label="Reco. MC")
+        
+        # Only plot histogram if there are datasets to plot
+        if len(datasets_filled) > 0:
+          n,bins,patch = ax1.hist(datasets_filled, range=(fit_range[0], fit_range[1]), color=colors_filled, label=labels_filled, bins=25, edgecolor='black', linewidth=0.8, histtype="bar", stacked=True)
 
         
         """
