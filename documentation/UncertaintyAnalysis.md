@@ -1,75 +1,316 @@
-# Uncertainty Analysis — Concept and Practical Guide
+# Uncertainty Analysis — Implementation Guide
 
-To complete our analysis framework we need to include uncertainties both yield/normalization uncertainties that might effect the relative yields but most importantly shape uncertainties.
+The pyfitter framework includes a complete systematic uncertainty propagation pipeline. This document describes the two main workflows and how to use them.
 
-Here I set some guidelines to plan how we include the large number of possible uncertainties:
+## Overview
 
-Purpose
-- Provide a compact, actionable plan for identifying, propagating, and summarizing uncertainties in the analysis.
-- Focus on reproducible studies that exercise the full pipeline (selection → reconstruction → fit).
+Systematic uncertainties are propagated through the fit using multiple methods:
+- **Profile Likelihood**: Fix parameter to nominal ± 1σ, refit N_CE (publication-ready)
+- **Systematic Variation**: Shift data by ±1σ, refit all parameters (diagnostic)
+- **Constraint-based**: Gaussian constraints on nuisance parameters in the fit
+- **Template-based**: Alternative PDF shapes for background models
 
-1) Types of uncertainties to consider
-- Statistical: finite data / MC sample size.
-- Experimental systematic: momentum scale/resolution, timing calibration, detector efficiency, alignment.
-- Selection/systematic: cut thresholds, veto efficiencies, reconstruction choices.
-- Background-modeling: shape and normalization uncertainties (e.g. DIO PDF variants, cosmic/RPC templates).
-- Theory/modeling: cross-section or physics-model parameters used in simulation.
-- Technical: pile-up, readout windows, event merging, file-reading differences.
+All 17 systematically uncertain sources are catalogued in `uncertainties/model/sysunc_components.py` with specifications for each variation method.
 
-2) General strategy
-- Enumerate sources and assign a controlled variation for each (±1σ, alternative model, reweighting function).
-- Parametrize each source as a nuisance parameter (NP) where possible (linear shift, scale, smearing sigma, template weight).
-- Define a baseline pipeline run that produces the main results (yields, fit parameters, pull distributions).
+## Quick Start
 
-3) Methods to propagate uncertainties
-- Refit with shifted inputs: run the full pipeline after applying each systematic shift and record the change in the final parameters.
-- Toy Monte Carlo (pseudo-experiments): generate ensembles with varied nuisance parameters and fit each; measure bias, variance, and coverage.
-- Profile (frequentist) approach: include NPs in the fit (with constraints) and profile over them to produce confidence intervals.
-- Bayesian marginalization: include priors on NPs and marginalize to obtain posterior distributions for parameters of interest.
-- Reweighting / event-by-event variations: apply weights instead of regenerating samples when appropriate.
-- Covariance propagation: compute analytic or numeric derivatives and propagate the covariance to final observables when re-fits are too expensive.
+### Method 1: Profile Likelihood  ⭐ Recommended
 
-4) Practical workflow (recommended)
-- Step A — Inventory: make a short table of sources: name, typical size, how to vary (file/parameter/weight), expected direction (see the `uncertainties1 package)
-- Step B — Small-scale checks: for each source, produce a quick diagnostic (histogram overlays before/after variation) to detect gross mismodeling.
-- Step C — One-at-a-time evaluation: apply each variation individually, run the full pipeline, and capture delta metrics (shift in parameter, change in uncertainty).
-- Step D — Combined effects: for correlated NPs, consider joint toys or multi-parameter profiling to capture interplay.
-- Step E — Ranking and impact: produce an impact table (absolute and relative shifts) and a waterfall plot showing how uncertainties add in quadrature or via profiling.
+Profile likelihood is the standard frequentist approach. For each systematic, we fix the parameter to nominal ± 1σ and refit N_CE to measure the impact.
 
-5) Metrics and visualizations to produce
-- Shift table: parameter shifts vs. baseline for each systematic.
-- Pull/coverage plots from pseudo-experiments: distribution of (fitted - true)/fit_error.
-- Waterfall/impact plot: show contributions of top N systematics to the total uncertainty.
-- Correlation matrix: between fit parameters and NPs.
-- Overlayed spectra/histograms: baseline vs. shifted inputs for key distributions (momentum, time).
-- Toy summary: bias and RMS as a function of injected NP value.
+**Run all implemented systematics:**
 
-6) Implementation notes and file layout
-- Keep each systematic variation as a small, readable script under `py-fitter/uncertainties/` (or a similar folder). Each script should:
-  - accept the same CLI options as `process.py` (filelist, location, cuts) and produce diagnostics into a named output folder.
-  - save the derived inputs (e.g. shifted `mom_mag.npz` or pickled filtered arrays) so re-running fits is cheap.
-- Create a driver `run_systematics.py` that enumerates variations, dispatches jobs (local/cluster), and collects results into `uncertainties/outputs/`.
-- Use consistent filenames: `<basename>__sys-<NAME>__shift-<dir>.npz` and `<basename>__sys-<NAME>__fit.json` to make collection and comparison trivial.
+```bash
+cd uncertainties
+python run_profile_systematics.py --all-implemented --data ../MDS3c_mom_mag.npz --fittype 2D
+```
 
-7) Automated tests and reproducibility
-- Add a quick smoke test (similar to `run_unit_test.py`) that runs the baseline and a small handful of systematic shifts and stores a summary CSV.
-- Store logs under `py-fitter/unit_test/uncertainties/` and require attaching them to PRs that touch core code (per your GettingStarted requirement).
+**Run a single systematic (both +/- directions):**
 
-8) Scaling to expensive studies
-- If re-fitting is expensive, prefer reweighting or analytic propagation for first-pass ranking.
-- For final results, run full toys only for top-ranked systematics or combined nuisance sets.
+```bash
+python run_profile_systematics.py --systematic DIO_Theory --data ../MDS3c_mom_mag.npz --fittype 2D
+```
 
-9) Quick checklist for a single systematic
-- Define variation (scale/shift/alternative PDF).
-- Produce diagnostic histogram (before/after).
-- Run pipeline and save outputs (filtered data, `mom_mag.npz`, fit results JSON/PNG).
-- Record metric: shift in parameter and change in fit uncertainty.
+**Collect results and generate impact summary:**
 
-10) Provide a README.md with commands to anlayze the specific systematic.
+```bash
+python run_profile_systematics.py --impact-summary
+```
 
+**Output**: `uncertainties/outputs/impact_table.json` with Δ N_CE for each systematic.
 
-11) Next steps you can ask me to implement
-- scaffold `py-fitter/systematics/` with a template `scale_momentum.py` and a `collect_results.py` summarizer.
-- add a small smoke test that runs baseline + one systematic and stores logs into `py-fitter/unit_test/systematics/`.
+### Method 2: Systematic Variation (Diagnostic)
 
-Keep this document near your other analysis docs so contributors can follow the prescribed workflow.
+Run all implemented systematic variations by shifting the data and refitting:
+
+```bash
+python run_systematic_variation.py --all-implemented --data ../MDS3c_mom_mag.npz --fittype 2D
+```
+
+**Run a single systematic:**
+
+```bash
+python run_systematic_variation.py --systematic Abs_Mom_Scale --direction plus --data ../MDS3c_mom_mag.npz
+```
+
+**Output**: Varied data (NPZ) and fit results (JSON) for each systematic.
+
+### Comparison: Profile Likelihood vs. Systematic Variation
+
+| Aspect | Profile Likelihood | Systematic Variation |
+|--------|-------------------|----------------------|
+| **Best for** | Final results, publications | Diagnostics, understanding impact |
+| **How it works** | Fix parameter at ±1σ, refit N_CE | Shift data by ±1σ, refit all parameters |
+| **Parameter behavior** | Fixed (not varied) | Constrained (like in baseline fit) |
+| **Background yields** | Constrained (stable) | Constrained (stable) |
+| **Interpretation** | Δ N_CE from fixing nuisance | Δ N_CE from data modification |
+| **Computation** | Faster: 2 fits/systematic | Slower: data variation + full pipeline |
+| **Correlations** | Automatic (proper profile) | Via constraints on backgrounds |
+| **Publication status** | ✓ Standard in HEP | ✓ Useful for exploration |
+
+## Understanding Profile Likelihood
+
+Profile likelihood is a standard frequentist method to measure systematic impacts:
+
+**The procedure:**
+1. **Fix the nuisance parameter** to nominal + 1σ (or - 1σ) using `treat_params='fix'` in physics_components
+2. **Refit the signal yield N_CE** with other parameters floating (backgrounds constrained)
+3. **Record the new N_CE value** and compare to baseline
+4. **The difference is your systematic impact**: Δ N_CE = N_CE(fixed) - N_CE(nominal)
+
+**Why this is powerful:**
+- **Accounts for correlations** between the systematic parameter and N_CE automatically
+- **Stable backgrounds** thanks to constraints on yields/efficiencies
+- **Standard in HEP**: matches what journal editors and reviewers expect
+- **Publication-ready**: single impact number per systematic
+- **Frequentist**: no priors needed, straightforward interpretation
+
+**Example: DIO Theory yield uncertainty**
+- Nominal: DIO theory predicts 6400 ± 450 events (7% uncertainty)
+- Profile +1σ: Fix N_DIO = 6850, refit → N_CE decreases by 0.5 events
+- Profile -1σ: Fix N_DIO = 5950, refit → N_CE increases by 0.6 events
+- Impact: Δ N_CE = ±0.5-0.6 events from DIO uncertainty
+
+## Systematic Uncertainties Catalog
+
+The framework defines 17 systematic sources, organized by component:
+
+### Momentum/Detector (5 systematics)
+| Name | Type | Variation | Status |
+|------|------|-----------|--------|
+| `Abs_Mom_Scale` | Momentum scale | ±3% | Implemented |
+| `Mom_Res_Scale` | Momentum resolution | ±10% | Planned |
+| `Track_Efficiency` | Track reco efficiency | ±2% | Planned |
+| `PID_Efficiency` | Particle ID efficiency | ±5% | Planned |
+| `Timing_Cal` | Timing calibration | ±50 ps | Planned |
+
+### Yield/Cross-section (5 systematics)
+| Name | Type | Variation | Status |
+|------|------|-----------|--------|
+| `DIO_Theory` | Yield constraint | ±7% | Implemented |
+| `RPC_Rate` | Yield constraint | ±50% | Implemented |
+| `Pion_Rate` | Yield constraint | ±20% | Implemented |
+| `CRV_Efficiency` | Veto efficiency | ±10% | Implemented |
+| `Cosmic_Rate` | Cosmic background | ±30% | Planned |
+
+### Background PDFs (5 systematics)
+| Name | Type | Variation | Status |
+|------|------|-----------|--------|
+| `DIO_PDF_Variant` | Shape uncertainty | Alternative shape | Planned |
+| `Cosmic_Generator` | Shape uncertainty | Alternative generator | Implemented |
+| `c1_Cosmic` | Shape parameter | ±50% | Implemented |
+| `c2_Cosmic` | Shape parameter | ±20% | Implemented |
+| `RPC_PDF` | Shape uncertainty | Alternative shape | Planned |
+
+### Physics/Theory (2 systematics)
+| Name | Type | Variation | Status |
+|------|------|-----------|--------|
+| `CE_Signal_Norm` | Theory prediction | ±2% | Planned |
+| `Pileup_Model` | Readout effects | ±5% | Planned |
+
+## Implementation Architecture
+
+### Profile Likelihood Runner
+
+**File**: `uncertainties/run_profile_systematics.py`
+
+Measures systematic impacts using proper profile likelihood (publication-ready):
+
+```python
+from uncertainties.run_profile_systematics import ProfileLikelihoodRunner
+
+runner = ProfileLikelihoodRunner(
+    data_file='../MDS3c_mom_mag.npz',
+    fit_type='2D',
+    output_dir='uncertainties/outputs'
+)
+
+# Run single systematic
+runner.run_systematic('DIO_Theory')
+
+# Run all implemented
+runner.run_all_implemented()
+
+# Generate impact table
+impacts = runner.collect_impact_summary()
+print(impacts)  # {systematic_name: {'plus': delta, 'minus': delta}, ...}
+```
+
+### Systematic Variation Runner
+
+**File**: `uncertainties/run_systematic_variation.py`
+
+Applies data variations and refits (diagnostic):
+
+```bash
+# Run all implemented
+python run_systematic_variation.py --all-implemented --data ../MDS3c_mom_mag.npz
+
+# Run momentum systematics only
+python run_systematic_variation.py --all-momentum --data ../MDS3c_mom_mag.npz
+
+# Run single systematic
+python run_systematic_variation.py --systematic Abs_Mom_Scale --direction plus --data ../MDS3c_mom_mag.npz
+```
+
+### Constraint Generation
+
+**File**: `uncertainties/generate_constraints.py`
+
+Creates constraint JSON for background yields and efficiencies:
+
+```bash
+python generate_constraints.py --fittype 2D --data ../MDS3c_mom_mag.npz
+```
+
+Produces: `uncertainties/outputs/constraints_combined.json`
+
+## Typical Workflow
+
+```
+Step 1: Generate baseline fit
+  $ python process.py --data data.txt --location baseline
+
+Step 2a: Profile each systematic (publication results)
+  $ cd uncertainties
+  $ python run_profile_systematics.py --all-implemented --data ../MDS3c_mom_mag.npz --fittype 2D
+  $ python run_profile_systematics.py --impact-summary
+  → impact_table.json
+
+Step 2b (optional): Diagnostic variations
+  $ python run_systematic_variation.py --all-implemented --data ../MDS3c_mom_mag.npz
+
+Step 3: Analyze impacts
+  $ python post_process.py --impact-table outputs/impact_table.json
+  → Waterfall plot, ranking, total uncertainty
+```
+
+## Output Formats
+
+### Profile Likelihood Results
+
+**Per-systematic output** (`MDS3c__sys-{NAME}__profile-{DIR}.json`):
+
+```json
+{
+  "systematic": "DIO_Theory",
+  "direction": "plus",
+  "param_value": 6850,
+  "baseline_N_CE": 18.5,
+  "profiled_N_CE": 18.0,
+  "delta_N_CE": -0.5,
+  "fit_quality": "good"
+}
+```
+
+**Impact summary** (`impact_table.json`):
+
+```json
+{
+  "DIO_Theory": {"plus": -0.5, "minus": 0.6},
+  "RPC_Rate": {"plus": -0.1, "minus": 0.1},
+  "Abs_Mom_Scale": {"plus": -0.3, "minus": 0.2},
+  ...
+}
+```
+
+### Systematic Variation Results
+
+**Varied data** (`MDS3c__sys-{NAME}__shift-{DIR}.npz`):
+- Modified momentum array with applied systematic
+
+**Fit results** (`MDS3c__sys-{NAME}__fit-{DIR}.json`):
+```json
+{
+  "systematic": "Abs_Mom_Scale",
+  "direction": "plus",
+  "baseline_N_CE": 18.5,
+  "varied_N_CE": 18.2,
+  "delta": -0.3,
+  "parameters": {...}
+}
+```
+
+## Metrics and Interpretation
+
+**Δ N_CE (shift in signal yield):**
+- Small (< 0.2): Systematic has minimal impact
+- Medium (0.2-1.0): Moderate constraint effect
+- Large (> 1.0): This systematic dominates fit sensitivity
+
+**Fit quality:**
+- Check if profiling/variation causes convergence issues
+- Larger shifts may indicate correlations with background components
+
+**Comparison table (all systematics):**
+- Rank by |Δ N_CE| to identify which systematics matter most
+- Total uncertainty (assuming independence): √(Σ (Δ N_CE)²)
+
+## Common Workflows
+
+### Generate Full Impact Table
+
+```bash
+cd uncertainties
+
+# Profile all implemented systematics
+python run_profile_systematics.py --all-implemented --data ../MDS3c_mom_mag.npz --fittype 2D
+
+# Collect summary
+python run_profile_systematics.py --impact-summary
+
+# Review results
+cat outputs/impact_table.json | python -m json.tool
+```
+
+### Compare Profile vs. Variation
+
+```bash
+# Profile method
+python run_profile_systematics.py --systematic Abs_Mom_Scale --data ../MDS3c_mom_mag.npz
+
+# Variation method
+python run_systematic_variation.py --systematic Abs_Mom_Scale --data ../MDS3c_mom_mag.npz
+
+# Compare Δ N_CE values to understand method differences
+```
+
+### Diagnostic: Single Systematic Detail
+
+```bash
+# Profile with verbose output
+python run_profile_systematics.py --systematic DIO_Theory --data ../MDS3c_mom_mag.npz --verbose 2
+
+# View fit results
+ls -la outputs/MDS3c__sys-DIO_Theory__*.json
+cat outputs/MDS3c__sys-DIO_Theory__profile-plus.json | python -m json.tool
+```
+
+## References
+
+- `uncertainties/run_profile_systematics.py` — Profile likelihood implementation
+- `uncertainties/run_systematic_variation.py` — Systematic variation runner
+- `uncertainties/generate_constraints.py` — Constraint generation
+- `uncertainties/model/sysunc_components.py` — 17 systematic specifications
+- `uncertainties/QUICKSTART.md` — Quick reference
+

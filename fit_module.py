@@ -105,6 +105,42 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
     # --- build combined PDF ---
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
+    # --- Apply treat_params='fix' by setting floating=False on zfit parameters ---
+    # Map component names to their treat_params setting
+    treat_params_config = {proc: mom_components[proc].get('treat_params', 'float') for proc in mom_components}
+    
+    # For parameters that should be fixed (treat_params='fix'), set floating=False
+    for param in pars:
+        param_name = param.name
+        # Try to infer which component this parameter belongs to
+        # Parameters follow patterns like N_DIO, c1_RPC, decay_rate_mu, etc.
+        is_fixed = False
+        
+        for proc in mom_components:
+            if treat_params_config[proc] == 'fix':
+                # Check if this parameter belongs to this component
+                # N_<process> parameters
+                if param_name == f'N_{proc}':
+                    is_fixed = True
+                    break
+                # Other parameters from this process
+                elif param_name.startswith(proc.lower() + '_') or param_name in mom_components[proc].get('pars', {}):
+                    is_fixed = True
+                    break
+        
+        # Also check time components if defined
+        if not is_fixed and 'time_components' in dir() and time_components:
+            time_treat_params_config = {proc: time_components[proc].get('treat_params', 'float') for proc in time_components}
+            for proc in time_components:
+                if time_treat_params_config[proc] == 'fix':
+                    if param_name == f'N_{proc}' or param_name in time_components[proc].get('pars', {}):
+                        is_fixed = True
+                        break
+        
+        if is_fixed:
+            param.floating = False
+            if verbose > 0:
+                logger.log(f"Fixed parameter: {param_name} = {param.value()}", 'info')
 
     # --- optional: load external constraints/templates (standalone uncertainty artifacts)
     if constraints_dir is not None and os.path.exists(os.path.join(constraints_dir, 'constraints.json')):
@@ -408,6 +444,7 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
 
     
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
+    
     # Convert data to zfit Data
     data_np_time = ak.to_numpy(ak.flatten(times, axis=None))
     data_np_mom = ak.to_numpy(ak.flatten(mom_mag, axis=None))
@@ -415,6 +452,40 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
 
     # Combine parameter lists (momentum + time)
     pars = mompars + timepars
+
+    # --- Apply treat_params='fix' by setting floating=False on zfit parameters ---
+    # Map component names to their treat_params setting
+    treat_params_config = {proc: mom_components[proc].get('treat_params', 'float') for proc in mom_components}
+    
+    # For parameters that should be fixed (treat_params='fix'), set floating=False
+    for param in pars:
+        param_name = param.name
+        # Try to infer which component this parameter belongs to
+        is_fixed = False
+        
+        for proc in mom_components:
+            if treat_params_config[proc] == 'fix':
+                # Check if this parameter belongs to this component
+                if param_name == f'N_{proc}':
+                    is_fixed = True
+                    break
+                elif param_name.startswith(proc.lower() + '_') or param_name in mom_components[proc].get('pars', {}):
+                    is_fixed = True
+                    break
+        
+        # Also check time components
+        if not is_fixed:
+            time_treat_params_config = {proc: time_components[proc].get('treat_params', 'float') for proc in time_components}
+            for proc in time_components:
+                if time_treat_params_config[proc] == 'fix':
+                    if param_name == f'N_{proc}' or param_name in time_components[proc].get('pars', {}):
+                        is_fixed = True
+                        break
+        
+        if is_fixed:
+            param.floating = False
+            if verbose > 0:
+                logger.log(f"Fixed parameter: {param_name} = {param.value()}", 'info')
 
     # --- optional: load external constraints/templates (standalone uncertainty artifacts)
     if constraints_dir is not None:
