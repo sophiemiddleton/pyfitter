@@ -171,22 +171,22 @@ def doConv(true_pdf, obs_gen, obs_res, name, info, zpars):
             my_hist_cls = make_HistogramPDF(prob[pfilt[:-1]], edges[efilt])
             norm = sum(prob[pfilt[:-1]] * (edges[efilt][1:] - edges[efilt][:-1]))
             fracs.append(norm)
-            true_pdf_slice = my_hist_cls(obs=obs_gen)
+            true_pdf_slice = my_hist_cls(obs=obs_conv)
             
         elif len(p_bins) == 1:
             true_pdf_slice = true_pdf
         else:
             norm = float(true_pdf.integrate(limits=obs_slice, norm=False))
             fracs.append(norm)
-            true_pdf_slice = zfit.pdf.TruncatedPDF(true_pdf, limits=obs_slice, obs=obs_gen)
+            true_pdf_slice = zfit.pdf.TruncatedPDF(true_pdf, limits=obs_slice, obs=obs_conv)
 
         # Prepare the resolution/experimental kernel kernel
         if pdf_type == "landau":
-            res_pdf = trunc_landau(obs=obs_res, 
+            res_pdf = trunc_landau(obs=obs_conv, 
                                    loc=zpars[f'loc{ip}_{name}'], 
                                    scale=zpars[f'scale{ip}_{name}'])
         elif pdf_type == "gcb":
-            res_pdf = zfit.pdf.GeneralizedCB(obs=obs_res, 
+            res_pdf = zfit.pdf.GeneralizedCB(obs=obs_conv, 
                                              mu=zpars[f'mu{ip}_{name}'], 
                                              sigmal=zpars[f'sigmaL{ip}_{name}'], 
                                              sigmar=zpars[f'sigmaR{ip}_{name}'], 

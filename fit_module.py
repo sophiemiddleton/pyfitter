@@ -127,6 +127,17 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
                 elif param_name.startswith(proc.lower() + '_') or param_name in mom_components[proc].get('pars', {}):
                     is_fixed = True
                     break
+            
+            # Also check fixed_params list for specific parameters
+            fixed_params_list = mom_components[proc].get('fixed_params', [])
+            if fixed_params_list:
+                for fixed_param in fixed_params_list:
+                    # Check if param_name matches the pattern: fixed_param_PROCESS or fixed_param
+                    if param_name == f'{fixed_param}_{proc}' or param_name == fixed_param:
+                        is_fixed = True
+                        break
+            if is_fixed:
+                break
         
         # Also check time components if defined
         if not is_fixed and 'time_components' in dir() and time_components:
@@ -136,6 +147,17 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
                     if param_name == f'N_{proc}' or param_name in time_components[proc].get('pars', {}):
                         is_fixed = True
                         break
+                
+                # Also check time component fixed_params list
+                fixed_params_list = time_components[proc].get('fixed_params', [])
+                if fixed_params_list:
+                    for fixed_param in fixed_params_list:
+                        # Check if param_name matches the pattern: fixed_param_PROCESS or fixed_param
+                        if param_name == f'{fixed_param}_{proc}' or param_name == fixed_param:
+                            is_fixed = True
+                            break
+                if is_fixed:
+                    break
         
         if is_fixed:
             param.floating = False
@@ -168,10 +190,17 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
       c_type = type(c).__name__
       # Extract parameter info from constraint
       param_info = "unknown"
-      if hasattr(c, 'params') and c.params:
-        param_info = ', '.join([p.name for p in c.params if hasattr(p, 'name')])
-      elif hasattr(c, '_params') and c._params:
-        param_info = ', '.join([p.name for p in c._params if hasattr(p, 'name')])
+      try:
+        if hasattr(c, 'params') and c.params:
+          param_info = ', '.join([str(p.name) if hasattr(p, 'name') else str(p) for p in c.params])
+        elif hasattr(c, '_params') and c._params:
+          param_info = ', '.join([str(p.name) if hasattr(p, 'name') else str(p) for p in c._params])
+        elif hasattr(c, 'value'):
+          param_info = f"value={c.value}"
+        else:
+          param_info = str(c)[:100]
+      except Exception as ex:
+        param_info = f"extraction error: {ex}"
       logger.log(f"  Constraint {i+1}: {c_type} on {param_info}", 'info')
 
     if verbose > 0:
@@ -256,7 +285,9 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
     # produce bin-by-bin momentum confusion plot (true vs fitted fractions)
     if plot_results:
       try:
-        bin_by_bin_mom_confusion(mom_mag, count_particle_types, [(proc, pdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range, bin_width=0.5, filename_prefix='mom_confusion_1d')
+        # Use result.params to ensure fitted values are used, not just norms dict
+        list_pdfs_from_result = [(proc, pdfs[proc], result.params[f'N_{proc}']['value'] if f'N_{proc}' in result.params else norms[proc]) for proc in mom_components.keys()]
+        bin_by_bin_mom_confusion(mom_mag, count_particle_types, list_pdfs_from_result, fit_range, bin_width=0.5, filename_prefix='mom_confusion_1d')
       except Exception as e:
         logger.log(f'Failed to produce bin-by-bin momentum confusion plot: {e}', 'error')
       
@@ -472,6 +503,18 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
                 elif param_name.startswith(proc.lower() + '_') or param_name in mom_components[proc].get('pars', {}):
                     is_fixed = True
                     break
+            
+            # Also check fixed_params list for specific parameters
+            # Params follow naming convention: {param_name}_{process}
+            fixed_params_list = mom_components[proc].get('fixed_params', [])
+            if fixed_params_list:
+                for fixed_param in fixed_params_list:
+                    # Check if param_name matches the pattern: fixed_param_PROCESS or fixed_param
+                    if param_name == f'{fixed_param}_{proc}' or param_name == fixed_param:
+                        is_fixed = True
+                        break
+            if is_fixed:
+                break
         
         # Also check time components
         if not is_fixed:
@@ -481,6 +524,18 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
                     if param_name == f'N_{proc}' or param_name in time_components[proc].get('pars', {}):
                         is_fixed = True
                         break
+                
+                # Also check time component fixed_params list
+                # Params follow naming convention: {param_name}_{process}
+                fixed_params_list = time_components[proc].get('fixed_params', [])
+                if fixed_params_list:
+                    for fixed_param in fixed_params_list:
+                        # Check if param_name matches the pattern: fixed_param_PROCESS or fixed_param
+                        if param_name == f'{fixed_param}_{proc}' or param_name == fixed_param:
+                            is_fixed = True
+                            break
+                if is_fixed:
+                    break
         
         if is_fixed:
             param.floating = False
@@ -514,10 +569,17 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
       c_type = type(c).__name__
       # Extract parameter info from constraint
       param_info = "unknown"
-      if hasattr(c, 'params') and c.params:
-        param_info = ', '.join([p.name for p in c.params if hasattr(p, 'name')])
-      elif hasattr(c, '_params') and c._params:
-        param_info = ', '.join([p.name for p in c._params if hasattr(p, 'name')])
+      try:
+        if hasattr(c, 'params') and c.params:
+          param_info = ', '.join([str(p.name) if hasattr(p, 'name') else str(p) for p in c.params])
+        elif hasattr(c, '_params') and c._params:
+          param_info = ', '.join([str(p.name) if hasattr(p, 'name') else str(p) for p in c._params])
+        elif hasattr(c, 'value'):
+          param_info = f"value={c.value}"
+        else:
+          param_info = str(c)[:100]
+      except Exception as ex:
+        param_info = f"extraction error: {ex}"
       logger.log(f"  Constraint {i+1}: {c_type} on {param_info}", 'info')
 
     # Loss function and minimizer
@@ -572,13 +634,17 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
 
       # produce bin-by-bin momentum confusion plot (true vs fitted fractions)
       try:
-        bin_by_bin_mom_confusion(mom_mag, count_particle_types, [(proc, mompdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range_mom, bin_width=0.5, filename_prefix='mom_confusion_2d')
+        # Use result.params to ensure fitted values are used, not just norms dict
+        list_pdfs_mom_from_result = [(proc, mompdfs[proc], result.params[f'N_{proc}']['value'] if f'N_{proc}' in result.params else norms[proc]) for proc in mom_components.keys()]
+        bin_by_bin_mom_confusion(mom_mag, count_particle_types, list_pdfs_mom_from_result, fit_range_mom, bin_width=0.5, filename_prefix='mom_confusion_2d')
       except Exception as e:
         logger.log(f'Failed to produce bin-by-bin momentum confusion plot: {e}', 'error')
 
       # produce bin-by-bin time confusion plot (true vs fitted fractions)
       try:
-        bin_by_bin_time_confusion(times, count_particle_types, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], fit_range_time, bin_width=50.0, filename_prefix='time_confusion_2d')
+        # Use result.params to ensure fitted values are used, not just norms dict
+        list_pdfs_time_from_result = [(proc, timepdfs[proc], result.params[f'N_{proc}']['value'] if f'N_{proc}' in result.params else norms[proc]) for proc in mom_components.keys()]
+        bin_by_bin_time_confusion(times, count_particle_types, list_pdfs_time_from_result, fit_range_time, bin_width=50.0, filename_prefix='time_confusion_2d')
       except Exception as e:
         logger.log(f'Failed to produce bin-by-bin time confusion plot: {e}', 'error')
       

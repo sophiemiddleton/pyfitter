@@ -8,6 +8,7 @@ from model.physics_components import mom_components, time_components
 from pyutils.pylogger import Logger
 from data_prep import DataPreparationManager
 from config import GLOBAL_VERBOSITY
+from style import COLORS, FONTS, PLOT_STYLE
 
 # Module logger
 logger = Logger(print_prefix='[plot_module] ', verbosity=GLOBAL_VERBOSITY)
@@ -49,12 +50,12 @@ def plot_variable(val_overlay, val_label, filenames, lo, hi, cut_lo, cut_hi, mc_
     ncol = max(1, min(4, (len(labels) + 1) // 2))
     if labels:
       fig.subplots_adjust(right=0.68)
-      fig.legend(handles, labels, loc='center left', bbox_to_anchor=(0.73, 0.5), ncol=1, fontsize=10, frameon=False)
+      fig.legend(handles, labels, loc='center left', bbox_to_anchor=(0.73, 0.5), ncol=1, fontsize=FONTS['legend']['size'], frameon=False)
       leg = None
     else:
-      leg = ax1.legend(fontsize='large')
+      leg = ax1.legend(fontsize=FONTS['legend']['size'])
   except Exception:
-    leg = ax1.legend(fontsize='large')
+    leg = ax1.legend(fontsize=FONTS['legend']['size'])
 
   Returns:
       saves a PDF named `<filenames>_selection.pdf`
@@ -89,7 +90,7 @@ def plot_variable(val_overlay, val_label, filenames, lo, hi, cut_lo, cut_hi, mc_
     # create dummy handle for legend columns
     dummy_handle = plt.plot([], marker="",color='white', label=columns[i])
     n,bins,patch = plt.hist(sets[i],range=(lo,hi), color=cols, label=labs, bins=25, histtype=styles[i], linestyle=lines[i],alpha=alphas[i], stacked=True, density=density)
-  plt.xlabel(str(val_label))
+  plt.xlabel(str(val_label), fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'])
   # draw cuts
   plt.plot(cut_lo, [0,1000], 'k--')
   plt.plot(cut_hi, [0,1000], 'k--')
@@ -103,21 +104,21 @@ def plot_variable(val_overlay, val_label, filenames, lo, hi, cut_lo, cut_hi, mc_
     if labels:
       # reserve space on right for legend and place legend inside reserved margin
       fig.subplots_adjust(right=0.66)
-      leg = fig.legend(handles, labels, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=1, fontsize=10, frameon=True)
+      leg = fig.legend(handles, labels, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=1, fontsize=FONTS['legend']['size'], frameon=True)
       if leg is not None:
         leg.set_frame_on(True)
         for txt in leg.get_texts():
           txt.set_color('black')
           txt.set_alpha(1.0)
     else:
-      leg = plt.legend(ncol=1, loc='center left', bbox_to_anchor=(0.68, 0.5))
+      leg = plt.legend(ncol=1, loc='center left', bbox_to_anchor=(0.68, 0.5), fontsize=FONTS['legend']['size'])
   except Exception:
-    plt.legend(ncol=len(columns), loc='upper center')
+    plt.legend(ncol=len(columns), loc='upper center', fontsize=FONTS['legend']['size'])
 
   plt.savefig(str(filenames)+"_selection.pdf", bbox_inches='tight')
   plt.close()
 
-def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None):
+def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None, logo_path=None):
     """
     Configures and draws the 1D histogram of momentum, with the combined fit and residuals plot underneath
 
@@ -134,10 +135,12 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None):
         process, pdf and normalization associated with that process (one per physics process)
     plot_truth : bool
         show the MC truth processes on the histogram
+    logo_path : str, optional
+        path to logo image file; if None, will check for mu2e_logo_oval.png
 
     """
     data = DataPreparationManager.get_numpy_array(mom_mag, remove_nans=True)
-    n_bins = 25
+    n_bins = 50
     mom_plot = np.linspace(fit_range[0], fit_range[1], n_bins)
     scale = 1 / n_bins * (fit_range[1] - fit_range[0])
     data = data[~np.isnan(data)] 
@@ -181,7 +184,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None):
       data_ipa = [x for x in data_ipa if (not np.isnan(x)) and (lo <= x <= hi)]
 
       datasets = [data_cosmics,data_irpc,data_erpc,data_ipa, data_dio, data_signal]
-      colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#8c564b', '#e377c2', '#ffff00']
+      colors = ['#1f77b4', "#ffe30e", '#2ca02c', '#8c564b', '#e377c2', '#ff8000']
       labs_true = ['Cosmic','int. RPC','ext. RPC','IPA Decays','DIO', 'Signal']
   
       datasets_filled = []
@@ -197,7 +200,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None):
       
       # Only plot histogram if there are datasets to plot
       if len(datasets_filled) > 0:
-        n,bins,patch = ax1.hist(datasets_filled, range=(fit_range[0], fit_range[1]), color=colors_filled, label=labels_filled, bins=25, histtype="bar", stacked=True, edgecolor='black', linewidth=0.8)
+        n,bins,patch = ax1.hist(datasets_filled, range=(fit_range[0], fit_range[1]), color=colors_filled, label=labels_filled, bins=n_bins, histtype="bar", stacked=True)
 
         
       """
@@ -250,8 +253,8 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None):
     ax1.set_yscale('log')
     ax1.set_xlim(fit_range)
     ax1.set_ylim([1.0,0.2*max(data_hist) + max(data_hist)])
-    #ax1.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=12)
-    ax1.set_ylabel('# of events per bin', fontsize=10)
+    #ax1.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=FONTS['label']['size'])
+    ax1.set_ylabel('Events per bin', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'])
     # build explicit proxy legend entries so text appears in reserved white space
     try:
       from matplotlib.lines import Line2D
@@ -263,7 +266,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None):
       # MC truth stacked components (if any)
       if 'labels_filled' in locals() and len(labels_filled) > 0:
         for col, lab in zip(colors_filled, labels_filled):
-          proxy_handles.append(Patch(facecolor=col, edgecolor='black'))
+          proxy_handles.append(Patch(facecolor=col))
           proxy_labels.append(lab)
       # Fit components (per-process lines) — ensure these appear in the legend
       if 'labs_fit' in locals() and len(labs_fit) > 0:
@@ -281,7 +284,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None):
       ncol = 1
       fig.subplots_adjust(right=0.66)
       
-      leg = fig.legend(proxy_handles, proxy_labels, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=ncol, fontsize=10, frameon=True)
+      leg = fig.legend(proxy_handles, proxy_labels, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=ncol, fontsize=FONTS['legend']['size'], frameon=True)
       if leg is not None:
         leg.set_frame_on(True)
         for txt in leg.get_texts():
@@ -291,7 +294,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None):
       if logger:
         logger.log(f'Legend creation failed: {e}; falling back to ax1.legend', 'warning')
       try:
-        leg = ax1.legend(fontsize=10)
+        leg = ax1.legend(fontsize=FONTS['legend']['size'])
       except Exception:
         leg = None
     # Make only the 'Reco. MC' legend entries bold; others normal
@@ -326,8 +329,23 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None):
     ax2.yaxis.set_ticks(np.arange(-5, 5,2))
     ax2.yaxis.set_minor_formatter(ticker.FormatStrFormatter('%0.1f'))
     ax2.set_xlim(fit_range)
-    ax2.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=10)
-    ax2.set_ylabel('Normalized Residual', fontsize=10)
+    ax2.set_xlabel('Reconstructed Momentum [MeV/c]', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'])
+    ax2.set_ylabel(r'Pull [$ \sigma $]', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'])
+    
+    # Add logo and metadata
+    logo_to_use = logo_path if logo_path else "mu2e_logo_oval.png"
+    try:
+        from PIL import Image
+        logo = Image.open(logo_to_use)
+        ax_logo = fig.add_axes([0.02, 0.93, 0.1, 0.09])
+        ax_logo.imshow(logo)
+        ax_logo.axis('off')
+    except Exception:
+        pass
+    
+    fig.text(0.15, 0.98, "Mu2e Simulation (Preliminary - Summer 2026)", fontsize=FONTS['label']['size'], fontweight='bold', ha='left', va='top', zorder=100)
+    fig.text(0.32, 0.97, r"$R_{\mu e} = 1 \times 10^{-11}$" + "\n" + "t = 28 days" + "\n" + r"$N_{\mathrm{POT}} = 7.3 \times 10^{18}$", fontsize=FONTS['legend']['size'], ha='right', va='top', zorder=100, bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgrey', edgecolor='black', alpha=0.8))
+    
     # yield comparison plot (expected vs fitted) for momentum
     try:
       plot_yield_comparison(mom_mag, mc_count, list_pdfs, filename_prefix='yield_compare_mom')
@@ -336,7 +354,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None):
     # note: plot_yield_comparison belongs with momentum and time plotting callers
     
 
-def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None):
+def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None, logo_path=None):
     """
     Configures and draws the 1D histogram of time, with the combined fit and residuals plot underneath
 
@@ -353,6 +371,8 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None):
         process, pdf and normalization associated with that process (one per physics process)
     plot_truth : bool
         show the MC truth processes on the histogram
+    logo_path : str, optional
+        path to logo image file; if None, will check for mu2e_logo_oval.png
 
     """
     data = DataPreparationManager.get_numpy_array(time, remove_nans=True)
@@ -466,8 +486,9 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None):
         data_ipa = [x for x in data_ipa if (not np.isnan(x)) and (lo <= x <= hi)]
         
         datasets = [data_cosmics,data_irpc,data_erpc,data_ipa, data_dio, data_signal]
-        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#8c564b', '#e377c2', '#ffff00']
+        colors = ['#1f77b4', "#ffe30e", '#2ca02c', '#8c564b', '#e377c2', '#ff8000']
         labs_true = ['Cosmic','int. RPC','ext. RPC','IPA Decays','DIO', 'Signal']
+
         datasets_filled = []
         colors_filled = []
         labels_filled = []
@@ -481,7 +502,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None):
         
         # Only plot histogram if there are datasets to plot
         if len(datasets_filled) > 0:
-          n,bins,patch = ax1.hist(datasets_filled, range=(fit_range[0], fit_range[1]), color=colors_filled, label=labels_filled, bins=25, edgecolor='black', linewidth=0.8, histtype="bar", stacked=True)
+          n,bins,patch = ax1.hist(datasets_filled, range=(fit_range[0], fit_range[1]), color=colors_filled, label=labels_filled, bins=25, histtype="bar", stacked=True)
 
         
         """
@@ -545,8 +566,8 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None):
     ax1.set_yscale('log')
     ax1.set_xlim(fit_range)
     ax1.set_ylim([1.0, max(data_hist) + 0.2*max(data_hist)])
-    #ax1.set_xlabel('Reconstructed Time [ns]', fontsize=12)
-    ax1.set_ylabel('# of events per bin', fontsize=10)
+    #ax1.set_xlabel('Reconstructed Time [ns]', fontsize=FONTS['label']['size'])
+    ax1.set_ylabel('Events per bin', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'],fontname=FONTS['label']['family'])
     # build explicit proxy legend entries for time plot so text appears
     try:
       from matplotlib.lines import Line2D
@@ -555,7 +576,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None):
       proxy_labels = []
       if 'labels_filled' in locals() and len(labels_filled) > 0:
         for col, lab in zip(colors_filled, labels_filled):
-          proxy_handles.append(Patch(facecolor=col, edgecolor='black'))
+          proxy_handles.append(Patch(facecolor=col))
           proxy_labels.append(lab)
       # add per-process fit component proxies
       if 'labs_fit' in locals() and len(labs_fit) > 0:
@@ -582,7 +603,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None):
       proxy_labels.append('Total')
       ncol = 1
       fig.subplots_adjust(right=0.66)
-      leg = fig.legend(proxy_handles, proxy_labels, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=ncol, fontsize=10, frameon=True)
+      leg = fig.legend(proxy_handles, proxy_labels, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=ncol, fontsize=FONTS['legend']['size'], frameon=True)
       if leg is not None:
         leg.set_frame_on(True)
         for txt in leg.get_texts():
@@ -590,7 +611,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None):
           txt.set_alpha(1.0)
     except Exception:
       try:
-        leg = ax1.legend(fontsize=10)
+        leg = ax1.legend(fontsize=FONTS['legend']['size'])
       except Exception:
         leg = None
     # Make only the 'Reco. MC' and 'Fit Components' legend entries bold; others normal
@@ -625,8 +646,23 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None):
     ax2.yaxis.set_ticks(np.arange(-5, 5,2))
     ax2.yaxis.set_minor_formatter(ticker.FormatStrFormatter('%0.1f'))
     ax2.set_xlim(fit_range)
-    ax2.set_xlabel('Reconstructed Time [ns]', fontsize=10)
-    ax2.set_ylabel('Normalized Residual', fontsize=10)
+    ax2.set_xlabel('Reconstructed Time [ns]', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'],fontname=FONTS['label']['family'])
+    ax2.set_ylabel('Pull [$ \sigma $]', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'],fontname=FONTS['label']['family'])
+    
+    # Add logo and metadata
+    logo_to_use = logo_path if logo_path else "mu2e_logo_oval.png"
+    try:
+        from PIL import Image
+        logo = Image.open(logo_to_use)
+        ax_logo = fig.add_axes([0.02, 0.93, 0.1, 0.09])
+        ax_logo.imshow(logo)
+        ax_logo.axis('off')
+    except Exception:
+        pass
+    
+    fig.text(0.15, 0.98, "Mu2e Simulation (Preliminary - Summer 2026)", fontsize=FONTS['label']['size'], fontweight='bold', ha='left', va='top', zorder=100)
+    fig.text(0.32, 0.97, r"$R_{\mu e} = 1 \times 10^{-11}$" + "\n" + "t = 28 days" + "\n" + r"$N_{\mathrm{POT}} = 7.3 \times 10^{18}$", fontsize=FONTS['legend']['size'], ha='right', va='top', zorder=100, bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgrey', edgecolor='black', alpha=0.8))
+    
     # yield comparison plot (expected vs fitted) for momentum
     try:
       plot_yield_comparison(mom_mag, mc_count, list_pdfs, filename_prefix='yield_compare_mom')
@@ -710,24 +746,24 @@ def plot_yield_comparison(data, mc_count, list_pdfs, filename_prefix='yield_comp
     ax.set_ylabel('Counts')
     ax.set_yscale('log')
 
-    ax.set_title('Expected vs Fitted Yields')
+    ax.set_title('Expected vs Fitted Yields', fontsize=FONTS['title']['size'], fontweight=FONTS['title']['weight'])
     ax.set_xticks(x)
-    ax.set_xticklabels(procs, rotation=45, ha='right')
+    ax.set_xticklabels(procs, rotation=45, ha='right', fontsize=FONTS['tick']['size'])
     try:
       handles, labels = get_leg_handles_labels(ax)
       ncol = max(1, min(4, (len(labels) + 1) // 2))
       if labels:
         fig.subplots_adjust(right=0.66)
-        leg = fig.legend(handles, labels, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=1, fontsize=10, frameon=True)
+        leg = fig.legend(handles, labels, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=1, fontsize=FONTS['legend']['size'], frameon=True)
         if leg is not None:
           leg.set_frame_on(True)
           for txt in leg.get_texts():
             txt.set_color('black')
             txt.set_alpha(1.0)
       else:
-        leg = ax.legend(fontsize=10)
+        leg = ax.legend(fontsize=FONTS['legend']['size'])
     except Exception:
-      leg = ax.legend(fontsize=10)
+      leg = ax.legend(fontsize=FONTS['legend']['size'])
 
     # add error bars: expected ~ Poisson sqrt(N); fitted use sqrt(N) as an approximate uncertainty
     expected_errs = [np.sqrt(e) if e >= 0 else 0.0 for e in expected]
@@ -870,13 +906,13 @@ def bin_by_bin_mom_confusion(mom_mag, mc_count, list_pdfs, fit_range, bin_width=
       if len(yfit) > 0:
         max_val = max(max_val, np.nanmax(yfit))
       # plot true (filled circle) and fit (hollow x) with larger markers and z-order to ensure visibility
-      ax.plot(centers, ytrue, marker='o', linestyle='-', label=f"{p} true (N={ttrue})", markersize=6, markeredgewidth=1.2, zorder=2)
-      ax.plot(centers, yfit, marker='x', linestyle='--', label=f"{p} fit (N={tfit})", markersize=7, markeredgewidth=1.5, markerfacecolor='none', zorder=3)
+      ax.plot(centers, ytrue, marker='o', linestyle='-', label=f"{p} true (N={ttrue})", markersize=PLOT_STYLE['marker_size'], markeredgewidth=1.2, zorder=2)
+      ax.plot(centers, yfit, marker='x', linestyle='--', label=f"{p} fit (N={tfit})", markersize=PLOT_STYLE['marker_size'], markeredgewidth=1.5, markerfacecolor='none', zorder=3)
     # ensure some headroom for markers
     ymax = max(0.05, max_val * 1.15)
-    ax.set_xlabel('Reconstructed Momentum [MeV/c] (bin center)')
-    ax.set_ylabel('Relative fraction in bin')
-    ax.set_title('Bin-by-bin true vs fitted relative yields (momentum)')
+    ax.set_xlabel('Reconstructed Momentum [MeV/c] (bin center)', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'],fontname=FONTS['label']['family'])
+    ax.set_ylabel('Relative fraction in bin', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'])
+    ax.set_title('Bin-by-bin true vs fitted relative yields (momentum)', fontsize=FONTS['title']['size'], fontweight=FONTS['title']['weight'])
     ax.set_ylim(0.0, ymax)
     try:
       handles0, labels0 = get_leg_handles_labels(ax)
@@ -885,11 +921,11 @@ def bin_by_bin_mom_confusion(mom_mag, mc_count, list_pdfs, fit_range, bin_width=
       if labels0:
         fig.subplots_adjust(right=0.66)
 
-        leg = fig.legend(handles0, labels0, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=ncol, fontsize=10, frameon=False)
+        leg = fig.legend(handles0, labels0, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=ncol, fontsize=FONTS['legend']['size'], frameon=False)
       else:
-        leg = ax.legend(fontsize=10)
+        leg = ax.legend(fontsize=FONTS['legend']['size'])
     except Exception:
-      leg = ax.legend(fontsize=10)
+      leg = ax.legend(fontsize=FONTS['legend']['size'])
     ax.grid(True, linestyle=':')
     ts = int(_time.time())
     fname = f"{filename_prefix}_{ts}.png"
@@ -908,6 +944,7 @@ def bin_by_bin_mom_confusion(mom_mag, mc_count, list_pdfs, fit_range, bin_width=
       logger.log(f"  {p}: true N = {ttrue}, fitted N = {tfit}", 'info')
 
     # Print per-bin arrays for each process: true counts, fitted counts, and relative fractions
+    """
     try:
       logger.log('Bin centers (MeV):', 'debug')
       logger.log(np.array2string(centers, precision=2, separator=', '), 'debug')
@@ -923,7 +960,7 @@ def bin_by_bin_mom_confusion(mom_mag, mc_count, list_pdfs, fit_range, bin_width=
         logger.log('  Fit frac per bin:      ' + np.array2string(ffr, precision=3, separator=', '), 'debug')
     except Exception:
       pass
-
+    """
     return {'bins': centers, 'true_counts': true_counts, 'fitted_counts': fitted_counts, 'true_frac': true_frac, 'fit_frac': fit_frac, 'totals_true': totals_true, 'totals_fit': totals_fit}
 
 
@@ -1036,23 +1073,23 @@ def bin_by_bin_time_confusion(time_arr, mc_count, list_pdfs, fit_range, bin_widt
         max_val = max(max_val, np.nanmax(ytrue))
       if len(yfit) > 0:
         max_val = max(max_val, np.nanmax(yfit))
-      ax.plot(centers, ytrue, marker='o', linestyle='-', label=f"{p} true (N={ttrue})", markersize=6, markeredgewidth=1.2, zorder=2)
-      ax.plot(centers, yfit, marker='x', linestyle='--', label=f"{p} fit (N={tfit})", markersize=7, markeredgewidth=1.5, markerfacecolor='none', zorder=3)
+      ax.plot(centers, ytrue, marker='o', linestyle='-', label=f"{p} true (N={ttrue})", markersize=PLOT_STYLE['marker_size'], markeredgewidth=1.2, zorder=2)
+      ax.plot(centers, yfit, marker='x', linestyle='--', label=f"{p} fit (N={tfit})", markersize=PLOT_STYLE['marker_size'], markeredgewidth=1.5, markerfacecolor='none', zorder=3)
     ymax = max(0.05, max_val * 1.15)
-    ax.set_xlabel('Reconstructed Time [ns] (bin center)')
-    ax.set_ylabel('Relative fraction in bin')
-    ax.set_title('Bin-by-bin true vs fitted relative yields (time)')
+    ax.set_xlabel('Reconstructed Time [ns] (bin center)', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'])
+    ax.set_ylabel('Relative fraction in bin', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'])
+    ax.set_title('Bin-by-bin true vs fitted relative yields (time)', fontsize=FONTS['title']['size'], fontweight=FONTS['title']['weight'])
     ax.set_ylim(0.0, ymax)
     try:
       handles0, labels0 = get_leg_handles_labels(ax)
       ncol = 1
       if labels0:
         fig.subplots_adjust(right=0.66)
-        leg = fig.legend(handles0, labels0, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=ncol, fontsize=10, frameon=False)
+        leg = fig.legend(handles0, labels0, loc='center left', bbox_to_anchor=(0.68, 0.5), ncol=ncol, fontsize=FONTS['legend']['size'], frameon=False)
       else:
-        leg = ax.legend(fontsize=10)
+        leg = ax.legend(fontsize=FONTS['legend']['size'])
     except Exception:
-      leg = ax.legend(fontsize=10)
+      leg = ax.legend(fontsize=FONTS['legend']['size'])
     ax.grid(True, linestyle=':')
     ts = int(_time.time())
     fname = f"{filename_prefix}_{ts}.png"
@@ -1069,7 +1106,7 @@ def bin_by_bin_time_confusion(time_arr, mc_count, list_pdfs, fit_range, bin_widt
       ttrue = int(np.nan_to_num(totals_true[p], nan=0.0))
       tfit = int(np.nan_to_num(np.round(totals_fit[p]), nan=0.0))
       logger.log(f"  {p}: true N = {ttrue}, fitted N = {tfit}", 'info')
-
+    """
     try:
       logger.log('Bin centers (ns):', 'debug')
       logger.log(np.array2string(centers, precision=2, separator=', '), 'debug')
@@ -1085,6 +1122,7 @@ def bin_by_bin_time_confusion(time_arr, mc_count, list_pdfs, fit_range, bin_widt
         logger.log('  Fit frac per bin:      ' + np.array2string(ffr, precision=3, separator=', '), 'debug')
     except Exception:
       pass
+    """
 
     return {'bins': centers, 'true_counts': true_counts, 'fitted_counts': fitted_counts, 'true_frac': true_frac, 'fit_frac': fit_frac, 'totals_true': totals_true, 'totals_fit': totals_fit}
 
@@ -1140,17 +1178,17 @@ def plot_nll_scan(pars, loss, minimizer, mom_mag, count_particle_types, result, 
     
     delta_nll = np.array(nll_values) - best_nll
     fig, ax = plt.subplots()
-    ax.plot(scan_range, delta_nll)
+    ax.plot(scan_range, delta_nll, linewidth=PLOT_STYLE['line_width'])
     true_signal = len(data_signal)
     ax.axvline(true_signal, color='red', linestyle='--', label=f'True $N_{{sig}}$: {true_signal:.1f}')
-    ax.legend()
+    ax.legend(fontsize=FONTS['legend']['size'])
     ax.text(true_signal + 5, 4, f'True $N_{{sig}} = {true_signal:.1f}$',
-            verticalalignment='top', horizontalalignment='left', color='red')
+            verticalalignment='top', horizontalalignment='left', color='red', fontsize=FONTS['label']['size'])
 
-    ax.set_xlabel('$N_{sig}$')
-    ax.set_ylabel(r'$-2\Delta \ln(L)$')
-    ax.set_title('NLL Scan for $N_{sig}$')
-    ax.grid(True)
+    ax.set_xlabel('$N_{sig}$', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'])
+    ax.set_ylabel(r'$-2\Delta \ln(L)$', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'])
+    ax.set_title('NLL Scan for $N_{sig}$', fontsize=FONTS['title']['size'], fontweight=FONTS['title']['weight'])
+    ax.grid(True, linestyle=PLOT_STYLE['grid_style'], alpha=PLOT_STYLE['grid_alpha'])
     ts = int(_time.time())
     fname_nll = f"fit_mom_nll_{ts}.png"
     try:

@@ -38,7 +38,7 @@ class AnaProcessor(Skeleton):
     This class inherits from the Skeleton defined in pyutils/pyprocess base class, which provides the 
     basic structure and methods withing the Processor framework 
     """
-    def __init__(self, file_list_path, jobs=1, cuts=None, location='disk', mom_lo = 95, mom_hi = 115):
+    def __init__(self, file_list_path, jobs=1, cuts=None, location='disk', mom_lo = 97, mom_hi = 115):
         """Initialise your processor with specific configuration
         
         This method sets up all the parameters needed for this specific analysis.
@@ -309,7 +309,7 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt', #FIXME sho
                              location: str = 'local',
                              cuts=None,
                              mom_lo: float = 95.0,
-                             mom_hi: float = 115.0,
+                             mom_hi: float = 110.0,
                              jobs: int = 16):
     """Process a text file listing OffSpill files and save combined filtered results.
 
@@ -780,8 +780,8 @@ def main(args):
             args.fitrange_hi[0],
             plot_truth=True,
             verbose=args.verbose,
-            constraints_dir='uncertainties',
-            plot_NLL=True,
+            constraints_dir='uncertainties/outputs',
+            plot_NLL=False,
             plot_results=True
         )
         # Print full fit result
@@ -861,9 +861,9 @@ def main(args):
             [args.fitrange_low[1], args.fitrange_hi[1]],
             plot_truth=False,
             verbose=args.verbose,
-            plot_NLL=True,
+            plot_NLL=False,
             plot_results=True,
-            constraints_dir='uncertainties',
+            constraints_dir='uncertainties/outputs',
         )
         if int(args.interpret) == 1:
             result_output = ResultsClass(mom_mag, fitresult, args.verbose)
@@ -927,7 +927,7 @@ if __name__ == "__main__":
     parser.add_argument("--file", type=str, required=False, help="filename or file list name (text file list,fullpaths)")
     parser.add_argument("--jobs", type=int, required=False, default=1,help="use if more than one file, should be nfiles")
     parser.add_argument("--fittype", type=str, default="mom1D", help="fittype implemented opts: mom1D, time1D, momtime2D")
-    parser.add_argument("--fitrange_low", type=float, default=[95,475], nargs='+', help="minimum to fit ordered mom, time")
+    parser.add_argument("--fitrange_low", type=float, default=[97,475], nargs='+', help="minimum to fit ordered mom, time")
     parser.add_argument("--fitrange_hi", type=float, default=[110,1650], nargs='+',help="maximum to fit  ordered mom, time")
     parser.add_argument("--interpret", type=int, default=0, help="allows for significance evaluation")
     parser.add_argument("--setlimit", type=int, default=0, help="assumes low signal and will try to set limit")

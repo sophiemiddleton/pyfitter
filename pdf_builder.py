@@ -23,7 +23,8 @@ class PDFBuilder(ABC):
     
     def __init__(self, 
                  default_model_params: Dict[str, Dict] = None,
-                 default_norms: Dict[str, float] = None):
+                 default_norms: Dict[str, float] = None,
+                 physics_components: Dict[str, Dict] = None):
         """
         Initialize the builder with default parameters.
         
@@ -32,9 +33,12 @@ class PDFBuilder(ABC):
                                  Format: {'model_name': {'param': (value, lo, hi), ...}}
             default_norms: Dict mapping process names to default normalization values
                           Format: {'process_name': value}
+            physics_components: Dict mapping process names to component configurations
+                               Contains 'norm' field: (value, lower_bound, upper_bound)
         """
         self.default_model_params = default_model_params or {}
         self.default_norms = default_norms or {}
+        self.physics_components = physics_components or {}
     
     def build(self,
               obs: zfit.Space,
@@ -93,6 +97,7 @@ class PDFBuilder(ABC):
         
         Searches params_tot for existing N_<process> parameter before creating new one.
         Respects special bounds for specific processes (e.g., CE).
+        Priority: pardict > physics_components > default_norms
         """
         pname = f'N_{process}'
         
@@ -109,6 +114,20 @@ class PDFBuilder(ABC):
                 pardict['N'][1],
                 pardict['N'][2]
             )
+        
+        # Try to get norm from physics_components (supports tuple with bounds)
+        if process in self.physics_components:
+            comp = self.physics_components[process]
+            if 'norm' in comp:
+                norm_spec = comp['norm']
+                if isinstance(norm_spec, tuple) and len(norm_spec) == 3:
+                    value, lo, hi = norm_spec
+                    return zfit.Parameter(pname, value, lo, hi)
+                else:
+                    # Fallback if norm format is unexpected
+                    default_value = norm_spec if isinstance(norm_spec, (int, float)) else 10.0
+                    bounds = self._get_normalization_bounds(process)
+                    return zfit.Parameter(pname, default_value, bounds[0], bounds[1])
         
         # Use process-specific defaults with custom bounds if defined
         default_value = self.default_norms.get(process, 10.0)

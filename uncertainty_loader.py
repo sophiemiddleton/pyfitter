@@ -51,6 +51,8 @@ def build_zfit_constraints_from_specs(pars, specs, logger=None):
     Returns list of zfit.constraint.* objects.
     """
     name_map = {p.name: p for p in pars}
+    if logger:
+        logger.log(f"Available parameters for constraints: {list(name_map.keys())}", 'info')
     constraints = []
     for s in specs:
         pname = s.get('pname')

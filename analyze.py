@@ -138,7 +138,7 @@ class Analyze:
             data["good_trkqual"] = good_trkqual
             
             # 5. Track PID
-            good_trkpid = selector.select_trkpid(data["trk"], value=0.638)
+            good_trkpid = selector.select_trkpid(data["trk"], value=0.67)
             cut_manager.add_cut(
                 name="good_trkpid",
                 description="Track PID > 0.6",
@@ -311,7 +311,7 @@ class Analyze:
 
             # Reduce segment-level ratio to a track-level mask: require 0.5 < pz/pt < 1.0
             try:
-                mask_seg = (pz_over_pt > 0.5) & (pz_over_pt < 1.0)
+                mask_seg = (pz_over_pt > 0.5) & (pz_over_pt < 0.95)
                 mask_pzpt = ak.all(~at_trk_front | mask_seg, axis=-1)
             except Exception:
                 mask_pzpt = ak.zeros_like(ak.any(~at_trk_front, axis=-1))
@@ -321,7 +321,7 @@ class Analyze:
 
             cut_manager.add_cut(
                 name="pz_over_pt",
-                description="Track-level cut: 0.5 < pz/pt < 1.0 (pt = transverse mag)",
+                description="Track-level cut: 0.5 < pz/pt < 0.95(pt = transverse mag)",
                 mask=mask_pzpt,
                 active= sw(13)
             )

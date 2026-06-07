@@ -94,6 +94,15 @@ theo_exp_pars_DIO.update({
     }
 })
 
+# for convolution
+from helper import make_HistogramPDF
+import zfit
+
+# Create the DIO theory PDF from the existing lineshape
+prob_dio, edges_dio = theo_exp_pars_DIO['lineshape']
+obs_x = zfit.Space('x', limits=(95, 115))
+dio_theory_pdf = make_HistogramPDF(prob_dio, edges_dio)(obs=obs_x)
+
 # ============================================================================
 # MOMENTUM COMPONENTS
 # ============================================================================
@@ -102,18 +111,20 @@ mom_components = {
     'CE': {
         'pdf': 'dscb',  # Double-sided crystal ball
         'pars': {
-            'mu': (104, 103, 107),
-            'sigma': (0.5, 0.1, 2.0),
-            'alphaL': (0.422, 0, 10),
-            'nL': (25.1, 0, 100),
-            'alphaR': (2.227, 0, 100),
-            'nR': (5.954, 0, 100)
+            'mu': (104.339, 104.3296, 104.3484),
+            'sigma': (0.286437,0.280637,0.292237),
+            'alphaL': (0.561202 ,0.540202,0.582202),
+            'nL': (2.39481,2.32181,2.46781),
+            'alphaR': (2.73596,2.58596,2.88596),
+            'nR': (2.84393,2.16393,3.52393)
         },
-        'treat_params': 'float',
+        'norm': (0, -1e4, 1e4),  # (value, lower_bound, upper_bound) - allows negative for BG-only fits
+        'treat_params': 'float',        
+        'fixed_params': ['mu', 'sigma', 'alphaL', 'nL','alphaR','nR'],
         'startCode': [168],
         'genCode': [None],
         'lineColor': 'b',
-        'lineStyle': '--'
+        'lineStyle': '--',
     },
 
     'Cosmic': {
@@ -122,6 +133,7 @@ mom_components = {
             'c1': (0.219, 0.197, 0.241),
             'c2': (-0.108803, -0.130803, -0.086803)
         },
+        'norm': (5000, 0.0, 1e6),  # (value, lower_bound, upper_bound)
         'treat_params': 'constrain',
         'startCode': [None],
         'genCode': [44, 38],
@@ -134,6 +146,7 @@ mom_components = {
             'c1': (-0.54, -0.5462, -0.5338),
             'c2': (-0.1792, -0.2474, -0.111)
         },
+        'norm': (24, 0.0, 1e6),  # (value, lower_bound, upper_bound)
         'treat_params': 'constrain',
         'startCode': [178, 179],
         'genCode': [None],
@@ -142,12 +155,15 @@ mom_components = {
     },
     'DIO': { # Decay in Orbit Background From Target
         'pdf': 'poly58',
-        'pars': {'N_DIO': (2000, 1000, 30000)},
-        'treat_params': 'fix',
+        'pars': {'N_DIO': (2000, 1000, 10000)},
+        'norm': (55000, 0.0, 1e6),  # (value, lower_bound, upper_bound)
+        'treat_params': 'float',        
+        #'fixed_params': ['a5', 'a6', 'a7', 'a8'],  # Fix spectrum shape, let N_DIO float
         'startCode': [166, 170],
         'genCode': [None],
         'lineColor': 'g',
-        'lineStyle': ':',
+        'lineStyle': ':'
+        
     },
 }
 
@@ -160,6 +176,7 @@ time_components = {
     'Cosmic': {
         'pdf': 'uniform',
         'pars': None,
+        'norm': (35, 0.0, 1e6),  # (value, lower_bound, upper_bound)
         'startCode': [None],
         'genCode': [44, 38],
         'lineColor': 'm',
@@ -168,6 +185,7 @@ time_components = {
     'Muon': {
         'pdf': 'muexp',
         'pars': {'decay_rate_mu': (-0.001157, -0.0015, -0.001)},
+        'norm': (55600, 0.0, 1e6),  # (value, lower_bound, upper_bound)
         'startCode': [168, 166, 170],
         'genCode': [None],
         'lineColor': 'b',
@@ -176,6 +194,7 @@ time_components = {
     'RPC': {
         'pdf': 'piexp',
         'pars': {'decay_rate_pi': (-0.03846, -0.04, -0.01)},
+        'norm': (39, 0.0, 1e6),  # (value, lower_bound, upper_bound)
         'startCode': [178, 179],
         'genCode': [None],
         'lineColor': 'black',
