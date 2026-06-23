@@ -130,23 +130,25 @@ mom_components = {
     'Cosmic': {
         'pdf': 'poly2',
         'pars': {
+            #'c1': (0.066, 0.01, 0.1),
             'c1': (0.219, 0.197, 0.241),
             'c2': (-0.108803, -0.130803, -0.086803)
         },
-        'norm': (5000, 0.0, 1e6),  # (value, lower_bound, upper_bound)
+        'norm': (300, 200, 400),  # (value, lower_bound, upper_bound)
         'treat_params': 'constrain',
         'startCode': [None],
         'genCode': [44, 38],
         'lineColor': 'm',
         'lineStyle': '-.',
     },
+
     'RPC': {
         'pdf': 'poly2',
         'pars': {
-            'c1': (-0.54, -0.5462, -0.5338),
-            'c2': (-0.1792, -0.2474, -0.111)
+            'c1': (-0.15, -0.17,-0.14),
+            'c2': (-0.04,-0.06,-0.03)
         },
-        'norm': (24, 0.0, 1e6),  # (value, lower_bound, upper_bound)
+        'norm': (24, 0.0, 100),  # (value, lower_bound, upper_bound)
         'treat_params': 'constrain',
         'startCode': [178, 179],
         'genCode': [None],
@@ -184,7 +186,7 @@ time_components = {
     },
     'Muon': {
         'pdf': 'muexp',
-        'pars': {'decay_rate_mu': (-0.001157, -0.0015, -0.001)},
+        'pars': {'decay_rate_mu': (-0.001131, -0.00116, -0.00112)},
         'norm': (55600, 0.0, 1e6),  # (value, lower_bound, upper_bound)
         'startCode': [168, 166, 170],
         'genCode': [None],
@@ -193,7 +195,7 @@ time_components = {
     },
     'RPC': {
         'pdf': 'piexp',
-        'pars': {'decay_rate_pi': (-0.03846, -0.04, -0.01)},
+        'pars': {'decay_rate_pi': (-0.0553, -0.0558, -0.0551)},
         'norm': (39, 0.0, 1e6),  # (value, lower_bound, upper_bound)
         'startCode': [178, 179],
         'genCode': [None],

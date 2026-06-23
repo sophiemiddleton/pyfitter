@@ -38,6 +38,7 @@ Usage Example:
         fit_range_time=(475, 1650),
         plot=True
     )
+    python scaled_fit_builder.py --fit-type 2d --components dio=file_lists/DIOtail95_MDC2025an_best_nomix.txt cosmic=file_lists/Cosimcs_MDC2025an_nomix.txt rpc_ext=file_lists/ExtRPC_MDC2025an_nomix.txt rpc_int=file_lists/IntRPC_MDC2025an_nomix.txt ce=file_lists/CeMLL_MDC2025an_best_nomix.txt --variable recomom_ttfront --fit-range 97  110 --time-range 450 1650 --jobs 16
 """
 
 import argparse
@@ -174,7 +175,7 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
     bottom = np.zeros(nbins)
     
     # Define plot order (same as in plot_scaled_mom.py)
-    desired_order = ['cosmic', 'dio', 'rpc_ext', 'rpc_int', 'rmc_ext', 'rmc_int', 'ipa', 'ce']
+    desired_order = ['rpc_ext', 'rpc_int','cosmic', 'dio',  'rmc_ext', 'rmc_int', 'ipa', 'ce']
     
     for comp_name in desired_order:
         if comp_name in component_hists and np.sum(component_hists[comp_name]) > 0:
@@ -509,15 +510,15 @@ class ScaledFitBuilder:
         self.fit_range_hi = 110  # Default momentum range passed to analyze.py cuts
         
         # Default component yields after standard cuts (physics expectations)
-        self.default_yields = { # From MDS - need better
-            'dio': 1380,           # DIO > 95 MeV
-            'cosmic': 314,         # Cosmics
-            'rpc_ext': 33,         # RPC External
-            'rpc_int': 34,         # RPC Internal
+        self.default_yields = { 
+            'dio': 1427,           # DIO > 97 MeV
+            'cosmic': 333,         # Cosmics
+            'rpc_ext': 5,         # RPC External
+            'rpc_int': 4,         # RPC Internal
             'rmc_ext': None,         # RMC External (auto-scale if not provided)
             'rmc_int': None,         # RMC Internal (auto-scale if not provided)
             'ipa': None,             # IPA/CE (auto-scale if not provided)
-            'ce': 83                 # CE/signal
+            'ce': 73                 # CE/signal
         }
 
         self.component_yields = self.default_yields.copy()
@@ -1219,8 +1220,8 @@ class ScaledFitBuilder:
             plot_truth=False,
             verbose=self.verbosity,
             minos=minos,
-            plot_NLL=False,
-            plot_results=False,  # Keep this True for proper fit result generation
+            plot_NLL=True,
+            plot_results=True,  # Keep this True for proper fit result generation
             constraints_dir=constraints_dir_to_use
         )
         
@@ -1374,9 +1375,26 @@ class ScaledFitBuilder:
         
         # Combine scaled data
         combined_data, component_cats = self._build_combined_data(variables, scale_factors)
+
+        # Insert this right before Unbinned_fit_mom is called:
+        self.logger.log("="*70, "info")
+        self.logger.log("EXACT TRUE YIELDS SENT TO ZFIT (AFTER COMBINING & ROUNDING):", "info")
+        self.logger.log("="*70, "info")
+
+        # Invert the COMPONENT_TO_MC_CODE dict for easier printing
+        mc_code_to_name = {v: k for k, v in COMPONENT_TO_MC_CODE.items()}
+
+        # Count occurrences of each MC code in the final combined array
+        unique_codes, final_counts = np.unique(component_cats, return_counts=True)
+        for code, count in zip(unique_codes, final_counts):
+            comp_name = mc_code_to_name.get(code, f"Unknown ({code})")
+            target_yield = self.component_yields.get(comp_name.lower(), "N/A")
+            self.logger.log(f"  {comp_name.upper():<10} -> Exact Yield: {count:<6} (Target asked for: {target_yield})", "info")
+
+
         mom_mag = combined_data['mom']
         times = combined_data['time']
-        
+
         self.logger.log(
             f"Combined {len(self.scaled_components)} components into "
             f"{len(mom_mag)} events for 2D fitting",
@@ -1585,7 +1603,7 @@ Examples:
     parser.add_argument('--fit-range', type=float, nargs=2, default=[97, 110],
                         dest='fit_range', metavar=('LO', 'HI'),
                         help='Fit range [lo hi]')
-    parser.add_argument('--fit-range-lo', type=float, default=95, dest='fit_range_lo')
+    parser.add_argument('--fit-range-lo', type=float, default=97, dest='fit_range_lo')
     parser.add_argument('--fit-range-hi', type=float, default=110, dest='fit_range_hi')
     parser.add_argument('--time-range', type=float, nargs=2, default=[475, 1650],
                         dest='time_range', metavar=('LO', 'HI'),

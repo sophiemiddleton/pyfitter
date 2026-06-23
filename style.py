@@ -45,6 +45,8 @@ PLOT_STYLE = {
     'line_width': 2,
     'marker_size': 8,
     'alpha': 0.7,
+    'grid_style':'-',
+    'grid_alpha': 0.7
 }
 
 # Matplotlib rcParams

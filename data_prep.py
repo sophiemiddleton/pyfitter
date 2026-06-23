@@ -69,7 +69,7 @@ class DataPreparationManager:
             raise ValueError(msg) from e
     
     @staticmethod
-    def to_zfit_data(arr, obs_space, clean=True, name=None):
+    def to_zfit_data(arr, obs_space, clean=True, name=None, weights=None):
         """Convert awkward array directly to zfit.Data.
         
         Args:
@@ -77,6 +77,7 @@ class DataPreparationManager:
             obs_space: zfit.Space object defining the observable range
             clean: Whether to clean/remove NaNs before conversion
             name: Optional name for debugging
+            weights: used if working on Asimov or scaled samples
         
         Returns:
             zfit.Data object ready for fitting
@@ -86,7 +87,10 @@ class DataPreparationManager:
         """
         try:
             np_arr = DataPreparationManager.clean_and_flatten(arr, remove_nans=clean)
-            zfit_data = zfit.Data.from_numpy(array=np_arr, obs=obs_space)
+            if weight is not None:
+                zfit_data = zfit.Data.from_numpy(array=np_arr, obs=obs_space, weights=weights)
+            else:
+                zfit_data = zfit.Data.from_numpy(array=np_arr, obs=obs_space)
             
             if logger and name:
                 logger.log(f"Prepared {name}: {len(np_arr)} events", 'info')

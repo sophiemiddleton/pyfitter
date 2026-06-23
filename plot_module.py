@@ -344,7 +344,7 @@ def plotmom_fit(mom_mag,mc_count, fit_range, list_pdfs, plot_truth=None, logo_pa
         pass
     
     fig.text(0.15, 0.98, "Mu2e Simulation (Preliminary - Summer 2026)", fontsize=FONTS['label']['size'], fontweight='bold', ha='left', va='top', zorder=100)
-    fig.text(0.32, 0.97, r"$R_{\mu e} = 1 \times 10^{-11}$" + "\n" + "t = 28 days" + "\n" + r"$N_{\mathrm{POT}} = 7.3 \times 10^{18}$", fontsize=FONTS['legend']['size'], ha='right', va='top', zorder=100, bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgrey', edgecolor='black', alpha=0.8))
+    #fig.text(0.32, 0.97, r"$R_{\mu e} = 1 \times 10^{-11}$" + "\n" + "t = 28 days" + "\n" + r"$N_{\mathrm{POT}} = 7.3 \times 10^{18}$", fontsize=FONTS['legend']['size'], ha='right', va='top', zorder=100, bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgrey', edgecolor='black', alpha=0.8))
     
     # yield comparison plot (expected vs fitted) for momentum
     try:
@@ -661,7 +661,7 @@ def plottime_fit(time,mc_count, fit_range, list_pdfs, plot_truth=None, logo_path
         pass
     
     fig.text(0.15, 0.98, "Mu2e Simulation (Preliminary - Summer 2026)", fontsize=FONTS['label']['size'], fontweight='bold', ha='left', va='top', zorder=100)
-    fig.text(0.32, 0.97, r"$R_{\mu e} = 1 \times 10^{-11}$" + "\n" + "t = 28 days" + "\n" + r"$N_{\mathrm{POT}} = 7.3 \times 10^{18}$", fontsize=FONTS['legend']['size'], ha='right', va='top', zorder=100, bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgrey', edgecolor='black', alpha=0.8))
+    #fig.text(0.32, 0.97, r"$R_{\mu e} = 1 \times 10^{-11}$" + "\n" + "t = 28 days" + "\n" + r"$N_{\mathrm{POT}} = 7.3 \times 10^{18}$", fontsize=FONTS['legend']['size'], ha='right', va='top', zorder=100, bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgrey', edgecolor='black', alpha=0.8))
     
     # yield comparison plot (expected vs fitted) for momentum
     try:

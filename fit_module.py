@@ -23,7 +23,8 @@ from plot_module import plotmom_fit, plottime_fit, plot_variable, bin_by_bin_mom
 from model.physics_components import mom_components, time_components
 from uncertainty_loader import load_constraints_json, build_zfit_constraints_from_specs, load_templates_npz
 
-def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi, plot_truth=False, verbose=0, minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/outputs'):
+def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi, plot_truth=False, verbose=0, 
+minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
     """
     ----------
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
@@ -76,7 +77,7 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
             params_tot=pars,
             process=proc,
             model=comp_config['pdf'],
-            pardict=comp_config['pars'],
+            pardict=comp_config.get('pars', {}),  # Use .get() to handle missing 'pars' key
             treat_params=comp_config['treat_params'],
             fit_range=fit_range,
             constraints=constraints,
@@ -182,7 +183,7 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
       logger.log(f"No constraints found at {constraints_dir}", 'info')
     
     # Convert data to zfit Data
-    mom_zfit = DataPreparationManager.to_zfit_data(mom_mag, obs_mom, name='momentum')
+    mom_zfit = DataPreparationManager.to_zfit_data(mom_mag, obs_mom, name='momentum', weights=weights)
 
     # Log all constraints being applied
     logger.log(f"Total constraints: {len(constraints)}", 'info')
@@ -296,7 +297,7 @@ def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi,
     logger.log(f'Selected POI for return: {getattr(poi, "name", repr(poi))}', 'info')
     return result, poi, loss, aux_nlls, combine_pdf, constraints
 
-def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, plot_truth=False, verbose=0, plot_NLL=False, plot_results=True):
+def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, plot_truth=False, verbose=0, plot_NLL=False, plot_results=True, weights=None):
     """
     Configures and calls the unbinned maximum likelihood fit for time using zfit
 
@@ -339,7 +340,7 @@ def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, 
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # Convert data to zfit Data
-    time_zfit = DataPreparationManager.to_zfit_data(times, obs_time, name='time')
+    time_zfit = DataPreparationManager.to_zfit_data(times, obs_time, name='time', weights=weights)
     
     # Loss function and minimizer
     loss = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=time_zfit)
@@ -390,7 +391,8 @@ def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, 
     logger.log(f'Selected POI for return (time fit): {getattr(poi, "name", repr(poi))}', 'info')
     return result, poi, loss, combine_pdf
 
-def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom, fit_range_time, plot_truth=False, verbose=0, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/outputs'):
+def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom, fit_range_time, plot_truth=False, verbose=0, plot_NLL=False, 
+plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum and time using zfit
 
@@ -438,7 +440,7 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
           process=proc,
           mom_model=comp_config['pdf'],
           time_model=time_model,
-          pardict=comp_config['pars'],
+          pardict=comp_config.get('pars', {}),  # Use .get() to handle missing 'pars' key
           treat_params=comp_config['treat_params'],
           fit_range=fit_range_mom,
           constraints=constraints,
@@ -479,7 +481,7 @@ def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom
     # Convert data to zfit Data
     data_np_time = ak.to_numpy(ak.flatten(times, axis=None))
     data_np_mom = ak.to_numpy(ak.flatten(mom_mag, axis=None))
-    data_zfit = zfit.Data.from_numpy(array=np.column_stack((data_np_mom, data_np_time)), obs=obs_2D)
+    data_zfit = zfit.Data.from_numpy(array=np.column_stack((data_np_mom, data_np_time)), obs=obs_2D, weights=weights)
 
     # Combine parameter lists (momentum + time)
     pars = mompars + timepars

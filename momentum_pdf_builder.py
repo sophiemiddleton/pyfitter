@@ -23,6 +23,7 @@ module_logger = Logger(print_prefix='[process] ', verbosity=GLOBAL_VERBOSITY)
 # Momentum model defaults #NOTE model specific parameters including norms are now defined within the component dicts in physics_components.py
 mom_default_model_params = {
     'poly2': {'c1': (0.47, 0.46, 0.48), 'c2': (0.011, 0.0018, 0.0202)},
+    'poly1' : {'c1': (0.066,0.01,0.1)},
     'dscb': {'mu': (104, 100, 107), 'sigma': (0.5, 0.0, 2.0), 'alphaL': (0.422, 0, 10),
              'nL': (25.1, 0, 100), 'alphaR': (2.227, 0, 100), 'nR': (5.954, 0, 100)},
     'Gauss': {'mu': (100, 95, 115), 'sigma': (10.0, 1e-3, 1e3)},
@@ -503,7 +504,7 @@ class MomPDFBuilder(PDFBuilder):
                 extended=N
             )
         
-        elif model in ('poly2', 'poly5'):
+        elif model in ('poly2', 'poly5','poly1'):
             coeffs = self._extract_polynomial_coeffs(model, zpars, process)
             return zfit.pdf.Chebyshev(
                 obs=obs,
@@ -522,7 +523,7 @@ class MomPDFBuilder(PDFBuilder):
         """
         Extract polynomial coefficients, creating parameters if needed.
         """
-        order = int(model[-1])  # Extract order from 'poly2', 'poly5'
+        order = int(model[-1])  # Extract order from 'poly2', 'poly5' etc.
         coeffs = []
         
         for i in range(1, order + 1):
