@@ -46,7 +46,7 @@ MC_CODE_TO_COMPONENT = {v: k.upper() for k, v in COMPONENT_TO_MC_CODE.items()}
 COMPONENT_DISPLAY = {
     'dio': {'color': '#e377c2', 'label': 'DIO'},
     'cosmic': {'color': '#1f77b4', 'label': 'Cosmic'},
-    'rpc': {'color': '#2ca02c', 'label': 'RPC (ext)'},
+    'rpc': {'color': '#2ca02c', 'label': 'RPC (combined)'},
     'rmc_ext': {'color': '#d62728', 'label': 'RMC (ext)'},
     'rmc_int': {'color': '#9467bd', 'label': 'RMC (int)'},
     'ipa': {'color': '#8c564b', 'label': 'IPA'},
@@ -319,7 +319,8 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
         ax2.grid(False)
         
     if output_file:
-        fig.savefig(output_file, dpi=150, bbox_inches='tight')
+        plt.tight_layout()
+        fig.savefig(output_file)
         logger.log(f"Saved projection to {output_file}", "info")
     plt.close(fig)
 
@@ -345,7 +346,7 @@ class ScaledFitBuilder:
             'rmc_ext': 0.0,         
             'rmc_int': 0.0,         
             'ipa': 0.0,             
-            'ce': 73.0                 
+            'ce': 0.0                 
         }
     
     def set_component_yields(self, yields_dict: Dict[str, Optional[float]]):
@@ -629,7 +630,7 @@ class ScaledFitBuilder:
         fit_tuple = Unbinned_2d_fit_mom_time(
             mom_mag=mom_mag, times=times, count_particle_types=component_cats,
             fit_range_mom=fit_range_mom, fit_range_time=fit_range_time, weights=combined_weights,
-            plot_truth=False, verbose=self.verbosity, plot_NLL=True, plot_results=True,
+            plot_truth=False, verbose=self.verbosity, plot_NLL=False, plot_results=False,
             constraints_dir=constraints_dir if use_constraints else None
         )
         result, poi, loss, combine_pdf, norms = fit_tuple
@@ -649,6 +650,58 @@ class ScaledFitBuilder:
                 output_file="fit_time_2d_projection.png", title="2D Fit: Time Projection", verbosity=self.verbosity, 
                 plot_obs='time', target_yields_dict=self.component_yields
             )
+
+        # store the mom and time for subsequent fits
+
+        # store the mom and time for subsequent fits
+        try:
+            if 'args' in globals() and hasattr(globals()['args'], 'export_npz') and globals()['args'].export_npz:
+                # --- REDESIGNED NPZ EXPORT BLOCK ---
+                # Safeguard lookup for when running programmatically without a global 'args'
+                current_args = globals().get('args', None) or getattr(builtins, 'args', None)
+                
+                if current_args and hasattr(current_args, 'export_npz') and current_args.export_npz:
+                    export_path = Path(current_args.export_npz)
+                    
+                    fit_param_vals = {}
+                    fit_param_errs = {}
+                    
+                    # 1. Extract Fitted Yields and Uncertainties from the Result object
+                    if result and hasattr(result, 'params'):
+                        for p, p_data in result.params.items():
+                            p_name = p.name if hasattr(p, 'name') else str(p)
+                            fit_param_vals[f"val_{p_name}"] = p_data['value']
+                            fit_param_errs[f"err_{p_name}"] = p_data.get('error', 0.0)
+
+                    # 2. Extract Shape Parameters dynamically from all underlying PDFs
+                    if combine_pdf and hasattr(combine_pdf, 'pdfs'):
+                        for i, sub_pdf in enumerate(combine_pdf.pdfs):
+                            # Query all parameters associated with this specific shape instance
+                            for shape_param in sub_pdf.get_params():
+                                p_name = shape_param.name
+                                # Only grab if we haven't already extracted it from the fit result
+                                if f"val_{p_name}" not in fit_param_vals:
+                                    fit_param_vals[f"val_{p_name}"] = float(shape_param.numpy())
+                                    fit_param_errs[f"err_{p_name}"] = 0.0  # Constant shape parameter
+
+                    # 3. Save everything down to a comprehensive dictionary
+                    export_dict = {
+                        'mom': mom_mag,
+                        'time': times,
+                        'weights': combined_weights,
+                        'categories': component_cats,
+                        'fit_ranges': np.array([fit_range_mom[0], fit_range_mom[1], fit_range_time[0], fit_range_time[1]]),
+                    }
+                    # Append dynamic parameter keys cleanly
+                    export_dict.update(fit_param_vals)
+                    export_dict.update(fit_param_errs)
+
+                    np.savez(export_path, **export_dict)
+                    self.logger.log(f"Redesigned config exported. Packed {len(fit_param_vals)} model parameters into: {export_path}", "success")
+                # --- END OF REDESIGNED BLOCK ---
+        except Exception:
+            pass
+        
         return result
 
 
@@ -681,10 +734,11 @@ if __name__ == '__main__':
     parser.add_argument('--yields', nargs='+', default=None)
     parser.add_argument('--sign', choices=['minus', 'plus'], default='minus')
     parser.add_argument('--location', choices=['disk', 'local'], default='disk')
-    parser.add_argument('--jobs', type=int, default=1)
+    parser.add_argument('--jobs', type=int, default=16)
     parser.add_argument('--constraints-dir', type=str, default='uncertainties/outputs')
     parser.add_argument('--minos', action='store_true')
     parser.add_argument('--no-plot', action='store_true')
     parser.add_argument('--verbosity', type=int, default=1)
+    parser.add_argument('--export-npz', type=str, default=None)
     args = parser.parse_args()
     main(args)

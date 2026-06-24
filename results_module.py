@@ -84,151 +84,114 @@ class ResultsClass:
     
     return significance
 
-  def GetUL(self, par, loss, nlls, combine_pdf, constraints, fitlow, fithigh, sig_yield=0, CL= 0.90, opt='freq'): #FIXME - concept, not fully tested
-    """ compute an upper limit in case where no significant signal yield note: use asym option for quick fit 
+  def GetUL(self, par, loss, nlls, combine_pdf, constraints, fitlow, fithigh, sig_yield, CL=0.90, opt='asym', ntoysnull=1000, ntoysalt=1000):
+    """ Compute upper limit of signal result using hepstats calculators.
 
     Parameters
     ----------
-      par : zfit parameters
-      loss : zfit loss function
-      combine_pdf: zfit combined pdf
-      fitlow, fithigh : fit range
-      sig_yield : observed CEs from fit
-      CL : confidence level for limit default is 90%
-      opt : option for how to compute (either frequentist (freq) or asymptotic (asym)
+      par : zfit parameter object
+        The parameter of interest (POI), e.g., N_CE.
+      loss : zfit loss object
+        The UnbinnedNLL loss function used for the fit.
+      nlls : list
+        List of auxiliary or constrained NLLs.
+      combine_pdf : zfit PDF object
+        The total combined probability density function model.
+      constraints : list or None
+        Any additional external structural constraints.
+      fitlow : float
+        Lower boundary of the main physical fit window.
+      fithigh : float
+        Upper boundary of the main physical fit window.
+      sig_yield : float
+        Observed signal parameter yield from the nominal fit.
+      CL : float, optional
+        Confidence level threshold (defaults to 0.90 for a 90% CL limit).
+      opt : str, optional
+        Inference strategy: 'asym' for Profile Likelihood, 'freq' for full Toys.
+      ntoysnull : int, optional
+        Number of null hypothesis background pseudo-experiments (for frequentist opt).
+      ntoysalt : int, optional
+        Number of alternative hypothesis signal pseudo-experiments (for frequentist opt).
     """
-    sig_yield_poi = POI(par, 0)
-    minimizer = zfit.minimize.Minuit()
-    # Sets the values of the parameters to the self.result of the simultaneous fit
-    zfit.param.set_values(loss.get_params(), self.result)
-
-    # Creates a sampler that will draw events from the model
-    if self.verbose > 0:
-      self.logger.log('Creating sampler', 'info')
-    sampler = combine_pdf.create_sampler()
-
-    # Creates new loss
-    data_np = ak.to_numpy(ak.flatten(self.data, axis=None))
-    fit_range = (fitlow, fithigh)
-    obs_mom = zfit.Space('x', limits=fit_range)
-    data_zfit = zfit.Data.from_numpy(array=data_np, obs=obs_mom)
-    nll_simultaneous_low_sig = zfit.loss.ExtendedUnbinnedNLL(model=combine_pdf, data=data_zfit, constraints=constraints)
-    for nll in nlls:
-        nll_simultaneous_low_sig = loss+nll
-
-    # Samples with sig_yield. Since the model is extended the number of signal generated is drawn from a poisson distribution with lambda = sig_yield.
-    if self.verbose > 0:
-      self.logger.log(f'Resampling with N_CE = {sig_yield} as mean', 'info')
-
-    # Try the native sampler resample API, but fall back to temporarily setting
-    # model parameter values with clipping if resample fails (zfit may try to
-    # assign out-of-bounds values to constrained parameters during resample).
-    temp_param_context = None
-    try:
-      sampler.resample({par: sig_yield})
-    except Exception:
-      # build a full parameter->value mapping based on the current fit result
-      try:
-        params_all = tuple(loss.get_params())
-      except Exception:
-        params_all = tuple()
-
-      vals = []
-      for p in params_all:
-        try:
-          vals.append(float(self.result.params[p.name]['value']))
-        except Exception:
-          try:
-            vals.append(float(p.value()))
-          except Exception:
-            vals.append(0.0)
-
-      # overwrite the POI value with the requested injected signal
-      for i, p in enumerate(params_all):
-        try:
-          if p.name == getattr(par, 'name', None):
-            vals[i] = float(sig_yield)
-            break
-        except Exception:
-          continue
-
-      # Use zfit.param.set_values with clip=True to avoid ValueError
-      try:
-        temp_param_context = zfit.param.set_values(params_all, tuple(vals), clip=True)
-      except Exception:
-        temp_param_context = None
-
-    # Create the calculator inside the temporary parameter-setting context
-    # if we had to fall back to clipped parameter assignment.
-    if temp_param_context is not None:
-      ctx = temp_param_context
-      with ctx:
-        if opt == 'asym':
-          calculator_low_sig = AsymptoticCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer)
-        elif opt == 'freq':
-          calculator_low_sig = FrequentistCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer, ntoysnull=1000,ntoysalt=1000)
-        else:
-          self.logger.log('Invalid limit calculator chosen', 'error')
-          return
-    else:
-      if opt == 'asym':
-        calculator_low_sig = AsymptoticCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer)
-      elif opt == 'freq':
-        calculator_low_sig = FrequentistCalculator(input=nll_simultaneous_low_sig, minimizer=minimizer, ntoysnull=1000,ntoysalt=1000)
-      else:
-        self.logger.log('Invalid limit calculator chosen', 'error')
-        return
-      
-    if self.verbose > 0:
-      self.logger.log('Calculating significance for UL', 'info')
-      self.logger.log('If significance is inf this means numerical precision or too few toys', 'info')
-    discovery_low_sig = Discovery(calculator=calculator_low_sig, poinull=sig_yield_poi)
-    discovery_low_sig.result()
-    if self.verbose > 0:
-      self.logger.log(f'discovery result: {discovery_low_sig.result()}', 'info')
-      try:
-        self.logger.log(f'best fit params: {calculator_low_sig.bestfit.params}', 'max')
-      except Exception:
-        pass
+    self.logger.log(f"Configuring statistical inference analyzer for parameter: {par.name}", "info")
     
-    #Background only hypothesis.
-    bkg_only = POI(par, 0)
-    # Range of Nsig values to scan - make adaptive based on fitted POI value
-    # Use 2-3x the fitted POI value to ensure UL is sufficiently constraining
-    fitted_poi = None
-    try:
-        fitted_poi = float(self.result.params[par.name]['value'])
-    except Exception:
-        fitted_poi = None
-    
-    if fitted_poi is not None and fitted_poi > 0:
-        # Adaptive range: scan from 0 to ~2x the fitted POI value
-        scan_max = max(50.0, 2.5 * abs(fitted_poi))
+    # 1. Define the Parameter of Interest (POI) scan array grid
+    # Create an adaptive bounding limit centered safely around your observed yield value
+    if sig_yield is not None and sig_yield > 0:
+        scan_max = max(50.0, 2.5 * abs(sig_yield))
         sig_yield_scan = POIarray(par, np.linspace(0, scan_max, 60))
     else:
-        # Fallback: conservative range
         sig_yield_scan = POIarray(par, np.linspace(0, 100, 60))
+        
+    # 2. Build the appropriate hepstats Calculator context
+    if opt == 'freq':
+        self.logger.log("Option 'freq' detected. Initializing Frequentist Calculator...", "info")
+        try:
+            # Frequentist toys *require* a sampler to perform thousands of pseudo-data generation tasks
+            sampler = combine_pdf.create_sampler()
+            calculator = FrequentistCalculator(
+                input=loss, 
+                minimizer=self.result.minimizer, 
+                ntoysnull=ntoysnull, 
+                ntoysalt=ntoysalt, 
+                sampler=sampler
+            )
+        except AssertionError as e:
+            self.logger.log("Caught known zfit Extended Product PDF sampler bug! Attempting fallback constructor...", "warning")
+            # Fallback strategy: allow FrequentistCalculator to build its internal sampling layers independently
+            calculator = FrequentistCalculator(
+                input=loss, 
+                minimizer=self.result.minimizer, 
+                ntoysnull=ntoysnull, 
+                ntoysalt=ntoysalt
+            )
+    else:
+        self.logger.log("Option 'asym' detected. Bypassing sampler to initialize Profile Likelihood Asymptotic Calculator...", "info")
+        # For 'asym', we evaluate the likelihood profile directly from the data distribution.
+        # This completely skips create_sampler(), bypassing the internal zfit AssertionError bug!
+        calculator = AsymptoticCalculator(
+            input=loss, 
+            minimizer=self.result.minimizer
+        )
+
+    # 3. Construct the Upper Limit engine wrapper
+    # Define the alternative hypothesis POI (fixed to 0.0 for a background-only reference)
+    from hepstats.hypotests.parameters import POI
+    poi_alt = POI(par, 0.0)
     
-    if self.verbose > 0:
-      self.logger.log(f'UL scan range: fitted POI={fitted_poi}, scan max={sig_yield_scan.value[-1] if hasattr(sig_yield_scan, "value") else "unknown"}', 'info')
-
-    ul = UpperLimit(calculator=calculator_low_sig, poinull=sig_yield_scan, poialt=bkg_only, qtilde=True)
-    ul.limits_result = None  # will be populated below if successful
-
     try:
-      ul_limits = ul.upperlimit(alpha=0.05, CLs=True)
-      ul.limits_result = ul_limits  # attach for caller to retrieve
-    except Exception as e:
-      self.logger.log(f'upperlimit() failed: {e}', 'error')
-      self.logger.log(traceback.format_exc(), 'max')
-
-    # plotting of the UL scan
-    # NOTE: plt.show() intentionally omitted — it blocks in subprocess workers.
-    if self.verbose > 0:
-      self.logger.log(str(ul), 'info')
-      self.logger.log(f'Result upper limit at {CL} % CL {ul}', 'success')
+        # Standard signature for newer hepstats versions using explicit named arguments
+        ul_analyzer = UpperLimit(calculator, poialt=poi_alt, poinull=sig_yield_scan)
+    except TypeError:
+        # Fallback signature for versions requiring strictly positional arguments
+        self.logger.log("Adapting to positional signature layout for UpperLimit constructor...", "info")
+        ul_analyzer = UpperLimit(calculator, sig_yield_scan, poi_alt)
     
-    return ul
+    # Calculate the limit (alpha = 1 - Confidence Level; e.g. alpha=0.10 for 90% CL)
+    alpha_significance = 1.0 - CL
+    
+    try:
+        # Use CLs method to handle low-statistics background boundaries cleanly
+        # Inside results_module.py (Line 176):
+
+        # To this:
+        ul_analyzer.upperlimit(alpha=alpha_significance, CLs=True, unidim_solver='brentq')
+                
+        if hasattr(ul_analyzer, 'limits_result') and ul_analyzer.limits_result is not None:
+            obs_limit = ul_analyzer.limits_result.get('observed', float('nan'))
+            exp_limit = ul_analyzer.limits_result.get('expected', float('nan'))
+            self.logger.log(f"--- Limit Results Processed ---", "success")
+            self.logger.log(f"  Observed Upper Limit: {obs_limit:.3f} events", "info")
+            self.logger.log(f"  Expected Upper Limit: {exp_limit:.3f} events", "info")
+        else:
+            self.logger.log("Limit calculation completed, but results dictionary structure is empty.", "warning")
+            
+    except Exception as err:
+        self.logger.log(f"Failed to extract limit boundary points from the calculator curve: {err}", "error")
+        traceback.print_exc()
+
+    return ul_analyzer
     
   def WriteFittedData(self, min_v, max_v):
     """ Write data used in fit to csv (i,mom,time) Note: should be in format useful to BAT"""
