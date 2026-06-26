@@ -115,10 +115,10 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
 
             # Style mapping configured using strict normalized lowercase tokens
             fitline_styles = {
-                'ce': {'color': 'red', 'label': 'CE Fit Line'},
-                'cosmic': {'color': 'cyan', 'label': 'Cosmic Fit Line'},
-                'dio': {'color': 'magenta', 'label': 'DIO Fit Line'},
-                'rpc': {'color': 'green', 'label': 'RPC Fit Line'}
+                'ce': {'color': 'red', 'label': 'CE (Signal)'},
+                'cosmic': {'color': 'cyan', 'label': 'Cosmic-Induced'},
+                'dio': {'color': 'magenta', 'label': 'DIO'},
+                'rpc': {'color': 'green', 'label': 'RPC'}
             }
 
             if n_obs == 1:
@@ -276,7 +276,7 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
     
     handles, labels = ax1.get_legend_handles_labels()
     unique_labels = dict(zip(labels, handles))
-    ax1.legend(unique_labels.values(), unique_labels.keys(), loc='upper right', fontsize=FONTS['legend']['size'])
+    ax1.legend(unique_labels.values(), unique_labels.keys(), loc='upper right', ncol=2, fontsize=FONTS['legend']['size'])
     
     ax1.tick_params(axis='x', labelbottom=False)
     ax1.tick_params(axis='y', labelsize=FONTS['tick']['size'])
@@ -313,7 +313,23 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
     else:
         ax2.axis('off')
     
-    fig.text(0.15, 0.98, f"Mu2e Simulation ({title})", fontsize=FONTS['label']['size'], fontweight='bold', ha='left', va='top')
+    ax1.text(
+        x=0.05,                      # Align perfectly with the left spine
+        y=1.02,                     # Place it slightly above the top spine (1.0 is exactly the top)
+        s="Mu2e Simulation", 
+        transform=ax1.transAxes,    # Uses axis relative coordinates (0 to 1) instead of data values
+        fontsize=FONTS['label']['size'], 
+        weight='bold', 
+        family='serif',             # Uses your preferred serif automatically
+        va='bottom',                # Vertical alignment anchored at the bottom of text
+        ha='left'                   # Horizontal alignment anchored at the left of text
+    )
+
+    #ax1.text(0.35, 0.95, r"$R_{\mu e} = 1 \times 10^{-13}$" + "\n" + "t = 1 month" + "\n" + r"$N_{\mathrm{POT}} = 7.3 \times 10^{18}$", 
+    #            fontsize=FONTS['label']['size'], ha='left', va='top', 
+    #            transform=ax1.transAxes, zorder=100,
+    #            bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgrey', edgecolor='black', alpha=0.8))
+
     ax1.grid(False)
     if fit_vals_for_plot is not None:
         ax2.grid(False)
@@ -346,7 +362,7 @@ class ScaledFitBuilder:
             'rmc_ext': 0.0,         
             'rmc_int': 0.0,         
             'ipa': 0.0,             
-            'ce': 0.0                 
+            'ce': 73.0                 
         }
     
     def set_component_yields(self, yields_dict: Dict[str, Optional[float]]):
