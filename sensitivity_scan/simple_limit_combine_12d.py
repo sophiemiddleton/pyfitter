@@ -21,9 +21,15 @@ import logging
 import scipy.optimize as opt
 import scipy.stats as stats
 from pathlib import Path
+import sys
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Add parent directory to path for imports
+sys_path_parent = Path(__file__).parent.parent
+if str(sys_path_parent) not in sys.path:
+    sys.path.insert(0, str(sys_path_parent))
 
 from custom_models import poly58
 from datacard import DataCard

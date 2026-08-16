@@ -1,7 +1,15 @@
 """
-Build and execute fits on scaled MC component samples using continuous event weights.
-Optimized for 2D Unbinned Maximum Likelihood Fits with robust dynamic model interrogation.
+Build and execute fits on pre-cut parquet data with momentum and time variables.
+Skips root file processing and directly loads pre-prepared parquet files.
 """
+
+# Suppress TensorFlow and graph optimization warnings
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow log messages
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'  # Prevent OOM issues
+
+import warnings
+warnings.filterwarnings('ignore')
 
 import argparse
 import numpy as np
@@ -9,23 +17,32 @@ import awkward as ak
 from pathlib import Path
 import sys
 from typing import Dict, Optional, Tuple, List, Any
-import os
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import zfit
 import tensorflow as tf
 from PIL import Image
 
+# Configure logging to suppress verbose warnings
+import logging
+tf.get_logger().setLevel('ERROR')
+logging.getLogger('absl').setLevel(logging.ERROR)
+
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys_path_parent = Path(__file__).parent.parent
+if str(sys_path_parent) not in sys.path:
+    sys.path.insert(0, str(sys_path_parent))
+
 from pyutils.pylogger import Logger
-from pyutils.pyselect import Select
-from pyutils.pyvector import Vector
-from pyutils.pycut import CutManager
-from process import AnaProcessor
 from fit_module import Unbinned_fit_mom, Unbinned_2d_fit_mom_time
-from data_prep import DataPreparationManager
 from style import FONTS, COLORS
 from model.physics_components import mom_components
 from config import GLOBAL_VERBOSITY
+from datacard import DataCard
+from sensitivity_scan.generate_datacard import datacard_from_snapshot
 
 # Standardized MC truth process codes
 COMPONENT_TO_MC_CODE = {
@@ -36,8 +53,7 @@ COMPONENT_TO_MC_CODE = {
     'cep': 176,
     'cosmic': -1,
     'rpc': 178,
-    'rmc_ext': 172,
-    'rmc_int': 171,
+    'rmc': 173,  # Combined RMC0N (uses 0N external code as primary)
 }
 
 # Reverse mapping to identify names from process codes during validation
@@ -47,8 +63,7 @@ COMPONENT_DISPLAY = {
     'dio': {'color': '#e377c2', 'label': 'DIO'},
     'cosmic': {'color': '#1f77b4', 'label': 'Cosmic'},
     'rpc': {'color': '#2ca02c', 'label': 'RPC (combined)'},
-    'rmc_ext': {'color': '#d62728', 'label': 'RMC (ext)'},
-    'rmc_int': {'color': '#9467bd', 'label': 'RMC (int)'},
+    'rmc': {'color': '#dc143c', 'label': 'RMC (combined)'},
     'ipa': {'color': '#8c564b', 'label': 'IPA'},
     'ce': {'color': '#ff8000', 'label': 'Signal (CE)'},
     'cem': {'color': '#ff8000', 'label': 'Signal (CE)'},
@@ -57,7 +72,7 @@ COMPONENT_DISPLAY = {
 
 
 def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, component_data_dict=None, component_names=None, 
-                              scale_factors_dict=None, fit_range=(97, 110), nbins=25, output_file=None,
+                              scale_factors_dict=None, fit_range=(100, 110), nbins=25, output_file=None,
                               title="Fit with Scaled MC Components", verbosity=1, real_data_mom_mag=None,
                               plot_obs='mom', target_yields_dict=None):
     """Plot fit projection slices with identical component accumulation for both 1D and 2D tracks."""
@@ -85,8 +100,16 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
         else:
             component_hists[comp_name] = np.zeros(nbins)
     
+    # Debug: log which components have data
+    logger.log(f"Component names passed to plot: {component_names}", "info")
+    logger.log(f"Component data dict keys: {list(component_data_dict.keys())}", "info")
+    for comp_name in component_names:
+        data = component_data_dict.get(comp_name)
+        n_events = len(data) if data is not None else 0
+        logger.log(f"  {comp_name}: {n_events} events in fit range", "info")
+    
     bottom = np.zeros(nbins)
-    desired_order = ['rpc',  'cosmic', 'dio', 'rmc_ext', 'rmc_int', 'ipa', 'ce']
+    desired_order = [ 'rpc','cosmic',  'rmc', 'dio', 'ipa', 'ce']
     
     for comp_name in desired_order:
         if comp_name in component_hists and np.sum(component_hists[comp_name]) > 0:
@@ -139,14 +162,14 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
                         param_names = [p.name.lower() for p in pdf.get_params()]
                         
                         component_token = None
-                        for token in ['ce', 'cem', 'cosmic', 'dio', 'rpc']:
+                        for token in ['ce', 'cem', 'cosmic', 'dio', 'rpc', 'rmc']:
                             if any(token in p_str for p_str in param_names):
                                 component_token = 'ce' if token == 'cem' else token
                                 break
                         
                         # Fallback to structure sequence check if parameter strings match multi-channels
                         if component_token is None:
-                            fallback_sequence = {0: 'dio', 1: 'rpc', 2: 'rpc', 3: 'cosmic', 4: 'ce'}
+                            fallback_sequence = {0: 'dio', 1: 'rpc', 2: 'rpc', 3: 'cosmic', 4: 'ce', 5: 'rmc'}
                             component_token = fallback_sequence.get(i, None)
                             
                         if not component_token:
@@ -219,13 +242,13 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
                         param_names = [p.name.lower() for p in pdf.get_params()]
                         
                         component_token = None
-                        for token in ['ce', 'cem', 'cosmic', 'dio', 'rpc']:
+                        for token in ['ce', 'cem', 'cosmic', 'dio', 'rpc', 'rmc']:
                             if any(token in p_str for p_str in param_names):
                                 component_token = 'ce' if token == 'cem' else token
                                 break
                         
                         if component_token is None:
-                            fallback_sequence = {0: 'dio', 1: 'rpc', 2: 'rpc', 3: 'cosmic', 4: 'ce'}
+                            fallback_sequence = {0: 'dio', 1: 'rpc', 2: 'rpc', 3: 'cosmic', 4: 'ce', 5: 'rmc'}
                             component_token = fallback_sequence.get(i, None)
                         
                         if not component_token:
@@ -272,7 +295,7 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
     
     ax1.set_ylabel('Events / Bin', fontsize=FONTS['label']['size'], fontweight=FONTS['label']['weight'])
     ax1.set_yscale('log')
-    ax1.set_ylim(ymin=0.1, ymax=2000)
+    ax1.set_ylim(ymin=0.1, ymax=500)
     
     handles, labels = ax1.get_legend_handles_labels()
     unique_labels = dict(zip(labels, handles))
@@ -314,21 +337,16 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
         ax2.axis('off')
     
     ax1.text(
-        x=0.05,                      # Align perfectly with the left spine
-        y=1.02,                     # Place it slightly above the top spine (1.0 is exactly the top)
+        x=0.05,
+        y=1.02,
         s="Mu2e Simulation", 
-        transform=ax1.transAxes,    # Uses axis relative coordinates (0 to 1) instead of data values
+        transform=ax1.transAxes,
         fontsize=FONTS['label']['size'], 
         weight='bold', 
-        family='serif',             # Uses your preferred serif automatically
-        va='bottom',                # Vertical alignment anchored at the bottom of text
-        ha='left'                   # Horizontal alignment anchored at the left of text
+        family='serif',
+        va='bottom',
+        ha='left'
     )
-
-    #ax1.text(0.35, 0.95, r"$R_{\mu e} = 1 \times 10^{-13}$" + "\n" + "t = 1 month" + "\n" + r"$N_{\mathrm{POT}} = 7.3 \times 10^{18}$", 
-    #            fontsize=FONTS['label']['size'], ha='left', va='top', 
-    #            transform=ax1.transAxes, zorder=100,
-    #            bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgrey', edgecolor='black', alpha=0.8))
 
     ax1.grid(False)
     if fit_vals_for_plot is not None:
@@ -341,30 +359,21 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
     plt.close(fig)
 
 
-class ScaledFitBuilder:
-    """Build and fit scaled MC component samples using continuous dataset weights."""
+class ParquetFitBuilder:
+    """Build and fit pre-cut parquet data with momentum and time variables."""
     
     def __init__(self, verbosity=1, jobs=1):
-        self.logger = Logger(print_prefix="[ScaledFitBuilder]", verbosity=verbosity)
+        self.logger = Logger(print_prefix="[ParquetFitBuilder]", verbosity=verbosity)
         self.verbosity = verbosity
         self.jobs = jobs
         self.components = {}  
         self.scaled_components = {}  
-        self.component_yields = {}  
+        self.component_yields = {}  # Will be populated from input card via --card argument
         self.data = None  
-        self.fit_range_lo = 97  
+        self.fit_range_lo = 100  
         self.fit_range_hi = 110  
-        
-        self.component_yields = { 
-            'dio': 1427.0,           
-            'cosmic': 333.0,         
-            'rpc': 9.0,              
-            'rmc_ext': 0.0,         
-            'rmc_int': 0.0,         
-            'ipa': 0.0,             
-            'ce': 73.0                 
-        }
-    
+        self.input_card = None  # Input datacard (Combine-style) with expected yields + systematics
+
     def set_component_yields(self, yields_dict: Dict[str, Optional[float]]):
         self.component_yields.update(yields_dict)
         self.logger.log(f"Updated physics target yields: {self.component_yields}", "info")
@@ -432,93 +441,125 @@ class ScaledFitBuilder:
             
         self.logger.log("="*80 + "\n", "info")
 
-    def _process_file_list(self, file_path: str, sign: str = "minus", 
-                          location: str = "disk", component_name: str = "unknown",
-                          mom_lo: Optional[float] = None, mom_hi: Optional[float] = None) -> Optional[ak.Array]:
-        if mom_lo is None: mom_lo = self.fit_range_lo
-        if mom_hi is None: mom_hi = self.fit_range_hi
-        
-        cut_switches = [
-            True, True, True, True, True, True, True, False, False, False, 
-            True, True, True, True, True, True, True, True, False, False, False, False
-        ]
+    def _load_parquet_file(self, file_path: str, mom_column: str = 'momentum', 
+                           time_column: str = 'time', component_name: str = "unknown") -> Optional[Tuple[np.ndarray, np.ndarray]]:
+        """Load momentum and time data from a parquet file."""
         try:
-            processor = AnaProcessor(
-                file_list_path=file_path, jobs=self.jobs, cuts=cut_switches,
-                location=location, mom_lo=mom_lo, mom_hi=mom_hi
-            )
-            results_list = processor.execute()
-            if not results_list: return None
+            import pyarrow.parquet as pq
             
-            data_list = []
-            for result in results_list:
-                if result is not None:
-                    if isinstance(result, dict) and "filtered_data" in result:
-                        data_list.append(result["filtered_data"])
-                    else:
-                        data_list.append(result)
-            return ak.concatenate(data_list) if data_list else None
+            if not Path(file_path).exists():
+                self.logger.log(f"Parquet file not found: {file_path}", "error")
+                return None
+            
+            # Read the parquet file
+            table = pq.read_table(file_path)
+            df = table.to_pandas()
+            
+            self.logger.log(f"Loaded parquet file: {file_path}", "info")
+            self.logger.log(f"  Available columns: {df.columns.tolist()}", "info")
+            self.logger.log(f"  Shape: {df.shape}", "info")
+            
+            # Extract momentum and time columns
+            if mom_column not in df.columns:
+                self.logger.log(f"  Warning: momentum column '{mom_column}' not found. Using available columns: {df.columns.tolist()}", "warning")
+                # Try common alternative names
+                mom_col_options = ['momentum', 'mom', 'p', 'recomom', 'recomom_ttfront']
+                mom_column = next((col for col in mom_col_options if col in df.columns), None)
+                if mom_column is None:
+                    self.logger.log(f"  Error: Could not find momentum column", "error")
+                    return None
+            
+            if time_column not in df.columns:
+                self.logger.log(f"  Warning: time column '{time_column}' not found", "warning")
+                # Try common alternative names
+                time_col_options = ['time', 'tracktime', 'tracktime_ttfront', 't']
+                time_column = next((col for col in time_col_options if col in df.columns), None)
+                if time_column is None:
+                    self.logger.log(f"  Warning: Could not find time column, will return None for times", "warning")
+            
+            mom_data = np.array(df[mom_column].values, dtype=np.float32)
+            time_data = np.array(df[time_column].values, dtype=np.float32) if time_column else np.zeros_like(mom_data)
+            
+            self.logger.log(f"  Extracted {len(mom_data)} momentum values", "info")
+            
+            return mom_data, time_data
+            
+        except ImportError:
+            self.logger.log("PyArrow not available. Attempting to use pickle/fallback loader.", "warning")
+            try:
+                # Fallback: try using pickle if available
+                import pickle
+                with open(file_path, 'rb') as f:
+                    data = pickle.load(f)
+                if isinstance(data, dict):
+                    mom_data = np.array(data.get(mom_column, []), dtype=np.float32)
+                    time_data = np.array(data.get(time_column, np.zeros_like(mom_data)), dtype=np.float32)
+                    return mom_data, time_data
+            except Exception as e:
+                self.logger.log(f"Fallback loader failed: {e}", "error")
+            return None
         except Exception as e:
-            self.logger.log(f"Error processing file list {file_path}: {e}", "error")
+            self.logger.log(f"Error loading parquet file {file_path}: {e}", "error")
             return None
     
-    def load_and_scale_components(self, component_files: Dict[str, str], sign: str = "minus", location: str = "disk", fit_range: Optional[Tuple[float, float]] = None):
+    def load_parquet_components(self, component_files: Dict[str, str], 
+                               mom_column: str = 'momentum', time_column: str = 'time',
+                               fit_range: Optional[Tuple[float, float]] = None,
+                               time_range: Optional[Tuple[float, float]] = None):
+        """Load pre-cut parquet files for each component."""
         self.components = {}
         self.scaled_components = {}
         
         if fit_range is not None:
             self.fit_range_lo, self.fit_range_hi = fit_range
         
+        self.time_range_lo = time_range[0] if time_range else 475
+        self.time_range_hi = time_range[1] if time_range else 1650
+        
         for component_name, file_path in component_files.items():
-            if file_path is None or not Path(file_path).exists(): continue
-            data = self._process_file_list(file_path, sign=sign, location=location, component_name=component_name, mom_lo=self.fit_range_lo, mom_hi=self.fit_range_hi)
-            if data is not None:
-                self.components[component_name] = data
-    
-    def _extract_synchronized_2d(self, data: ak.Array) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        try:
-            selector = Select(verbosity=0)
-            vector = Vector()
-            
-            trk_front = selector.select_surface(data['trkfit'], surface_name="TT_Front")
-            trkfit_ent = ak.mask(data['trkfit']["trksegs"], trk_front)
-            
-            mom_mag_ak = vector.get_mag(trkfit_ent, 'mom')
-            time_ak = trkfit_ent['time']
-            
-            valid_mask = (~ak.is_none(mom_mag_ak, axis=-1)) & (~ak.is_none(time_ak, axis=-1))
-            
-            clean_mom = ak.flatten(mom_mag_ak[valid_mask], axis=None)
-            clean_time = ak.flatten(time_ak[valid_mask], axis=None)
-            
-            return np.array(clean_mom), np.array(clean_time)
-        except Exception:
-            return None, None
-
-    def _extract_variable(self, data: ak.Array, var_name: str) -> Optional[np.ndarray]:
-        try:
-            if var_name.lower() == "recomom_ttfront":
-                selector = Select(verbosity=0)
-                vector = Vector()
-                trk_front = selector.select_surface(data['trkfit'], surface_name="TT_Front")
-                trkfit_ent = ak.mask(data['trkfit']["trksegs"], trk_front)
-                mom_mag = ak.drop_none(vector.get_mag(trkfit_ent, 'mom'))
-                return np.array(ak.flatten(mom_mag, axis=None))
-            elif var_name.lower() == "tracktime_ttfront":
-                selector = Select(verbosity=0)
-                trk_front = selector.select_surface(data['trkfit'], surface_name="TT_Front")
-                trkfit_ent = ak.mask(data['trkfit']["trksegs"], trk_front)
-                time = DataPreparationManager.clean_awkward_array(trkfit_ent['time'])
-                return np.array(ak.flatten(time, axis=None))
+            if file_path is None:
+                continue
+                
+            result = self._load_parquet_file(file_path, mom_column=mom_column, 
+                                            time_column=time_column, component_name=component_name)
+            if result is not None:
+                mom_data, time_data = result
+                
+                # Store as dictionary for compatibility with the fitter
+                self.components[component_name] = {
+                    'momentum': mom_data,
+                    'time': time_data
+                }
+                self.logger.log(f"Loaded component '{component_name}': {len(mom_data)} events", "info")
             else:
-                parts = var_name.split('.')
-                val = data
-                for part in parts: val = val[part]
-                return np.array(ak.flatten(ak.drop_none(val), axis=None))
-        except Exception:
-            return None
+                self.logger.log(f"Failed to load component '{component_name}'", "warning")
+        
+        # Combine RMC0N components (ext + int) into single 'rmc' component, like RPC
+        if 'rmc0n_ext' in self.components or 'rmc0n_int' in self.components:
+            rmc_moms = []
+            rmc_times = []
+            
+            if 'rmc0n_ext' in self.components:
+                rmc_moms.append(self.components['rmc0n_ext']['momentum'])
+                rmc_times.append(self.components['rmc0n_ext']['time'])
+            
+            if 'rmc0n_int' in self.components:
+                rmc_moms.append(self.components['rmc0n_int']['momentum'])
+                rmc_times.append(self.components['rmc0n_int']['time'])
+            
+            if rmc_moms:
+                self.components['rmc'] = {
+                    'momentum': np.concatenate(rmc_moms),
+                    'time': np.concatenate(rmc_times)
+                }
+                self.logger.log(f"Combined RMC0N components into 'rmc': {len(self.components['rmc']['momentum'])} total events", "info")
+                
+                # Remove the individual components
+                self.components.pop('rmc0n_ext', None)
+                self.components.pop('rmc0n_int', None)
     
     def _build_combined_data(self, variables: Dict[str, List[np.ndarray]], scale_factors: Dict[str, float]) -> Tuple[Dict[str, np.ndarray], np.ndarray, np.ndarray]:
+        """Combine data from all components with proper weighting."""
         combined = {}
         combined_component_cats = []
         combined_weights = []
@@ -530,7 +571,9 @@ class ScaledFitBuilder:
             weights_array = []
             
             for comp_name, array in zip(comp_names, arrays_per_comp):
-                if array is None or len(array) == 0: continue
+                if array is None or len(array) == 0:
+                    continue
+                    
                 scale_factor = scale_factors[comp_name]
                 combined_arrays.append(array)
                 weights_array.append(np.full(len(array), fill_value=scale_factor, dtype=np.float32))
@@ -540,50 +583,180 @@ class ScaledFitBuilder:
                     
                 component_cats.extend([mc_code] * len(array))
             
-            combined[var_name] = np.concatenate(combined_arrays)
+            combined[var_name] = np.concatenate(combined_arrays) if combined_arrays else np.array([])
             if var_name == list(variables.keys())[0]:
                 combined_component_cats = np.array(component_cats)
-                combined_weights = np.concatenate(weights_array)
+                combined_weights = np.concatenate(weights_array) if weights_array else np.array([])
         
         return combined, combined_component_cats, combined_weights
     
-    def fit_mom_1d(self, variable: str = 'recomom_ttfront', fit_range: Tuple[float, float] = (97, 110),
-                   plot: bool = True, minos: bool = False, use_constraints: bool = False, constraints_dir: str = 'uncertainties/outputs') -> Any:
-        if not self.components: return None
+    def _save_datacard_snapshot(self, snapshot_path: str, fit_result: Any, 
+                                combine_pdf: Any, fit_range_mom: Tuple[float, float],
+                                fit_range_time: Tuple[float, float], output_card_path: Optional[str] = None):
+        """
+        Save fit results in datacard-compatible snapshot format.
+        
+        Creates an NPZ file with:
+        - fit_ranges: [mom_min, mom_max, time_min, time_max]
+        - val_<param>: Fitted parameter values (N_CE, N_DIO, etc.)
+        - err_<param>: Parameter uncertainties
+        - Shape parameters from mom_components (CE DSCB mu/sigma/alpha/n, Cosmic/RPC c1/c2, decay rates)
+        - systematics: (if input datacard provided) Systematic uncertainties from input card for traceability
+        
+        This snapshot can be loaded by generate_datacard.py to create data cards.
+        Systematics are preserved from the input card (Combine-style workflow).
+        
+        If output_card_path is provided, automatically generates YAML datacard from snapshot.
+        
+        Args:
+            snapshot_path: Where to save the snapshot
+            fit_result: Fit result object
+            combine_pdf: Combined PDF object
+            fit_range_mom: Momentum range tuple
+            fit_range_time: Time range tuple
+            output_card_path: Optional path to save generated YAML datacard
+        """
+        export_dict = {
+            'fit_ranges': np.array([fit_range_mom[0], fit_range_mom[1], 
+                                   fit_range_time[0], fit_range_time[1]])
+        }
+        
+        # Extract fitted parameter values
+        if fit_result and hasattr(fit_result, 'params'):
+            for p, p_data in fit_result.params.items():
+                p_name = p.name if hasattr(p, 'name') else str(p)
+                export_dict[f"val_{p_name}"] = float(p_data.get('value', 0.0))
+                err_val = p_data.get('error', 0.0)
+                if err_val is not None:
+                    export_dict[f"err_{p_name}"] = float(err_val)
+        
+        # Add shape parameters from mom_components (physics constants)
+        # These define the fixed CE DSCB parameters, Cosmic/RPC polynomial coefficients, etc.
+        try:
+            for component_name, component_config in mom_components.items():
+                pars = component_config.get('pars', {})
+                for par_name, par_values in pars.items():
+                    # par_values is typically (nominal, lower, upper) tuple
+                    # Use the first value (nominal) as the parameter value
+                    if isinstance(par_values, (tuple, list)) and len(par_values) > 0:
+                        nominal_value = float(par_values[0])
+                    else:
+                        nominal_value = float(par_values)
+                    
+                    # Store with component prefix to avoid conflicts
+                    export_dict[f"val_{par_name}_{component_name}"] = nominal_value
+                    export_dict[f"err_{par_name}_{component_name}"] = 0.0  # Shape params are fixed
+                    
+                    # Also store without component suffix for CE (backward compatibility)
+                    if component_name == 'CE':
+                        export_dict[f"val_{par_name}_CE"] = nominal_value
+                        export_dict[f"err_{par_name}_CE"] = 0.0
+        except Exception as e:
+            self.logger.log(f"Warning: Could not extract shape parameters from mom_components: {e}", "warn")
+        
+        # Extract shape parameters from PDFs if available (may override above if fitted)
+        if combine_pdf and hasattr(combine_pdf, 'pdfs'):
+            for sub_pdf in combine_pdf.pdfs:
+                if hasattr(sub_pdf, 'get_params'):
+                    for shape_param in sub_pdf.get_params():
+                        p_name = shape_param.name if hasattr(shape_param, 'name') else str(shape_param)
+                        if f"val_{p_name}" not in export_dict:
+                            try:
+                                param_val = float(shape_param.numpy()) if hasattr(shape_param, 'numpy') else float(shape_param)
+                                export_dict[f"val_{p_name}"] = param_val
+                                export_dict[f"err_{p_name}"] = 0.0
+                            except:
+                                pass
+        
+        # Add decay rate constants (physics constants, not fit parameters)
+        export_dict["val_decay_rate_mu"] = -0.001131  # Muon decay rate
+        export_dict["val_decay_rate_pi"] = -0.0553     # Pion decay rate
+        
+        # Store systematics from input datacard if available (full traceability)
+        if self.input_card and hasattr(self.input_card, 'systematics'):
+            export_dict["systematics"] = np.array([self.input_card.systematics], dtype=object)
+            self.logger.log(f"Stored {len(self.input_card.systematics)} systematics from input card", "info")
+        
+        # Save as NPZ
+        snapshot_path = Path(snapshot_path)
+        snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(snapshot_path, **export_dict)
+        
+        self.logger.log(f"Datacard snapshot saved: {snapshot_path}", "success")
+        self.logger.log(f"  Contains {len(export_dict)} entries", "info")
+        self.logger.log(f"  Shape parameters: CE DSCB (mu, sigma, alphaL/R, nL/R), Cosmic/RPC (c1, c2), decay rates", "info")
+        
+        # Log the key yields for verification
+        yield_keys = ['N_CE', 'N_DIO', 'N_Cosmic', 'N_RPC', 'N_RMC']
+        self.logger.log("  Fitted yields:", "info")
+        for key in yield_keys:
+            if f'val_{key}' in export_dict:
+                yield_val = export_dict[f'val_{key}']
+                err_val = export_dict.get(f'err_{key}', 0.0)
+                self.logger.log(f"    {key}: {yield_val:.4f} ± {err_val:.4f}", "info")
+        
+        # Automatically generate YAML datacard from snapshot if output path provided
+        if output_card_path:
+            try:
+                output_card_path = Path(output_card_path)
+                output_card_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Generate datacard from the snapshot we just saved
+                card = datacard_from_snapshot(str(snapshot_path), output_path=str(output_card_path))
+                self.logger.log(f"Datacard YAML generated: {output_card_path}", "success")
+                self.logger.log(f"  Datacard name: {card.name}", "info")
+            except Exception as e:
+                self.logger.log(f"Failed to generate YAML datacard: {e}", "error")
+    
+    def fit_mom_1d(self, fit_range: Tuple[float, float] = (100, 110),
+                   plot: bool = True, minos: bool = False, use_constraints: bool = False, 
+                   constraints_dir: str = 'uncertainties/outputs', components_to_fit: Optional[List[str]] = None,
+                   signal_component: str = 'CE') -> Any:
+        """Perform 1D momentum fit on pre-cut parquet data."""
+        if not self.components:
+            self.logger.log("No components loaded", "error")
+            return None
         
         comp_names = list(self.components.keys())
-        variables = {variable: []}
+        variables = {'mom': []}
         scale_factors = {}
         component_data_for_plot = {}  
         
+        self.logger.log(f"Components loaded for 1D fit: {comp_names}", "info")
+        
         for comp_name in comp_names:
             data = self.components[comp_name]
-            var_array = self._extract_variable(data, variable)
+            mom_array = data.get('momentum')
             
-            if var_array is not None and len(var_array) > 0:
-                variables[variable].append(var_array)
-                component_data_for_plot[comp_name] = var_array
+            if mom_array is not None and len(mom_array) > 0:
+                # Apply fit range cut
+                in_range = (mom_array >= fit_range[0]) & (mom_array <= fit_range[1])
+                mom_array = mom_array[in_range]
+                
+                variables['mom'].append(mom_array)
+                component_data_for_plot[comp_name] = mom_array
                 
                 target = self.component_yields.get(comp_name.lower(), 0.0)
-                scale_factor = (target / len(var_array)) if (len(var_array) > 0 and target is not None and target > 0) else 0.0
+                scale_factor = (target / len(mom_array)) if (len(mom_array) > 0 and target is not None and target > 0) else 0.0
             else:
-                variables[variable].append(None)
+                variables['mom'].append(None)
                 component_data_for_plot[comp_name] = None
                 scale_factor = 0.0
                 
             scale_factors[comp_name] = scale_factor
             self.scaled_components[comp_name] = (data, scale_factor)
-            self.logger.log(f"Normalized {comp_name:<10} | Window entries: {len(var_array) if var_array is not None else 0:<6} | Weight: {scale_factor:.6f}", "info")
+            self.logger.log(f"Normalized {comp_name:<10} | Window entries: {len(mom_array) if mom_array is not None else 0:<6} | Weight: {scale_factor:.6f}", "info")
         
         combined_data, component_cats, combined_weights = self._build_combined_data(variables, scale_factors)
-        mom_mag = combined_data[variable]
+        mom_mag = combined_data['mom']
         
         self.verify_dataset_scaling_truth(component_cats, combined_weights)
         
         fit_tuple = Unbinned_fit_mom(
             mom_mag=mom_mag, count_particle_types=component_cats, fit_range_low=fit_range[0], fit_range_hi=fit_range[1],
             weights=combined_weights, plot_truth=False, verbose=self.verbosity, minos=minos,
-            plot_NLL=False, plot_results=False, constraints_dir=constraints_dir if use_constraints else None
+            plot_NLL=False, plot_results=False, constraints_dir=constraints_dir if use_constraints else None,
+            components_to_fit=components_to_fit, signal_component=signal_component
         )
         result, poi, loss, aux_nlls, combine_pdf, constraints = fit_tuple
         
@@ -596,12 +769,36 @@ class ScaledFitBuilder:
                 output_file="fit_momentum_1d_projections.png", title="1D Momentum Projection", verbosity=self.verbosity,
                 target_yields_dict=self.component_yields
             )
+        
+        # Export datacard snapshot if requested
+        try:
+            import builtins
+            if 'args' in globals() and hasattr(globals()['args'], 'datacard_snapshot') and globals()['args'].datacard_snapshot:
+                current_args = globals().get('args', None) or getattr(builtins, 'args', None)
+                if current_args and hasattr(current_args, 'datacard_snapshot') and current_args.datacard_snapshot:
+                    output_card = getattr(current_args, 'output_card', None)
+                    self._save_datacard_snapshot(
+                        snapshot_path=current_args.datacard_snapshot,
+                        fit_result=result,
+                        combine_pdf=combine_pdf,
+                        fit_range_mom=fit_range,
+                        fit_range_time=(0, 1000),  # Default for 1D fit
+                        output_card_path=output_card
+                    )
+        except Exception as e:
+            self.logger.log(f"Datacard snapshot export failed (non-critical): {e}", "warning")
+        
         return result
     
-    def fit_mom_time_2d(self, mom_variable: str = 'recomom_ttfront', time_variable: str = 'tracktime_ttfront',
-                       fit_range_mom: Tuple[float, float] = (97, 110), fit_range_time: Tuple[float, float] = (475, 1650),
-                       plot: bool = True, use_constraints: bool = False, constraints_dir: str = 'uncertainties/outputs') -> Any:
-        if not self.components: return None
+    def fit_mom_time_2d(self, fit_range_mom: Tuple[float, float] = (100, 110), 
+                       fit_range_time: Tuple[float, float] = (475, 1650),
+                       plot: bool = True, use_constraints: bool = False, 
+                       constraints_dir: str = 'uncertainties/outputs', components_to_fit: Optional[List[str]] = None,
+                       signal_component: str = 'CE') -> Any:
+        """Perform 2D momentum-time fit on pre-cut parquet data."""
+        if not self.components:
+            self.logger.log("No components loaded", "error")
+            return None
         
         comp_names = list(self.components.keys())
         variables = {'mom': [], 'time': []}
@@ -612,9 +809,11 @@ class ScaledFitBuilder:
         for comp_name in comp_names:
             data = self.components[comp_name]
             
-            mom_array, time_array = self._extract_synchronized_2d(data)
+            mom_array = data.get('momentum')
+            time_array = data.get('time')
             
             if mom_array is not None and time_array is not None and len(mom_array) > 0:
+                # Apply 2D range cuts
                 in_bounds = (mom_array >= fit_range_mom[0]) & (mom_array <= fit_range_mom[1]) & \
                             (time_array >= fit_range_time[0]) & (time_array <= fit_range_time[1])
                             
@@ -630,8 +829,10 @@ class ScaledFitBuilder:
                 target = self.component_yields.get(comp_name.lower(), 0.0)
                 scale_factor = (target / len(mom_array)) if (len(mom_array) > 0 and target is not None and target > 0) else 0.0
             else:
-                variables['mom'].append(None); variables['time'].append(None)
-                component_mom_for_plot[comp_name] = None; component_time_for_plot[comp_name] = None
+                variables['mom'].append(None)
+                variables['time'].append(None)
+                component_mom_for_plot[comp_name] = None
+                component_time_for_plot[comp_name] = None
                 scale_factor = 0.0
                 
             scale_factors[comp_name] = scale_factor
@@ -647,7 +848,8 @@ class ScaledFitBuilder:
             mom_mag=mom_mag, times=times, count_particle_types=component_cats,
             fit_range_mom=fit_range_mom, fit_range_time=fit_range_time, weights=combined_weights,
             plot_truth=False, verbose=self.verbosity, plot_NLL=False, plot_results=False,
-            constraints_dir=constraints_dir if use_constraints else None
+            constraints_dir=constraints_dir if use_constraints else None, components_to_fit=components_to_fit,
+            signal_component=signal_component
         )
         result, poi, loss, combine_pdf, norms = fit_tuple
         
@@ -668,12 +870,9 @@ class ScaledFitBuilder:
             )
 
         # store the mom and time for subsequent fits
-
-        # store the mom and time for subsequent fits
         try:
+            import builtins
             if 'args' in globals() and hasattr(globals()['args'], 'export_npz') and globals()['args'].export_npz:
-                # --- REDESIGNED NPZ EXPORT BLOCK ---
-                # Safeguard lookup for when running programmatically without a global 'args'
                 current_args = globals().get('args', None) or getattr(builtins, 'args', None)
                 
                 if current_args and hasattr(current_args, 'export_npz') and current_args.export_npz:
@@ -692,13 +891,11 @@ class ScaledFitBuilder:
                     # 2. Extract Shape Parameters dynamically from all underlying PDFs
                     if combine_pdf and hasattr(combine_pdf, 'pdfs'):
                         for i, sub_pdf in enumerate(combine_pdf.pdfs):
-                            # Query all parameters associated with this specific shape instance
                             for shape_param in sub_pdf.get_params():
                                 p_name = shape_param.name
-                                # Only grab if we haven't already extracted it from the fit result
                                 if f"val_{p_name}" not in fit_param_vals:
                                     fit_param_vals[f"val_{p_name}"] = float(shape_param.numpy())
-                                    fit_param_errs[f"err_{p_name}"] = 0.0  # Constant shape parameter
+                                    fit_param_errs[f"err_{p_name}"] = 0.0
 
                     # 3. Save everything down to a comprehensive dictionary
                     export_dict = {
@@ -708,53 +905,144 @@ class ScaledFitBuilder:
                         'categories': component_cats,
                         'fit_ranges': np.array([fit_range_mom[0], fit_range_mom[1], fit_range_time[0], fit_range_time[1]]),
                     }
-                    # Append dynamic parameter keys cleanly
                     export_dict.update(fit_param_vals)
                     export_dict.update(fit_param_errs)
 
                     np.savez(export_path, **export_dict)
-                    self.logger.log(f"Redesigned config exported. Packed {len(fit_param_vals)} model parameters into: {export_path}", "success")
-                # --- END OF REDESIGNED BLOCK ---
-        except Exception:
-            pass
+                    self.logger.log(f"Config exported. Packed {len(fit_param_vals)} model parameters into: {export_path}", "success")
+        except Exception as e:
+            self.logger.log(f"Export failed (non-critical): {e}", "warning")
+        
+        # Export datacard snapshot if requested
+        try:
+            import builtins
+            if 'args' in globals() and hasattr(globals()['args'], 'datacard_snapshot') and globals()['args'].datacard_snapshot:
+                current_args = globals().get('args', None) or getattr(builtins, 'args', None)
+                if current_args and hasattr(current_args, 'datacard_snapshot') and current_args.datacard_snapshot:
+                    output_card = getattr(current_args, 'output_card', None)
+                    self._save_datacard_snapshot(
+                        snapshot_path=current_args.datacard_snapshot,
+                        fit_result=result,
+                        combine_pdf=combine_pdf,
+                        fit_range_mom=fit_range_mom,
+                        fit_range_time=fit_range_time,
+                        output_card_path=output_card
+                    )
+        except Exception as e:
+            self.logger.log(f"Datacard snapshot export failed (non-critical): {e}", "warning")
         
         return result
 
 
 def main(args):
-    builder = ScaledFitBuilder(verbosity=args.verbosity, jobs=args.jobs)
-    component_files = {item.split('=')[0]: item.split('=')[1] for item in args.components} if args.components else {}
+    builder = ParquetFitBuilder(verbosity=args.verbosity, jobs=args.jobs)
     
+    # Load input datacard if provided (like Combine workflow)
+    if args.card:
+        builder.input_card = DataCard.from_yaml(args.card)
+        builder.logger.log(f"Loaded input datacard from {args.card}", "info")
+        card_yields = builder.input_card.get_expected_yields()
+        builder.logger.log(f"  Expected yields from card: {card_yields}", "info")
+        # Normalize keys to lowercase for consistency with component names
+        normalized_yields = {k.lower(): v for k, v in card_yields.items()}
+        # Apply card yields to component_yields (these are the source of truth)
+        builder.set_component_yields(normalized_yields)
+    
+    # Parse component files: expect format "component_name=/path/to/file.parquet"
+    component_files = {}
+    if args.components:
+        for item in args.components:
+            parts = item.split('=')
+            if len(parts) == 2:
+                component_files[parts[0]] = parts[1]
+            else:
+                print(f"Warning: Invalid component specification: {item}. Expected format: name=/path/file.parquet")
+    
+    if not component_files:
+        print("Error: No components specified. Use --components name=/path/file.parquet [name2=/path/file2.parquet ...]")
+        sys.exit(1)
+    
+    # Parse custom yields if provided
     if args.yields:
-        yields_dict = {item.split('=')[0]: (float(item.split('=')[1]) if item.split('=')[1].lower() != 'none' else None) for item in args.yields}
-        builder.set_component_yields(yields_dict)
-        
-    builder.load_and_scale_components(component_files, sign=args.sign, location=args.location, fit_range=(args.fit_range_lo, args.fit_range_hi))
+        yields_dict = {}
+        for item in args.yields:
+            parts = item.split('=')
+            if len(parts) == 2:
+                try:
+                    value = float(parts[1]) if parts[1].lower() != 'none' else None
+                    yields_dict[parts[0]] = value
+                except ValueError:
+                    print(f"Warning: Invalid yield value for {parts[0]}: {parts[1]}")
+            else:
+                print(f"Warning: Invalid yield specification: {item}")
+        if yields_dict:
+            builder.set_component_yields(yields_dict)
     
+    # Load parquet components
+    builder.load_parquet_components(
+        component_files,
+        mom_column=args.mom_column,
+        time_column=args.time_column,
+        fit_range=(args.fit_range_lo, args.fit_range_hi),
+        time_range=(args.time_range_lo, args.time_range_hi)
+    )
+    
+    # Run fits
     if args.fit_type in ['1d', 'both']:
-        builder.fit_mom_1d(variable=args.variable, fit_range=(args.fit_range_lo, args.fit_range_hi), plot=not args.no_plot, minos=args.minos, constraints_dir=args.constraints_dir)
+        builder.fit_mom_1d(
+            fit_range=(args.fit_range_lo, args.fit_range_hi), 
+            plot=not args.no_plot, 
+            minos=args.minos, 
+            constraints_dir=args.constraints_dir
+        )
+    
     if args.fit_type in ['2d', 'both']:
-        builder.fit_mom_time_2d(mom_variable=args.variable, time_variable=args.time_variable, fit_range_mom=(args.fit_range_lo, args.fit_range_hi), fit_range_time=(args.time_range_lo, args.time_range_hi), plot=not args.no_plot, constraints_dir=args.constraints_dir)
+        builder.fit_mom_time_2d(
+            fit_range_mom=(args.fit_range_lo, args.fit_range_hi), 
+            fit_range_time=(args.time_range_lo, args.time_range_hi), 
+            plot=not args.no_plot, 
+            constraints_dir=args.constraints_dir
+        )
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Weighted Unbinned Asimov Fitter")
-    parser.add_argument('--fit-type', choices=['1d', '2d', 'both'], default='2d')
-    parser.add_argument('--components', nargs='+', required=True)
-    parser.add_argument('--variable', type=str, default='recomom_ttfront')
-    parser.add_argument('--time-variable', type=str, default='tracktime_ttfront')
-    parser.add_argument('--fit-range-lo', type=float, default=97)
-    parser.add_argument('--fit-range-hi', type=float, default=110)
-    parser.add_argument('--time-range-lo', type=float, default=475)
-    parser.add_argument('--time-range-hi', type=float, default=1650)
-    parser.add_argument('--yields', nargs='+', default=None)
-    parser.add_argument('--sign', choices=['minus', 'plus'], default='minus')
-    parser.add_argument('--location', choices=['disk', 'local'], default='disk')
-    parser.add_argument('--jobs', type=int, default=16)
-    parser.add_argument('--constraints-dir', type=str, default='uncertainties/outputs')
-    parser.add_argument('--minos', action='store_true')
-    parser.add_argument('--no-plot', action='store_true')
-    parser.add_argument('--verbosity', type=int, default=1)
-    parser.add_argument('--export-npz', type=str, default=None)
+    parser = argparse.ArgumentParser(description="Parquet-based Unbinned Asimov Fitter")
+    parser.add_argument('--fit-type', choices=['1d', '2d', 'both'], default='2d',
+                       help='Type of fit to perform')
+    parser.add_argument('--components', nargs='+', required=True,
+                       help='Components to fit: component_name=/path/to/file.parquet [name2=/path/file2.parquet ...]')
+    parser.add_argument('--mom-column', type=str, default='momentum',
+                       help='Name of momentum column in parquet files')
+    parser.add_argument('--time-column', type=str, default='time',
+                       help='Name of time column in parquet files')
+    parser.add_argument('--fit-range-lo', type=float, default=100,
+                       help='Lower momentum fit range')
+    parser.add_argument('--fit-range-hi', type=float, default=110,
+                       help='Upper momentum fit range')
+    parser.add_argument('--time-range-lo', type=float, default=475,
+                       help='Lower time fit range')
+    parser.add_argument('--time-range-hi', type=float, default=1650,
+                       help='Upper time fit range')
+    parser.add_argument('--yields', nargs='+', default=None,
+                       help='Target yields: component_name=value [name2=value2 ...]')
+    parser.add_argument('--constraints-dir', type=str, default='uncertainties/outputs',
+                       help='Directory for constraint files')
+    parser.add_argument('--minos', action='store_true',
+                       help='Use Minos for error calculation')
+    parser.add_argument('--no-plot', action='store_true',
+                       help='Do not generate plots')
+    parser.add_argument('--jobs', type=int, default=1,
+                       help='Number of parallel jobs')
+    parser.add_argument('--verbosity', type=int, default=1,
+                       help='Verbosity level')
+    parser.add_argument('--export-npz', type=str, default=None,
+                       help='Export fit results to NPZ file')
+    parser.add_argument('--datacard-snapshot', type=str, default=None,
+                       help='Save fit snapshot for datacard generation (NPZ file)')
+    parser.add_argument('--output-card', type=str, default='output_card.yaml',
+                       help='Output YAML datacard path (auto-generated from snapshot). Default: output_card.yaml')
+    parser.add_argument('--card', type=str, default=None,
+                       help='Input YAML datacard with expected yields and systematics (like Combine)')
+    
     args = parser.parse_args()
     main(args)
