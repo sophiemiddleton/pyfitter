@@ -8,6 +8,7 @@ import argparse
 import csv
 import traceback
 import os
+import pandas as pd
 import matplotlib.pyplot as _plt
 import numpy as _np
 from control_region import ControlRegion
@@ -38,7 +39,7 @@ class AnaProcessor(Skeleton):
     This class inherits from the Skeleton defined in pyutils/pyprocess base class, which provides the 
     basic structure and methods withing the Processor framework 
     """
-    def __init__(self, file_list_path, jobs=1, cuts=None, location='disk', mom_lo = 97, mom_hi = 115):
+    def __init__(self, file_list_path, jobs=1, cuts=None, location='disk', mom_lo = 100, mom_hi = 115):
         """Initialise your processor with specific configuration
         
         This method sets up all the parameters needed for this specific analysis.
@@ -64,14 +65,22 @@ class AnaProcessor(Skeleton):
                 "crvcoincs.timeStart",
                 "crvcoincs.timeEnd"
             ],
+            "calo" : [
+               "caloclusters.energyDep_"
+            ],
             "trk" : [
                 "trk.nactive", 
                 "trk.pdg", 
                 "trk.status",
+                "trk.goodfit",
+                "trk.opainter",
+                "trk.chisq",
+                "trk.ndof",
                 "trkqual.valid",
                 "trkqual.result",
                 "trkpid.valid",
-                "trkpid.result"
+                "trkpid.result",
+                "trk.fitcon"
             ],
             "trkfit" : [
                 "trksegs",
@@ -79,8 +88,8 @@ class AnaProcessor(Skeleton):
                 "trksegpars_lh"
             ],
             "trkmc" : [
-                "trkmcsim",
-                "trkmc.valid"
+              "trkmcsim",
+              "trkmc.valid"
             ]
         }
         self.tree_path = "ntuple"
@@ -599,56 +608,97 @@ def count_particle_types(data):
   return particle_count_return
   
 # Create an instance of our custom processor
+def write_parquet_output(momentum, time, file_basename):
+    """Write post-cut momentum and time data to parquet file
+    
+    Args:
+        momentum: Awkward array containing momentum values
+        time: Awkward array containing time values
+        file_basename: Base filename (without extension) for output file
+    """
+    try:
+        # Flatten momentum and time data
+        flat_mom = ak.flatten(momentum, axis=None)
+        flat_time = ak.flatten(time, axis=None)
+        
+        # Convert to numpy arrays
+        mom_np = np.asarray(flat_mom)
+        time_np = np.asarray(flat_time)
+        
+        # Ensure same length
+        min_len = min(len(mom_np), len(time_np))
+        mom_np = mom_np[:min_len]
+        time_np = time_np[:min_len]
+        
+        # Create DataFrame
+        df = pd.DataFrame({
+            'momentum': mom_np,
+            'time': time_np
+        })
+        
+        # Write to parquet with basename in filename
+        filename = f'{file_basename}_postcut.parquet'
+        df.to_parquet(filename, index=False)
+        module_logger.log(f'Wrote {len(df)} events to {filename}', 'info')
+    except Exception as e:
+        module_logger.log(f'Failed to write parquet output: {e}', 'warning')
+
+
 def main(args):
     """Main driver function to run analysis."""
-
-    # list which cuts to switch on/off (positional):
-    # sw(0)=is_reco_electron, sw(1)=has_downstream, sw(2)=good_trkqual, sw(3)=good_trkpid,
-    # sw(4)=has_hits, sw(5)=within_t0, sw(6)=within_t0err, sw(7)=within_lhr_max,
-    # sw(8)=within_d0, sw(9)=within_pitch_angle, sw(10)=no_crv_veto, sw(11)=has_st,
-    # sw(12)=no_opa, sw(13)=in_mom_range
-
    
     #off_spill_cosmics = [True, True, True, True, True, False, True, False, False, False, True, True, True, True]
-    nocuts = [False] * 16
+    nocuts = [False] * 22
 
 
     # Convert positional list to named switches for robustness
-    new = [
-        True,  # 0 is_reco_electron
-        True,  # 1 has_downstream
-        True, # 2 has trk front
-        True,  # 3 good_trkqual
-        True,  # 4 good_trkpid
-        True, # 5 within_t0
-        True,  # 6 within_t0err
-        True,  # 7 has_hits
-        True,  #8 has_st
-        True,  #9 no_opa
-        True,  #10 no_crv_veto
-        True,  #11 no_crv_quality
-        True,  #12 no_crv_timewindow
-        True,  #13 pz/pt
-        True,  #14 triggers
-        True,  #15 in_mom_range
+    new= [
+      True,  # 0 has_a_track (event has >=1 track)
+      True,  # 1 is_good_track
+      True,  # 2 has_trk_front_seg
+      True,  # 3 is_reco_electron_or_positron (generic e/e+)
+      True,  # 4 has_downstream
+      True,  # 5 charge_selection (PDG = 11, electrons)
+      True,  # 6 or_trigger
+      True,  # 7 upstream_veto
+      True,  # 8 no_multi_trk_veto
+      True,  # 9 good_trkpid
+      True,  # 10 pz_over_pt
+      True,  # 11 has_st
+      True,  # 12 no_opa
+      True,  # 13 good_trkqual
+      True,  # 14 has_hits
+      True,  # 15 within_t0err
+      True,  # 16 no_crv_veto
+      True,  # 17 in_mom_range
+      True,  # 18 within_t0_475 (475-1650 ns)
+      False, # 19 within_t0_540 (540-1650 ns)
+      False, # 20 within_t0_640 (640-1650 ns)
+      False  # 21 signal_region
     ]
     cut_names = [
-        "is_reco_electron", #True
-        "has_downstream",
-        "has_trk_front", 
-        "good_trkqual",
-        "good_trkpid",
-        "within_t0",
-        "has_hits",
-        "within_t0err",
-        "no_crv_veto",
-        "no_crv_quality",
-        "no_crv_timewindow",
-        "has_st",
-        "no_opa",
-        "pz_over_pt",
-        "good_trigger",
-        "in_mom_range"
+        "has_a_track",                    # 0
+        "is_good_track",                  # 1
+        "has_trk_front_seg",              # 2
+        "is_reco_electron_or_positron",   # 3
+        "has_downstream",                 # 4
+        "charge_selection",               # 5
+        "or_trigger",                     # 6
+        "upstream_veto",                  # 7
+        "no_multi_trk_veto",              # 8
+        "good_trkpid",                    # 9
+        "pz_over_pt",                     # 10
+        "has_st",                         # 11
+        "no_opa",                         # 12
+        "good_trkqual",                   # 13
+        "has_hits",                       # 14
+        "within_t0err",                   # 15
+        "no_crv_veto",                    # 16
+        "in_mom_range",                   # 17
+        "within_t0_475",                  # 18
+        "within_t0_540",                  # 19
+        "within_t0_640",                  # 20
+        "signal_region"                   # 21
     ]
 
     
@@ -768,6 +818,8 @@ def main(args):
                 tosave_sens['time'] = time_flat
             np.savez_compressed(npz_out, **tosave_sens)
             module_logger.log(f'Saved nominal data for sensitivity studies to {npz_out}', 'info')
+            # Write parquet output with post-cut momentum and time
+            write_parquet_output(mom_mag, time, csv_base)
     except Exception as e_sens:
         module_logger.log(f'[process] Failed to save nominal data NPZ for sensitivity scan: {e_sens}', 'warning')
 
@@ -927,7 +979,7 @@ if __name__ == "__main__":
     parser.add_argument("--file", type=str, required=False, help="filename or file list name (text file list,fullpaths)")
     parser.add_argument("--jobs", type=int, required=False, default=1,help="use if more than one file, should be nfiles")
     parser.add_argument("--fittype", type=str, default="mom1D", help="fittype implemented opts: mom1D, time1D, momtime2D")
-    parser.add_argument("--fitrange_low", type=float, default=[97,475], nargs='+', help="minimum to fit ordered mom, time")
+    parser.add_argument("--fitrange_low", type=float, default=[100,475], nargs='+', help="minimum to fit ordered mom, time")
     parser.add_argument("--fitrange_hi", type=float, default=[110,1650], nargs='+',help="maximum to fit  ordered mom, time")
     parser.add_argument("--interpret", type=int, default=0, help="allows for significance evaluation")
     parser.add_argument("--setlimit", type=int, default=0, help="assumes low signal and will try to set limit")

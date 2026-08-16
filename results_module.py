@@ -193,6 +193,7 @@ class ResultsClass:
 
     return ul_analyzer
     
+  
   def WriteFittedData(self, min_v, max_v):
     """ Write data used in fit to csv (i,mom,time) Note: should be in format useful to BAT"""
     flat_mom = ak.flatten(self.data, axis = None)

@@ -61,6 +61,49 @@ class DIO_custom_model_2025(zfit.pdf.ZPDF):
         return tf.where(is_valid, pdf_val, 0.0)
 
 
+class rmc_gamma_poly_hybrid(zfit.pdf.ZPDF):
+    """
+    Radiative Muon Capture (RMC) PDF: Gamma-Poly Hybrid model.
+    
+    Formula: pow(max(0., x - x0), alpha) * pow(120.0 - x, beta) * exp(-lambda * x)
+    
+    Parameters:
+        x0: Low Threshold Edge (turns on at lower edge)
+        alpha: Low-edge turn-on power
+        beta: Bulk curvature power  
+        lambda: Tail exponential decay
+    """
+    _N_OBS = 1
+    _PARAMS = ['x0', 'alpha', 'beta', 'lambda']
+
+    def _unnormalized_pdf(self, x):
+        x = zfit.z.unstack_x(x)
+        x0 = self.params['x0']
+        alpha = self.params['alpha']
+        beta = self.params['beta']
+        lam = self.params['lambda']
+        
+        # Calculate threshold turn-on: pow(max(0., x - x0), alpha)
+        threshold_term = tf.nn.relu(x - x0)  # max(0., x - x0)
+        turn_on = tf.pow(threshold_term + 1e-10, alpha)  # Add small constant to avoid pow issues at 0
+        
+        # Calculate high-end cutoff: pow(120.0 - x, beta)
+        # Only valid where 120.0 - x > 0
+        cutoff_arg = 120.0 - x
+        is_valid = cutoff_arg > 0
+        safe_cutoff = tf.where(is_valid, cutoff_arg, 1.0)
+        cutoff = tf.pow(safe_cutoff, beta)
+        
+        # Calculate exponential tail: exp(-lambda * x)
+        exp_tail = tf.exp(-lam * x)
+        
+        # Combine all terms
+        pdf_val = turn_on * cutoff * exp_tail
+        
+        # Suppress PDF where cutoff_arg <= 0
+        return tf.where(is_valid, pdf_val, 0.0)
+
+
 # ============================================================================
 # TRUNCATED LANDAU PDF (from landau_pdf.py) From Susan Dittmer
 # ============================================================================

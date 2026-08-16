@@ -7,7 +7,7 @@ import tensorflow as tf
 import zfit
 from pdf_builder import PDFBuilder
 from pyutils.pylogger import Logger
-from custom_models import poly58, DIO_custom_model_2025
+from custom_models import poly58, DIO_custom_model_2025, rmc_gamma_poly_hybrid
 from pyutils.pylogger import Logger
 from pathlib import Path
 from config import GLOBAL_VERBOSITY
@@ -31,10 +31,12 @@ mom_default_model_params = {
                'a6': (1.17169e-17, 1e-18, 1e-16),
                'a7': (-1.06599e-19, -1e-18, -1e-19),
                'a8': (8.14251e-20, 1e-20, 1e-19)},
-    'uniform': {}
+    'uniform': {},
+    'rmc': {'x0': (94.0, 80.0, 96.0), 'alpha': (1.915, 0.1, 4.0), 
+            'beta': (0.457, 0.01, 20.0), 'lambda': (1.932, 0.01, 5.0)}
 }
 
-mom_default_norms = {'CE': 0, 'DIO': 55000, 'Cosmic': 5000, 'RPC': 24}
+mom_default_norms = {'CE': 0, 'DIO': 55000, 'Cosmic': 5000, 'RPC': 24, 'RMC': 50}
 default_N_CE_bounds = (0.0, 1e4)  # CE lower bound allows negative exploration for BG-only fits
 
 # Time model defaults
@@ -59,7 +61,7 @@ class MomPDFBuilder(PDFBuilder):
     """
     Concrete builder for momentum PDFs.
     
-    Supports models: 'dscb', 'Gauss', 'uniform', 'poly2', 'poly5', 'poly58', 'DIO_custom_model_2025'
+    Supports models: 'dscb', 'Gauss', 'uniform', 'poly2', 'poly5', 'poly58', 'DIO_custom_model_2025', 'rmc'
     Handles both simple and advanced (theo_exp) configurations.
     """
     
@@ -469,6 +471,16 @@ class MomPDFBuilder(PDFBuilder):
                 extended=N
             )
         
+        elif model == 'cb':
+            return zfit.pdf.CrystalBall(
+                obs=obs,
+                mu=zpars['mu'],
+                sigma=zpars['sigma'],
+                alpha=zpars['alpha'],
+                n=zpars['n'],
+                extended=N
+            )
+        
         elif model == 'Gauss':
             return zfit.pdf.Gauss(
                 obs=obs,
@@ -503,6 +515,18 @@ class MomPDFBuilder(PDFBuilder):
                 degree_shift=zpars.get('degree_shift', 0),
                 extended=N
             )
+        
+        elif model == 'rmc':
+            # Use dictionary unpacking to avoid 'lambda' reserved keyword issue
+            rmc_kwargs = {
+                'obs': obs,
+                'x0': zpars['x0'],
+                'alpha': zpars['alpha'],
+                'beta': zpars['beta'],
+                'lambda': zpars['lambda'],
+                'extended': N
+            }
+            return rmc_gamma_poly_hybrid(**rmc_kwargs)
         
         elif model in ('poly2', 'poly5','poly1'):
             coeffs = self._extract_polynomial_coeffs(model, zpars, process)
@@ -717,7 +741,7 @@ class MomTimePDFBuilder:
         Uses fixed decay rates for physics-motivated processes,
         delegates to TimePDFBuilder for others.
         """
-        if process in ('DIO', 'CE'):
+        if process in ('DIO', 'CE', 'RMC'):
             lam = _shared_time_params['decay_shared_CE_DIO']
             return zfit.pdf.Exponential(lam, obs=obs_time)
         
@@ -757,7 +781,7 @@ class MomTimePDFBuilder:
         Safely add shared decay parameters to time params list.
         """
         try:
-            if process in ('DIO', 'CE'):
+            if process in ('DIO', 'CE', 'RMC'):
                 if _shared_time_params['decay_shared_CE_DIO'] not in time_params_tot:
                     time_params_tot.append(_shared_time_params['decay_shared_CE_DIO'])
             elif process == 'RPC':

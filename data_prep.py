@@ -87,7 +87,7 @@ class DataPreparationManager:
         """
         try:
             np_arr = DataPreparationManager.clean_and_flatten(arr, remove_nans=clean)
-            if weight is not None:
+            if weights is not None:
                 zfit_data = zfit.Data.from_numpy(array=np_arr, obs=obs_space, weights=weights)
             else:
                 zfit_data = zfit.Data.from_numpy(array=np_arr, obs=obs_space)

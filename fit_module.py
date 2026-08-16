@@ -24,7 +24,7 @@ from model.physics_components import mom_components, time_components
 from uncertainty_loader import load_constraints_json, build_zfit_constraints_from_specs, load_templates_npz
 
 def Unbinned_fit_mom(mom_mag, count_particle_types, fit_range_low, fit_range_hi, plot_truth=False, verbose=0, 
-minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
+minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/outputs', weights=None, components_to_fit=None, signal_component='CE'):
     """
     ----------
     Configures and calls the unbinned maximum likelihood fit for momentum using zfit
@@ -43,6 +43,10 @@ minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/o
         print progress statements and debug printouts
     minos : bool
         set true to evaluate minos errors
+    components_to_fit : list of str or None
+        If provided, only fit these components (e.g., ['CE', 'DIO']). If None, fit all.
+    signal_component : str
+        Name of the signal component to use as POI (parameter of interest). Default 'CE'.
     """
 
     if verbose > 0:
@@ -51,6 +55,15 @@ minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/o
     fit_range = (fit_range_low, fit_range_hi)
     obs_mom = zfit.Space('x', limits=fit_range)
 
+    # Filter components if requested
+    active_components = mom_components
+    if components_to_fit is not None:
+        active_components = {k: v for k, v in mom_components.items() if k in components_to_fit}
+    
+    if verbose > 0:
+      logger.log(f"Active components: {list(active_components.keys())}", "info")
+      if components_to_fit is not None:
+        logger.log(f"Component filter applied: {components_to_fit}", "info")
 
     # PDF components
     pars = []
@@ -62,14 +75,14 @@ minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/o
     aux_nlls = [] 
     
     if verbose > 0:
-      logger.log(f"components {list(mom_components.keys())}", "info")
+      logger.log(f"components {list(active_components.keys())}", "info")
       
     # --- Initialize PDF Builder ---
     mom_builder = MomPDFBuilder()
     
     # --- Loop over Components and Build Model ---
-    for proc in mom_components:
-        comp_config = mom_components[proc]
+    for proc in active_components:
+        comp_config = active_components[proc]
         
         # Build PDF using the builder with cleaner keyword arguments
         pdfs[proc], norms[proc] = mom_builder.build(
@@ -103,12 +116,14 @@ minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/o
                     if verbose > 0:
                       logger.log(f"Using fixed resolution/loss for: {proc}", "info")
 
-    # --- build combined PDF ---
+    # --- build combined PDF (always use SumPDF for consistent loss function behavior) ---
+    if len(pdfs) == 0:
+        raise ValueError(f"No components found to fit. Check components_to_fit parameter.")
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # --- Apply treat_params='fix' by setting floating=False on zfit parameters ---
     # Map component names to their treat_params setting
-    treat_params_config = {proc: mom_components[proc].get('treat_params', 'float') for proc in mom_components}
+    treat_params_config = {proc: active_components[proc].get('treat_params', 'float') for proc in active_components}
     
     # For parameters that should be fixed (treat_params='fix'), set floating=False
     for param in pars:
@@ -117,7 +132,7 @@ minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/o
         # Parameters follow patterns like N_DIO, c1_RPC, decay_rate_mu, etc.
         is_fixed = False
         
-        for proc in mom_components:
+        for proc in active_components:
             if treat_params_config[proc] == 'fix':
                 # Check if this parameter belongs to this component
                 # N_<process> parameters
@@ -125,12 +140,12 @@ minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/o
                     is_fixed = True
                     break
                 # Other parameters from this process
-                elif param_name.startswith(proc.lower() + '_') or param_name in mom_components[proc].get('pars', {}):
+                elif param_name.startswith(proc.lower() + '_') or param_name in active_components[proc].get('pars', {}):
                     is_fixed = True
                     break
             
             # Also check fixed_params list for specific parameters
-            fixed_params_list = mom_components[proc].get('fixed_params', [])
+            fixed_params_list = active_components[proc].get('fixed_params', [])
             if fixed_params_list:
                 for fixed_param in fixed_params_list:
                     # Check if param_name matches the pattern: fixed_param_PROCESS or fixed_param
@@ -268,7 +283,7 @@ minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/o
 
       try:
         plt.figure()
-        plotmom_fit(mom_mag, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_truth)
+        plotmom_fit(mom_mag, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in active_components.keys()], plot_truth)
         ts = int(time.time())
         fname = f"fit_mom_{ts}.png"
         plt.savefig(fname)
@@ -287,17 +302,24 @@ minos=False, plot_NLL=False, plot_results=True, constraints_dir='uncertainties/o
     if plot_results:
       try:
         # Use result.params to ensure fitted values are used, not just norms dict
-        list_pdfs_from_result = [(proc, pdfs[proc], result.params[f'N_{proc}']['value'] if f'N_{proc}' in result.params else norms[proc]) for proc in mom_components.keys()]
+        list_pdfs_from_result = [(proc, pdfs[proc], result.params[f'N_{proc}']['value'] if f'N_{proc}' in result.params else norms[proc]) for proc in active_components.keys()]
         bin_by_bin_mom_confusion(mom_mag, count_particle_types, list_pdfs_from_result, fit_range, bin_width=0.5, filename_prefix='mom_confusion_1d')
       except Exception as e:
         logger.log(f'Failed to produce bin-by-bin momentum confusion plot: {e}', 'error')
       
-    # Signal yield is always N_CE (first parameter)
-    poi = pars[0]
-    logger.log(f'Selected POI for return: {getattr(poi, "name", repr(poi))}', 'info')
+    # Dynamically find POI: prefer signal_component, fallback to first N_* parameter
+    poi = None
+    for param in pars:
+        param_name = getattr(param, 'name', str(param))
+        if param_name == f'N_{signal_component}':
+            poi = param
+            break
+    if poi is None and pars:
+        poi = pars[0]  # Fallback to first parameter if signal component not found
+    logger.log(f'Selected POI for return: {getattr(poi, "name", repr(poi)) if poi else "None"}', 'info')
     return result, poi, loss, aux_nlls, combine_pdf, constraints
 
-def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, plot_truth=False, verbose=0, plot_NLL=False, plot_results=True, weights=None):
+def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, plot_truth=False, verbose=0, plot_NLL=False, plot_results=True, weights=None, components_to_fit=None, signal_component='CE'):
     """
     Configures and calls the unbinned maximum likelihood fit for time using zfit
 
@@ -311,12 +333,25 @@ def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, 
         show the MC truth processes on the histogram
     verbose : 1
         print progress statements and debug printouts
-
+    components_to_fit : list of str or None
+        If provided, only fit these components (e.g., ['CE', 'DIO']). If None, fit all.
+    signal_component : str
+        Name of the signal component to use as POI (parameter of interest). Default 'CE'.
     """
     if verbose > 0:
       logger.log('Initializing time fit', 'info')
     fit_range = (fit_range_low, fit_range_hi)
     obs_time = zfit.Space('time', limits=fit_range)
+    
+    # Filter components if requested
+    active_components = time_components
+    if components_to_fit is not None:
+        active_components = {k: v for k, v in time_components.items() if k in components_to_fit}
+    
+    if verbose > 0:
+      logger.log(f"Active components: {list(active_components.keys())}", "info")
+      if components_to_fit is not None:
+        logger.log(f"Component filter applied: {components_to_fit}", "info")
     
     # Initialize time PDF builder
     time_builder = TimePDFBuilder()
@@ -325,8 +360,8 @@ def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, 
     pars = []
     pdfs = {}
     norms = {}
-    for proc in time_components:
-        comp_config = time_components[proc]
+    for proc in active_components:
+        comp_config = active_components[proc]
         pdfs[proc], norms[proc] = time_builder.build(
             obs=obs_time,
             params_tot=pars,
@@ -336,7 +371,9 @@ def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, 
             fit_range=fit_range
         )
 
-    # build combined PDF
+    # build combined PDF (always use SumPDF for consistent loss function behavior)
+    if len(pdfs) == 0:
+        raise ValueError(f"No components found to fit. Check components_to_fit parameter.")
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
 
     # Convert data to zfit Data
@@ -369,7 +406,7 @@ def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, 
 
       try:
         plt.figure()
-        plottime_fit(times, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in time_components.keys()], plot_truth)
+        plottime_fit(times, count_particle_types, fit_range, [(proc, pdfs[proc], norms[proc]) for proc in active_components.keys()], plot_truth)
         ts = int(time.time())
         fname_t = f"fit_time_{ts}.png"
         plt.savefig(fname_t)
@@ -380,19 +417,26 @@ def Unbinned_fit_time(times, count_particle_types, fit_range_low, fit_range_hi, 
 
       # produce bin-by-bin time confusion plot (true vs fitted fractions)
       try:
-        bin_by_bin_time_confusion(times, count_particle_types, [(proc, pdfs[proc], norms[proc]) for proc in time_components.keys()], fit_range, bin_width=50.0, filename_prefix='time_confusion_1d')
+        bin_by_bin_time_confusion(times, count_particle_types, [(proc, pdfs[proc], norms[proc]) for proc in active_components.keys()], fit_range, bin_width=50.0, filename_prefix='time_confusion_1d')
       except Exception as e:
         logger.log(f'Failed to produce bin-by-bin time confusion plot: {e}', 'error')
 
       plt.close()
 
-    # Signal yield is always N_CE (first parameter)
-    poi = pars[0]
-    logger.log(f'Selected POI for return (time fit): {getattr(poi, "name", repr(poi))}', 'info')
+    # Dynamically find POI: prefer signal_component, fallback to first N_* parameter
+    poi = None
+    for param in pars:
+        param_name = getattr(param, 'name', str(param))
+        if param_name == f'N_{signal_component}':
+            poi = param
+            break
+    if poi is None and pars:
+        poi = pars[0]  # Fallback to first parameter if signal component not found
+    logger.log(f'Selected POI for return (time fit): {getattr(poi, "name", repr(poi)) if poi else "None"}', 'info')
     return result, poi, loss, combine_pdf
 
 def Unbinned_2d_fit_mom_time(mom_mag, times, count_particle_types, fit_range_mom, fit_range_time, plot_truth=False, verbose=0, plot_NLL=False, 
-plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
+plot_results=True, constraints_dir='uncertainties/outputs', weights=None, components_to_fit=None, signal_component='CE'):
     """
     Configures and calls the unbinned maximum likelihood fit for momentum and time using zfit
 
@@ -406,8 +450,23 @@ plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
         show the MC truth processes on the histogram
     verbose : 1
         print progress statements and debug printouts
-
+    components_to_fit : list of str or None
+        If provided, only fit these components (e.g., ['CE', 'DIO']). If None, fit all.
+    signal_component : str
+        Name of the signal component to use as POI (parameter of interest). Default 'CE'.
     """
+
+    # Filter components if requested
+    active_components = mom_components
+    if components_to_fit is not None:
+        active_components = {k: v for k, v in mom_components.items() if k in components_to_fit}
+    
+    if verbose > 0:
+      from pyutils.pylogger import Logger as LoggerClass
+      logger_2d = LoggerClass(print_prefix='[fit_2d]', verbosity=verbose if isinstance(verbose, int) else 0)
+      logger_2d.log(f"Active components: {list(active_components.keys())}", "info")
+      if components_to_fit is not None:
+        logger_2d.log(f"Component filter applied: {components_to_fit}", "info")
 
     obs_mom = zfit.Space('mom', limits=fit_range_mom)
     obs_time = zfit.Space('time', limits=fit_range_time)
@@ -427,7 +486,7 @@ plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
     momtime_builder = MomTimePDFBuilder()
     
     # Loop over mom components
-    for proc in mom_components:
+    for proc in active_components:
       comp_config = mom_components[proc]
       time_model = time_components.get(proc, {}).get('pdf', 'uniform')
 
@@ -476,6 +535,9 @@ plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
         timepdfs[proc] = zfit.pdf.Uniform(low=fit_range_time[0], high=fit_range_time[1], obs=obs_time)
 
     
+    # build combined PDF (always use SumPDF for consistent loss function behavior)
+    if len(pdfs) == 0:
+        raise ValueError(f"No components found to fit. Check components_to_fit parameter.")
     combine_pdf = zfit.pdf.SumPDF(list(pdfs.values()))
     
     # Convert data to zfit Data
@@ -488,7 +550,7 @@ plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
 
     # --- Apply treat_params='fix' by setting floating=False on zfit parameters ---
     # Map component names to their treat_params setting
-    treat_params_config = {proc: mom_components[proc].get('treat_params', 'float') for proc in mom_components}
+    treat_params_config = {proc: active_components[proc].get('treat_params', 'float') for proc in active_components}
     
     # For parameters that should be fixed (treat_params='fix'), set floating=False
     for param in pars:
@@ -496,13 +558,13 @@ plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
         # Try to infer which component this parameter belongs to
         is_fixed = False
         
-        for proc in mom_components:
+        for proc in active_components:
             if treat_params_config[proc] == 'fix':
                 # Check if this parameter belongs to this component
                 if param_name == f'N_{proc}':
                     is_fixed = True
                     break
-                elif param_name.startswith(proc.lower() + '_') or param_name in mom_components[proc].get('pars', {}):
+                elif param_name.startswith(proc.lower() + '_') or param_name in active_components[proc].get('pars', {}):
                     is_fixed = True
                     break
             
@@ -615,7 +677,7 @@ plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
       # plot time fit — pass the time-only PDFs (projection of 2D) and yields
       try:
         plt.figure()
-        plottime_fit(times, count_particle_types, fit_range_time, [(proc, timepdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_truth)
+        plottime_fit(times, count_particle_types, fit_range_time, [(proc, timepdfs[proc], norms[proc]) for proc in active_components.keys()], plot_truth)
         fname_time_2d = f"fit_2d_time_{ts}.png"
         plt.savefig(fname_time_2d)
         logger.log(f"Saved 2D-fit figure to {fname_time_2d}", "info")
@@ -626,7 +688,7 @@ plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
       # plot mom fit using the 1D momentum sub-PDFs (projections)
       try:
         plt.figure()
-        plotmom_fit(mom_mag, count_particle_types, fit_range_mom, [(proc, mompdfs[proc], norms[proc]) for proc in mom_components.keys()], plot_truth)
+        plotmom_fit(mom_mag, count_particle_types, fit_range_mom, [(proc, mompdfs[proc], norms[proc]) for proc in active_components.keys()], plot_truth)
         fname_mom_2d = f"fit_2d_mom_{ts}.png"
         plt.savefig(fname_mom_2d)
         logger.log(f"Saved 2D-fit figure to {fname_mom_2d}", "info")
@@ -637,7 +699,7 @@ plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
       # produce bin-by-bin momentum confusion plot (true vs fitted fractions)
       try:
         # Use result.params to ensure fitted values are used, not just norms dict
-        list_pdfs_mom_from_result = [(proc, mompdfs[proc], result.params[f'N_{proc}']['value'] if f'N_{proc}' in result.params else norms[proc]) for proc in mom_components.keys()]
+        list_pdfs_mom_from_result = [(proc, mompdfs[proc], result.params[f'N_{proc}']['value'] if f'N_{proc}' in result.params else norms[proc]) for proc in active_components.keys()]
         bin_by_bin_mom_confusion(mom_mag, count_particle_types, list_pdfs_mom_from_result, fit_range_mom, bin_width=0.5, filename_prefix='mom_confusion_2d')
       except Exception as e:
         logger.log(f'Failed to produce bin-by-bin momentum confusion plot: {e}', 'error')
@@ -645,14 +707,21 @@ plot_results=True, constraints_dir='uncertainties/outputs', weights=None):
       # produce bin-by-bin time confusion plot (true vs fitted fractions)
       try:
         # Use result.params to ensure fitted values are used, not just norms dict
-        list_pdfs_time_from_result = [(proc, timepdfs[proc], result.params[f'N_{proc}']['value'] if f'N_{proc}' in result.params else norms[proc]) for proc in mom_components.keys()]
+        list_pdfs_time_from_result = [(proc, timepdfs[proc], result.params[f'N_{proc}']['value'] if f'N_{proc}' in result.params else norms[proc]) for proc in active_components.keys()]
         bin_by_bin_time_confusion(times, count_particle_types, list_pdfs_time_from_result, fit_range_time, bin_width=50.0, filename_prefix='time_confusion_2d')
       except Exception as e:
         logger.log(f'Failed to produce bin-by-bin time confusion plot: {e}', 'error')
       
       plt.close('all')
     
-    # Signal yield is always N_CE (first parameter in mompars)
-    poi = pars[0] if pars else None
-    logger.log(f'Selected POI for return (2D fit): {getattr(poi, "name", repr(poi))}', 'info')
+    # Dynamically find POI: prefer signal_component, fallback to first N_* parameter
+    poi = None
+    for param in pars:
+        param_name = getattr(param, 'name', str(param))
+        if param_name == f'N_{signal_component}':
+            poi = param
+            break
+    if poi is None and pars:
+        poi = pars[0]  # Fallback to first parameter if signal component not found
+    logger.log(f'Selected POI for return (2D fit): {getattr(poi, "name", repr(poi)) if poi else "None"}', 'info')
     return result, poi, loss, combine_pdf, norms
