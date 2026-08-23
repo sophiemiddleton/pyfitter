@@ -24,31 +24,29 @@ STANDARD_SYSTEMATICS = {
             'CE': 1.10,       # 10%
             'Cosmic': 1.10,
             'DIO': 1.10,
-            'RPC_ext': 1.10,
-            'RPC_int': 1.10,
+            'RPC': 1.10,
             'RMC': 1.10,
         }
     },
     'ceHN': {
         'type': 'lnN',
-        'description': 'Cosmic ray energy scale + acceptance uncertainty',
+        'description': 'Cosmic ray yield uncertainty',
         'processes': {
-            'Cosmic': 1.025,  # 2.5%
+            'Cosmic': 1.2,  # 20%
         }
     },
     'dioN': {
         'type': 'lnN',
         'description': 'DIO spectrum shape + rate + RPC scale uncertainty',
         'processes': {
-            'DIO': 1.10,      # 10%
-            'RPC': 1.10,      # 10%
+            'DIO': 1.025,      # 10%
         }
     },
     'rpcsN': {
         'type': 'lnN',
         'description': 'RPC detection efficiency and acceptance',
         'processes': {
-            'RPC': 1.15,      # 15% (average of different detection modes)
+            'RPC': 1.27,      # 15% (average of different detection modes)
         }
     },
 }

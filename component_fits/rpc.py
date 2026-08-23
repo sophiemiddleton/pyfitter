@@ -1,0 +1,539 @@
+import argparse
+from pathlib import Path
+
+import awkward as ak
+import matplotlib as mpl
+import matplotlib.font_manager as mfm
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import zfit
+
+# Import publication style helpers (ensure mu2e_plot_style.py is in your PYTHONPATH)
+from mu2e_plot_style import (
+    OKABE_ITO,
+    apply_publication_style,
+    draw_watermark,
+    style_axis,
+    style_pull_axis,
+)
+
+# Publication-style matplotlib defaults
+preferred_serifs = ["DejaVu Serif", "Times New Roman", "Times", "Palatino"]
+available_fonts = {f.name for f in mfm.fontManager.ttflist}
+chosen_serif = next(
+    (f for f in preferred_serifs if f in available_fonts), "DejaVu Serif"
+)
+
+apply_publication_style()
+
+mpl.rcParams.update(
+    {
+        "font.family": "serif",
+        "font.serif": [chosen_serif],
+        "font.size": 14,
+        "axes.titlesize": 18,
+        "axes.labelsize": 18,
+        "xtick.labelsize": 16,
+        "ytick.labelsize": 16,
+        "legend.fontsize": 9,
+        "axes.titleweight": "bold",
+        "axes.labelweight": "normal",
+        "axes.linewidth": 1.2,
+        "grid.linewidth": 0.5,
+        "figure.dpi": 150,
+    }
+)
+
+
+# ==============================================================================
+# 1. RPC Parametric Unbinned Fitter Class
+# ==============================================================================
+class RPC:
+    """Class to conduct comparisons between cut or data sets"""
+
+    def __init__(self):
+        # Custom prefix for log messages from this processor
+        self.print_prefix = "[Compare] "
+        print(f"{self.print_prefix}Initialised")
+
+    def fit_time(self, data_list, labels, out_file="CR_RPCfit.pdf", target_yield=None):
+        """Plots the reconstructed time data and its statistical uncertainties
+
+        using an extended unbinned maximum likelihood fit with an exponential shape,
+        including goodness of fit and pull distribution.
+
+        target_yield: if given, the histogram and fit curve are rescaled so the
+        sample integrates to this yield. If None, raw counts are shown.
+        """
+        fig, (ax1, ax2) = plt.subplots(
+            2,
+            1,
+            figsize=(8, 7),
+            sharex=True,
+            gridspec_kw={"height_ratios": [3, 1], "hspace": 0.05},
+            constrained_layout=True,
+        )
+
+        data_colors = [OKABE_ITO["black"], OKABE_ITO["blue"]]
+        fit_colors = [OKABE_ITO["vermillion"], OKABE_ITO["purple"]]
+
+        fit_range = (475, 550)
+        n_bins = 50
+        bin_width = (fit_range[1] - fit_range[0]) / n_bins
+
+        last_norm = 0.0
+        for i, data in enumerate(data_list):
+            time_skim = ak.nan_to_none(data)
+            time_skim = ak.drop_none(time_skim)
+
+            obs_time = zfit.Space("x", limits=fit_range)
+            time_np = ak.to_numpy(ak.flatten(time_skim, axis=None))
+            time_zfit = zfit.Data.from_numpy(array=time_np, obs=obs_time)
+            n_events_raw = len(time_np)
+
+            if n_events_raw == 0:
+                continue
+
+            N_RPC = zfit.Parameter(
+                f"N_RPC_time_{i}", n_events_raw, 0, n_events_raw * 10
+            )
+            c1 = zfit.Parameter(f"c1_{i}", 0.001, -1, 1)
+            fitcurve = zfit.pdf.Exponential(obs=obs_time, lam=c1, extended=N_RPC)
+
+            nll = zfit.loss.ExtendedUnbinnedNLL(model=fitcurve, data=time_zfit)
+            minimizer = zfit.minimize.Minuit()
+            result = minimizer.minimize(loss=nll)
+            hesse_errors = result.hesse()
+
+            target_events = target_yield
+            norm_factor = (
+                target_events / n_events_raw if target_events is not None else 1.0
+            )
+
+            counts_raw, bins = np.histogram(
+                time_np, bins=n_bins, range=fit_range
+            )
+            data_bin_center = (bins[:-1] + bins[1:]) / 2
+
+            counts_norm = counts_raw * norm_factor
+            errors_norm = np.sqrt(counts_raw) * norm_factor
+            nonzero_mask = counts_raw > 0
+
+            # Data Points
+            ax1.errorbar(
+                data_bin_center[nonzero_mask],
+                counts_norm[nonzero_mask],
+                yerr=errors_norm[nonzero_mask],
+                fmt="o",
+                color=data_colors[i % len(data_colors)],
+                markerfacecolor="white",
+                markeredgecolor=data_colors[i % len(data_colors)],
+                markersize=4,
+                capsize=0,
+                elinewidth=1,
+                label=f"{labels[i]} sample",
+            )
+
+            # Histogram Step Shape
+            weights = np.full_like(time_np, norm_factor)
+            ax1.hist(
+                time_np,
+                bins=n_bins,
+                range=fit_range,
+                weights=weights,
+                color=data_colors[i % len(data_colors)],
+                histtype="step",
+                linewidth=1.2,
+                alpha=0.7,
+            )
+
+            # Fit Model Curve
+            time_plot = np.linspace(fit_range[0], fit_range[1], 500).reshape(-1, 1)
+            fitcurve_curve = (
+                zfit.run(fitcurve.ext_pdf(time_plot)) * bin_width * norm_factor
+            )
+
+            # Chi2 / ndf calculation
+            fit_at_bin_center_raw = (
+                zfit.run(fitcurve.ext_pdf(data_bin_center.reshape(-1, 1)))
+                * bin_width
+            )
+            chi2_mask = counts_raw > 0
+            chi2_val = np.sum(
+                ((counts_raw[chi2_mask] - fit_at_bin_center_raw[chi2_mask]) ** 2)
+                / counts_raw[chi2_mask]
+            )
+            ndf = np.count_nonzero(chi2_mask) - len(result.params)
+
+            lam_val = result.params[c1]["value"]
+            lam_err = hesse_errors.get(c1, {}).get("error", 0.0)
+
+            # N parameter removed to reflect scaled/arbitrary normalization
+            fit_label = (
+                f"{labels[i]} Fit\n"
+                f"$\\lambda = {lam_val:.4f} \\pm {lam_err:.4f}$\n"
+                f"$\\chi^2 / \\text{{ndf}} = {chi2_val:.1f} / {ndf}$"
+            )
+
+            ax1.plot(
+                time_plot.flatten(),
+                fitcurve_curve.flatten(),
+                color=fit_colors[i % len(fit_colors)],
+                linestyle="-",
+                linewidth=2.0,
+                label=fit_label,
+            )
+
+            # Residual Pulls
+            residual_norm = counts_norm - (fit_at_bin_center_raw * norm_factor)
+            pull_errors = np.where(counts_raw > 0, errors_norm, 1.0 * norm_factor)
+            pull = residual_norm / pull_errors
+
+            ax2.bar(
+                data_bin_center,
+                pull,
+                width=bin_width * 0.8,
+                color=data_colors[i % len(data_colors)],
+                align="center",
+                alpha=0.6,
+            )
+
+            last_norm = result.params[N_RPC]["value"]
+
+        unit_suffix = " [A.U.]" if target_yield is not None else ""
+        ax1.set_ylabel(f"Events / {bin_width:.1f} ns{unit_suffix}")
+
+        # Headroom expansion for top-right legend
+        y_max = ax1.get_ylim()[1]
+        ax1.set_ylim(0, y_max * 1.25)
+
+        # Clean top-right 2-column legend
+        ax1.legend(
+            frameon=False,
+            loc="upper right",
+            ncols=2,
+            fontsize=11,
+            handlelength=1.5,
+            columnspacing=1.2,
+            labelspacing=0.4,
+        )
+
+        draw_watermark(ax1, loc="left")
+
+        ax2.axhline(0, color="gray", linestyle="--", linewidth=1.0)
+        ax2.set_ylabel(r"Pull [$\sigma$]")
+        ax2.set_xlabel("Track Time [ns]")
+        ax2.set_ylim(-3.5, 3.5)
+
+        style_axis(ax1)
+        style_pull_axis(ax2)
+
+        plt.savefig(out_file)
+        plt.show()
+
+        return last_norm
+
+    def fit_momentum(self, data_list, labels, opt, out_file="RPCfit.pdf", target_yield=None):
+        """Fits a parametric shape (Chebyshev polynomial or Gaussian) to the reconstructed momentum data
+
+        using an extended unbinned maximum likelihood fit with goodness of fit and pull distribution.
+
+        target_yield: if given, the histogram and fit curve are rescaled so the
+        sample integrates to this yield. If None, raw counts are shown.
+        """
+        fig, (ax1, ax2) = plt.subplots(
+            2,
+            1,
+            figsize=(8, 7),
+            sharex=True,
+            gridspec_kw={"height_ratios": [3, 1], "hspace": 0.05},
+            constrained_layout=True,
+        )
+
+        data_colors = [OKABE_ITO["black"], OKABE_ITO["blue"]]
+        fit_colors = [OKABE_ITO["vermillion"], OKABE_ITO["purple"]]
+
+        last_norm = 0.0
+        for i, data in enumerate(data_list):
+            mom_mag_skim = ak.nan_to_none(data)
+            mom_mag_skim = ak.drop_none(mom_mag_skim)
+
+            obs_mom = zfit.Space("x", limits=(100, 110))
+            mom_np = ak.to_numpy(ak.flatten(mom_mag_skim, axis=None))
+            mom_zfit = zfit.Data.from_numpy(array=mom_np, obs=obs_mom)
+            n_events_raw = len(mom_np)
+
+            if n_events_raw == 0:
+                continue
+
+            N_RPC = zfit.Parameter(f"N_RPC_{i}", n_events_raw, 0, n_events_raw * 10)
+
+            if opt == "poly":
+                c1 = zfit.Parameter(f"c1_{i}", 0.1, -1, 1)
+                c2 = zfit.Parameter(f"c2_{i}", 0.1, -1, 1)
+                coeffs = [c1, c2]
+                fitcurve = zfit.pdf.Chebyshev(
+                    obs=obs_mom, coeffs=coeffs, extended=N_RPC
+                )
+            elif opt == "gaus":
+                mu = zfit.Parameter(f"mu_{i}", 100.0, 95.0, 115.0)
+                sigma = zfit.Parameter(f"sigma_{i}", 2.0, 0.1, 10.0)
+                coeffs = [mu, sigma]
+                fitcurve = zfit.pdf.Gauss(
+                    obs=obs_mom, mu=mu, sigma=sigma, extended=N_RPC
+                )
+
+            nll = zfit.loss.ExtendedUnbinnedNLL(model=fitcurve, data=mom_zfit)
+            minimizer = zfit.minimize.Minuit()
+            result = minimizer.minimize(loss=nll)
+            hesse_errors = result.hesse()
+
+            fit_range = (obs_mom.lower[0, 0], obs_mom.upper[0, 0])
+            n_bins = 50
+            bin_width = (fit_range[1] - fit_range[0]) / n_bins
+
+            target_events = target_yield
+            norm_factor = (
+                target_events / n_events_raw if target_events is not None else 1.0
+            )
+
+            counts_raw, bins = np.histogram(
+                mom_np, bins=n_bins, range=fit_range
+            )
+            data_bin_center = (bins[:-1] + bins[1:]) / 2
+
+            counts_norm = counts_raw * norm_factor
+            errors_norm = np.sqrt(counts_raw) * norm_factor
+            nonzero_mask = counts_raw > 0
+
+            # Data Points
+            ax1.errorbar(
+                data_bin_center[nonzero_mask],
+                counts_norm[nonzero_mask],
+                yerr=errors_norm[nonzero_mask],
+                fmt="o",
+                color=data_colors[i % len(data_colors)],
+                markerfacecolor="white",
+                markeredgecolor=data_colors[i % len(data_colors)],
+                markersize=4,
+                capsize=0,
+                elinewidth=1,
+                label=f"{labels[i]} sample",
+            )
+
+            # Histogram Step Shape
+            weights = np.full_like(mom_np, norm_factor)
+            ax1.hist(
+                mom_np,
+                bins=n_bins,
+                range=fit_range,
+                weights=weights,
+                color=data_colors[i % len(data_colors)],
+                histtype="step",
+                linewidth=1.2,
+                alpha=0.7,
+            )
+
+            mom_plot = np.linspace(fit_range[0], fit_range[1], 500).reshape(-1, 1)
+            fitcurve_curve = (
+                zfit.run(fitcurve.ext_pdf(mom_plot)) * bin_width * norm_factor
+            )
+
+            # Chi2 / ndf calculation
+            fit_at_bin_center_raw = (
+                zfit.run(fitcurve.ext_pdf(data_bin_center.reshape(-1, 1)))
+                * bin_width
+            )
+            chi2_mask = counts_raw > 0
+            chi2_val = np.sum(
+                ((counts_raw[chi2_mask] - fit_at_bin_center_raw[chi2_mask]) ** 2)
+                / counts_raw[chi2_mask]
+            )
+            ndf = np.count_nonzero(chi2_mask) - len(result.params)
+
+            # N parameter removed to reflect scaled/arbitrary normalization
+            if opt == "poly":
+                c1_v = result.params[c1]["value"]
+                c1_e = hesse_errors.get(c1, {}).get("error", 0.0)
+                fit_label = (
+                    f"{labels[i]} Fit\n"
+                    f"$c_1 = {c1_v:.3f} \\pm {c1_e:.3f}$\n"
+                    f"$\\chi^2 / \\text{{ndf}} = {chi2_val:.1f} / {ndf}$"
+                )
+            elif opt == "gaus":
+                mu_v = result.params[mu]["value"]
+                mu_e = hesse_errors.get(mu, {}).get("error", 0.0)
+                sig_v = result.params[sigma]["value"]
+                sig_e = hesse_errors.get(sigma, {}).get("error", 0.0)
+                fit_label = (
+                    f"{labels[i]} Fit\n"
+                    f"$\\mu = {mu_v:.2f} \\pm {mu_e:.2f}$, $\\sigma = {sig_v:.2f} \\pm {sig_e:.2f}$\n"
+                    f"$\\chi^2 / \\text{{ndf}} = {chi2_val:.1f} / {ndf}$"
+                )
+
+            ax1.plot(
+                mom_plot.flatten(),
+                fitcurve_curve.flatten(),
+                color=fit_colors[i % len(fit_colors)],
+                linestyle="-",
+                linewidth=2.0,
+                label=fit_label,
+            )
+
+            # Residual Pulls
+            residual_norm = counts_norm - (fit_at_bin_center_raw * norm_factor)
+            pull_errors = np.where(counts_raw > 0, errors_norm, 1.0 * norm_factor)
+            pull = residual_norm / pull_errors
+
+            ax2.bar(
+                data_bin_center,
+                pull,
+                width=bin_width * 0.8,
+                color=data_colors[i % len(data_colors)],
+                align="center",
+                alpha=0.6,
+            )
+
+            last_norm = result.params[N_RPC]["value"]
+
+        unit_suffix = " [A.U.]" if target_yield is not None else ""
+        ax1.set_ylabel(f"Events / {bin_width:.1f} MeV/$c${unit_suffix}")
+
+        # Headroom expansion for top-right legend
+        y_max = ax1.get_ylim()[1]
+        ax1.set_ylim(0, y_max * 1.25)
+
+        # Clean top-right 2-column legend
+        ax1.legend(
+            frameon=False,
+            loc="upper right",
+            ncols=2,
+            fontsize=11,
+            handlelength=1.5,
+            columnspacing=1.2,
+            labelspacing=0.4,
+        )
+
+        draw_watermark(ax1, loc="left")
+
+        ax2.axhline(0, color="gray", linestyle="--", linewidth=1.0)
+        ax2.set_ylabel(r"Pull [$\sigma$]")
+        ax2.set_xlabel(r"Reconstructed Momentum [MeV/$c$]")
+        ax2.set_ylim(-3.5, 3.5)
+
+        style_axis(ax1)
+        style_pull_axis(ax2)
+
+        plt.savefig(out_file)
+        plt.show()
+
+        return last_norm
+
+
+# ==============================================================================
+# 2. Parquet Execution Runner
+# ==============================================================================
+def run_rpc_fits_from_parquet(
+    parquet_file_path,
+    sample_label="RPC",
+    mom_option="poly",
+    tag="",
+    outdir=".",
+    target_yield=None,
+):
+    """Loads momentum and time arrays from a parquet file and runs the RPC fits.
+
+    Args:
+        parquet_file_path (str): Path to post-cut parquet file.
+        sample_label (str): Label string for plots.
+        mom_option (str): Momentum fit shape option ('poly' or 'gaus').
+        tag (str): Suffix appended to the output fit file names.
+        outdir (str): Directory in which to write the output fit files.
+        target_yield (float | None): Rescale histogram and fit to this yield.
+    """
+    print(f"Loading parquet dataset from: {parquet_file_path}")
+    df = pd.read_parquet(parquet_file_path)
+
+    # Wrap Series to Awkward arrays for drop_none/flatten compatibility in RPC methods
+    mom_array = ak.Array(df["momentum"].to_numpy())
+    time_array = ak.Array(df["time"].to_numpy())
+
+    rpc_fitter = RPC()
+
+    suffix = f"_{tag}" if tag else ""
+    out_path = Path(outdir)
+    out_path.mkdir(parents=True, exist_ok=True)
+
+    print("Executing RPC time fit...")
+    time_yield = rpc_fitter.fit_time(
+        data_list=[time_array],
+        labels=[sample_label],
+        out_file=str(out_path / f"Time_{sample_label}{suffix}.pdf"),
+        target_yield=target_yield,
+    )
+
+    print(f"Executing RPC momentum fit (option: '{mom_option}')...")
+    mom_yield = rpc_fitter.fit_momentum(
+        data_list=[mom_array],
+        labels=[sample_label],
+        opt=mom_option,
+        out_file=str(out_path / f"Mom__{sample_label}{suffix}.pdf"),
+        target_yield=target_yield,
+    )
+
+    print(
+        f"Fits complete. Fitted raw yields - Time: {time_yield:.1f},"
+        f" Momentum: {mom_yield:.1f}"
+    )
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Run RPC time and momentum fits on a parquet dataset."
+    )
+    parser.add_argument(
+        "-p", "--parquet", required=True, help="Path to the input parquet file."
+    )
+    parser.add_argument(
+        "-t",
+        "--tag",
+        default="",
+        help="Tag appended to the output fit file names, e.g. RPCfit_<tag>.pdf.",
+    )
+    parser.add_argument(
+        "-o", "--outdir", default=".", help="Directory for the output fit files."
+    )
+    parser.add_argument(
+        "-l",
+        "--label",
+        default="RPC Monte Carlo",
+        help="Sample label shown on the plots.",
+    )
+    parser.add_argument(
+        "--mom-option",
+        default="poly",
+        choices=["poly", "gaus"],
+        help="Momentum fit shape.",
+    )
+    parser.add_argument(
+        "-n",
+        "--target-yield",
+        type=float,
+        default=None,
+        help="Rescale the histogram and fit curve to this total yield (default: raw counts).",
+    )
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    run_rpc_fits_from_parquet(
+        parquet_file_path=args.parquet,
+        sample_label=args.label,
+        mom_option=args.mom_option,
+        tag=args.tag,
+        outdir=args.outdir,
+        target_yield=args.target_yield,
+    )

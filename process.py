@@ -15,7 +15,7 @@ from control_region import ControlRegion
 import pickle
 from pyutils.pylogger import Logger
 from pathlib import Path
-from config import GLOBAL_VERBOSITY
+from config import GLOBAL_VERBOSITY, get_version_cuts
 
 # Module-level logger
 module_logger = Logger(print_prefix='[process] ', verbosity=GLOBAL_VERBOSITY)
@@ -39,7 +39,7 @@ class AnaProcessor(Skeleton):
     This class inherits from the Skeleton defined in pyutils/pyprocess base class, which provides the 
     basic structure and methods withing the Processor framework 
     """
-    def __init__(self, file_list_path, jobs=1, cuts=None, location='disk', mom_lo = 100, mom_hi = 115):
+    def __init__(self, file_list_path, jobs=1, cuts=None, location='disk', mom_lo = 100, mom_hi = 115, cuts_config=None, version='79_v02'):
         """Initialise your processor with specific configuration
         
         This method sets up all the parameters needed for this specific analysis.
@@ -102,7 +102,10 @@ class AnaProcessor(Skeleton):
         self.use_processes = True  # Use processes rather than threads
         
         cuts_list = cuts if cuts is not None else []
-        self.analyse = Analyze(verbosity=self.verbosity, cut_switch=cuts_list, mom_lo = mom_lo, mom_hi = mom_hi)
+        # Load cut configuration from version if not provided
+        if cuts_config is None:
+            cuts_config = get_version_cuts(version)
+        self.analyse = Analyze(verbosity=self.verbosity, cut_switch=cuts_list, mom_lo = mom_lo, mom_hi = mom_hi, cuts_config=cuts_config, version=version)
             
         self.print_prefix = "[AnaProcessor] "
         self.logger = Logger(print_prefix=self.print_prefix, verbosity=self.verbosity)
@@ -150,7 +153,7 @@ class AnaProcessor(Skeleton):
             self.logger.log(traceback.format_exc(), "max")
             return None
             
-def combine_cut_flows( cut_flow_list, csv_basename: str = None):
+def combine_cut_flows( cut_flow_list, csv_basename: str = None, outdir: str = None):
     """Combine a list of cut flows after multiprocessing 
     
     Args:
@@ -201,6 +204,10 @@ def combine_cut_flows( cut_flow_list, csv_basename: str = None):
         module_logger.log(f'[combine_cut_flows] Failed to format cut flow: {e_print}', 'error')
 
     csv_name = "cut_stats.csv" if not csv_basename else f"{csv_basename}.csv"
+    if outdir:
+        cutflow_dir = Path(outdir) / 'cutflows'
+        cutflow_dir.mkdir(parents=True, exist_ok=True)
+        csv_name = str(cutflow_dir / csv_name)
     try:
         if combined_cut_flow:
             fieldnames = list(combined_cut_flow[0].keys())
@@ -319,7 +326,9 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt', #FIXME sho
                              cuts=None,
                              mom_lo: float = 95.0,
                              mom_hi: float = 110.0,
-                             jobs: int = 16):
+                             jobs: int = 16,
+                             cuts_config=None,
+                             version: str = '79_v02'):
     """Process a text file listing OffSpill files and save combined filtered results.
 
     The function will instantiate `AnaProcessor` (with `location`), call
@@ -341,7 +350,7 @@ def process_offspill_filelist(filelist_path: str = 'OffSpill_10.txt', #FIXME sho
         return None
 
     # Create AnaProcessor with the same selection/cuts as main analysis
-    ana = AnaProcessor(file_list_path=filelist_path, jobs=jobs, cuts=cuts, location=location, mom_lo=mom_lo, mom_hi=mom_hi)
+    ana = AnaProcessor(file_list_path=filelist_path, jobs=jobs, cuts=cuts, location=location, mom_lo=mom_lo, mom_hi=mom_hi, cuts_config=cuts_config, version=version)
 
     results = []
     for fn in files:
@@ -608,13 +617,14 @@ def count_particle_types(data):
   return particle_count_return
   
 # Create an instance of our custom processor
-def write_parquet_output(momentum, time, file_basename):
+def write_parquet_output(momentum, time, file_basename, outdir: str = None):
     """Write post-cut momentum and time data to parquet file
     
     Args:
         momentum: Awkward array containing momentum values
         time: Awkward array containing time values
         file_basename: Base filename (without extension) for output file
+        outdir: Optional tag directory; file is written to <outdir>/parquet
     """
     try:
         # Flatten momentum and time data
@@ -638,10 +648,30 @@ def write_parquet_output(momentum, time, file_basename):
         
         # Write to parquet with basename in filename
         filename = f'{file_basename}_postcut.parquet'
+        if outdir:
+            parquet_dir = Path(outdir) / 'parquet'
+            parquet_dir.mkdir(parents=True, exist_ok=True)
+            filename = str(parquet_dir / filename)
         df.to_parquet(filename, index=False)
         module_logger.log(f'Wrote {len(df)} events to {filename}', 'info')
     except Exception as e:
         module_logger.log(f'Failed to write parquet output: {e}', 'warning')
+
+
+def derive_output_basename(path):
+    """Derive an output basename from an input file list or ROOT file name."""
+    if not path:
+        return None
+    base = os.path.basename(str(path))
+    stem, ext = os.path.splitext(base)
+    # A file list (e.g. file_lists/CeM_mix.txt) names the dataset directly
+    if ext.lower() in ('.txt', '.list'):
+        return stem
+    # ROOT ntuple naming: nts.mu2e.NAME.version.seq.root
+    parts = base.split('.')
+    if len(parts) >= 3:
+        return parts[2]
+    return stem
 
 
 def main(args):
@@ -674,7 +704,8 @@ def main(args):
       True,  # 18 within_t0_475 (475-1650 ns)
       False, # 19 within_t0_540 (540-1650 ns)
       False, # 20 within_t0_640 (640-1650 ns)
-      False  # 21 signal_region
+      False, # 21 signal_region
+      True   # 22 d0_cut
     ]
     cut_names = [
         "has_a_track",                    # 0
@@ -698,7 +729,8 @@ def main(args):
         "within_t0_475",                  # 18
         "within_t0_540",                  # 19
         "within_t0_640",                  # 20
-        "signal_region"                   # 21
+        "signal_region",                  # 21
+        "d0 "                             #22
     ]
 
     
@@ -719,11 +751,13 @@ def main(args):
             cuts=named_switches_offspill, 
             mom_lo=args.fitrange_low[0], 
             mom_hi=args.fitrange_hi[0], 
-            jobs=16)
+            jobs=16,
+            cuts_config=None,
+            version=getattr(args, 'version', '79_v02'))
         except Exception as e:
             module_logger.log(f'OffSpill control-region fit failed: {e}', 'error')
 
-    ana_processor = AnaProcessor(args.file, args.jobs, named_switches, args.loc, args.fitrange_low[0], args.fitrange_hi[0])
+    ana_processor = AnaProcessor(args.file, args.jobs, named_switches, args.loc, args.fitrange_low[0], args.fitrange_hi[0], cuts_config=None, version=getattr(args, 'version', '79_v02'))
     results = ana_processor.execute()
 
     # Combine arrays and cut statistics
@@ -731,18 +765,11 @@ def main(args):
     cutlist = []
     for i, result in enumerate(results):
         cutlist.append(result["cut_stats"])
-    # Derive a basename for the CSV from the input filename (nts.mu2e.NAME.version.seq.root -> NAME)
-    try:
-        file_basename = os.path.basename(args.file)
-        parts = file_basename.split('.')
-        if len(parts) >= 3:
-            csv_base = parts[2]
-        else:
-            csv_base = os.path.splitext(file_basename)[0]
-    except Exception:
-        csv_base = None
+    # Derive a basename for the outputs from the input file list / filename
+    csv_base = derive_output_basename(args.file)
+    outdir = getattr(args, 'outdir', None)
 
-    combine_cutflows = combine_cut_flows(cutlist, csv_basename=csv_base)
+    combine_cutflows = combine_cut_flows(cutlist, csv_basename=csv_base, outdir=outdir)
 
     # Run mc_count
     mc_count = count_particle_types(pre_fit)
@@ -813,15 +840,29 @@ def main(args):
         # Save to file for sensitivity scan
         if csv_base:
             npz_out = f"{csv_base}_mom_mag.npz"
+            if outdir:
+                Path(outdir).mkdir(parents=True, exist_ok=True)
+                npz_out = str(Path(outdir) / npz_out)
             tosave_sens = {'mom_mag': mom_flat}
             if len(time_flat) > 0 and len(time_flat) == len(mom_flat):
                 tosave_sens['time'] = time_flat
             np.savez_compressed(npz_out, **tosave_sens)
             module_logger.log(f'Saved nominal data for sensitivity studies to {npz_out}', 'info')
             # Write parquet output with post-cut momentum and time
-            write_parquet_output(mom_mag, time, csv_base)
+            write_parquet_output(mom_mag, time, csv_base, outdir=outdir)
     except Exception as e_sens:
         module_logger.log(f'[process] Failed to save nominal data NPZ for sensitivity scan: {e_sens}', 'warning')
+
+    if getattr(args, 'nofit', False):
+        module_logger.log(f'[process] --nofit requested: wrote cut flow and parquet outputs for "{csv_base}", skipping fit', 'info')
+        base = Path(outdir) if outdir else Path('.')
+        return {
+            'basename': csv_base,
+            'cut_flow': combine_cutflows,
+            'cutflow_file': str(base / 'cutflows' / f'{csv_base}.csv') if (csv_base and outdir) else (f'{csv_base}.csv' if csv_base else None),
+            'parquet': str(base / 'parquet' / f'{csv_base}_postcut.parquet') if (csv_base and outdir) else (f'{csv_base}_postcut.parquet' if csv_base else None),
+            'npz': str(base / f'{csv_base}_mom_mag.npz') if csv_base else None,
+        }
 
     if args.fittype == "mom1D":
         module_logger.log(f"Building mom 1D fit", "info")
@@ -972,20 +1013,24 @@ def PrintArgs(args):
     module_logger.log(f'verbose: {args.verbose}', 'info')
     module_logger.log(f'interpret: {args.interpret}', 'info')
     module_logger.log(f'setlimit: {args.setlimit}', 'info')
+    module_logger.log(f'nofit: {getattr(args, "nofit", False)}', 'info')
 
 if __name__ == "__main__":
     # list of input arguments, defaults should be overridden
     parser = argparse.ArgumentParser(description='command arguments', formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("--file", type=str, required=False, help="filename or file list name (text file list,fullpaths)")
     parser.add_argument("--jobs", type=int, required=False, default=1,help="use if more than one file, should be nfiles")
+    parser.add_argument("--version", type=str, default="79_v02", help="Analysis version for cut configuration (e.g., '79_v02', '80')")
     parser.add_argument("--fittype", type=str, default="mom1D", help="fittype implemented opts: mom1D, time1D, momtime2D")
     parser.add_argument("--fitrange_low", type=float, default=[100,475], nargs='+', help="minimum to fit ordered mom, time")
     parser.add_argument("--fitrange_hi", type=float, default=[110,1650], nargs='+',help="maximum to fit  ordered mom, time")
     parser.add_argument("--interpret", type=int, default=0, help="allows for significance evaluation")
     parser.add_argument("--setlimit", type=int, default=0, help="assumes low signal and will try to set limit")
-    parser.add_argument("--verbose", default=1, help="verbose")
+    parser.add_argument("--verbose", type=int, default=1, help="verbose")
     parser.add_argument("--loc", type=str, required=False, default='disk', help="location of files")
     parser.add_argument("--control-fit", dest='control_fit', action='store_true', help="Run control-region fit for OffSpill (default: off)")
+    parser.add_argument("--nofit", dest='nofit', action='store_true', help="Apply cuts and write parquet/cut-flow outputs only, no fit")
+    parser.add_argument("--outdir", type=str, required=False, default=None, help="Tag directory for outputs: cut flows in <outdir>/cutflows, parquet in <outdir>/parquet")
     args = parser.parse_args()
 
     # if verbose print the user input

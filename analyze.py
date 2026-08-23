@@ -3,17 +3,19 @@ from pyutils.pyselect import Select
 from pyutils.pylogger import Logger
 from pyutils.pyvector import Vector
 from pyutils.pycut import CutManager
-from config import GLOBAL_VERBOSITY
+from config import GLOBAL_VERBOSITY, get_version_cuts
 import numpy as np
 import matplotlib.pyplot as plt
 
 class Analyze:
     """Class to handle analysis functions
     """
-    def __init__(self,  verbosity=1,  sign="minus", cut_switch=None, mom_lo = 95, mom_hi = 115, time_lo=475, time_hi=1650):
+    def __init__(self,  verbosity=1,  sign="minus", cut_switch=None, mom_lo = 95, mom_hi = 115, time_lo=475, time_hi=1650, cuts_config=None, version='79_v02'):
         """Initialise the analysis handler
         Args:
             verbosity (int, optional): Level of output detail (0: critical errors only, 1: info, 2: debug, 3: deep debug)
+            cuts_config (dict, optional): Dictionary with cut threshold values. If None, loaded from config based on version.
+            version (str, optional): Version identifier for default cuts (e.g., '79_v02', '80')
         """
         # Verbosity
         self.verbosity = verbosity
@@ -41,6 +43,12 @@ class Analyze:
         self.time_lo = time_lo
         self.time_hi = time_hi
         self.mom_hi = mom_hi
+        # Load cut configuration from version or provided dict
+        if cuts_config is None:
+            self.cuts = get_version_cuts(version)
+        else:
+            self.cuts = cuts_config
+        self.logger.log(f"Loaded cuts from version '{version}': {list(self.cuts.keys())}", "debug")
 
     def has_trk_front_segment(self, trkfit, surface_name="TT_Front"):
         """Return a track-level boolean mask indicating whether each track
@@ -365,7 +373,7 @@ class Analyze:
 
                 # 6. Check C++ veto window: 40 <= dt <= 110 ns
                 # Negation of (dt < 40.f || dt > 110.f) -> flags bad candidate reflection pairs
-                dt_in_veto_window = (dt_matrix >= 40.0) & (dt_matrix <= 110.0)
+                dt_in_veto_window = (dt_matrix >= self.cuts['upstream_veto_dt_lower']) & (dt_matrix <= self.cuts['upstream_veto_dt_upper'])
 
                 # 7. Flag bad pairs: track_i is downstream (good), track_j is upstream (good), not self, dt in window
                 bad_pair_matrix = (
@@ -397,7 +405,7 @@ class Analyze:
                 # Register the cut mask
                 cut_manager.add_cut(
                     name="upstream_veto",
-                    description="Upstream timing veto: dt to upstream partners must be < 40 or > 110 ns",
+                    description=f"Upstream timing veto: dt to upstream partners must be < {self.cuts['upstream_veto_dt_lower']} or > {self.cuts['upstream_veto_dt_upper']} ns",
                     mask=upstream_veto_per_track,
                     active=sw(7)
                 )
@@ -414,7 +422,7 @@ class Analyze:
                 self.logger.log(f"upstream_veto: Using FALLBACK (all tracks pass) - CHECK ERRORS ABOVE", "warning")
                 cut_manager.add_cut(
                     name="upstream_veto",
-                    description="Upstream timing veto: dt to upstream partners must be < 40 or > 110 ns",
+                    description=f"Upstream timing veto: dt to upstream partners must be < {self.cuts['upstream_veto_dt_lower']} or > {self.cuts['upstream_veto_dt_upper']} ns",
                     mask=fallback_mask,
                     active=sw(7)
                 )
@@ -423,7 +431,7 @@ class Analyze:
             # ============================================================================
             if (str(self.sign) == "minus"):
                 try:
-                    dt_threshold = 150.0
+                    dt_threshold = self.cuts['multi_trk_veto_dt']
                     
                     # DIAGNOSTICS: Step-by-step breakdown
                     is_reco_electron = selector.is_electron(data["trk"])
@@ -489,7 +497,7 @@ class Analyze:
                     
                     cut_manager.add_cut(
                         name="no_multi_trk_veto",
-                        description="No coincident multi-track: |dt| >= 150 ns between downstream e/e+ tracks",
+                        description=f"No coincident multi-track: |dt| >= {self.cuts['multi_trk_veto_dt']} ns between downstream e/e+ tracks",
                         mask=multi_trk_per_track,
                         active=sw(8)
                     )
@@ -501,7 +509,7 @@ class Analyze:
                     # On error, pass the cut (don't veto)
                     cut_manager.add_cut(
                         name="no_multi_trk_veto",
-                        description="No coincident multi-track: |dt| >= 150 ns between downstream e/e+ tracks",
+                        description=f"No coincident multi-track: |dt| >= {self.cuts['multi_trk_veto_dt']} ns between downstream e/e+ tracks",
                         mask=ak.ones_like(is_downstream, dtype=bool),
                         active=sw(8)
                     )
@@ -509,7 +517,7 @@ class Analyze:
                 # For plus sign, no multi-track veto
                 cut_manager.add_cut(
                     name="no_multi_trk_veto",
-                    description="No coincident multi-track: |dt| >= 150 ns between downstream e/e+ tracks",
+                    description=f"No coincident multi-track: |dt| >= {self.cuts['multi_trk_veto_dt']} ns between downstream e/e+ tracks",
                     mask=ak.ones_like(is_downstream, dtype=bool),
                     active=sw(8)
                 )
@@ -517,7 +525,7 @@ class Analyze:
             # ============================================================================
             # CUT 10: good_trkpid
             # ============================================================================
-            good_trkpid = selector.select_trkpid(data["trk"], value=0.54)
+            good_trkpid = selector.select_trkpid(data["trk"], value=self.cuts['trkpid_threshold'])
             
             # Also check for calorimeter cluster energy > 0 (some energy deposited)
             try:
@@ -536,7 +544,7 @@ class Analyze:
             data["good_trkpid"] = good_trkpid
             cut_manager.add_cut(
                 name="good_trkpid",
-                description="Track PID > 0.55 and event has calorimeter cluster energy > 0",
+                description="Track PID >"+ str(self.cuts['trkpid_threshold']) + " and event has calorimeter cluster energy > 0",
                 mask=good_trkpid,
                 active=sw(9)
             )
@@ -571,12 +579,12 @@ class Analyze:
                     tandip_values = ak.firsts(tandip_values, axis=-1)
                     tandip_values = ak.fill_none(tandip_values, -100.0)
 
-            # Apply cut: 0.575 < tanDip < 0.85
-            mask_pzpt = (tandip_values > 0.575) & (tandip_values < 0.85)
+            # Apply cut: tanDip range
+            mask_pzpt = (tandip_values > self.cuts['tandip_lower']) & (tandip_values < self.cuts['tandip_upper'])
 
             cut_manager.add_cut(
                 name="pz_over_pt",
-                description="Track-level cut: 0.575 < tanDip < 0.85",
+                description=f"Track-level cut: {self.cuts['tandip_lower']} < tanDip < {self.cuts['tandip_upper']}",
                 mask=mask_pzpt,
                 active=sw(10)
             )
@@ -641,11 +649,11 @@ class Analyze:
             # ============================================================================
             # CUT 14: good_trkqual
             # ============================================================================
-            good_trkqual = selector.select_trkqual(data["trk"], quality=0.155)
+            good_trkqual = selector.select_trkqual(data["trk"], quality=self.cuts['trkqual_threshold'])
             data["good_trkqual"] = good_trkqual
             cut_manager.add_cut(
                 name="good_trkqual",
-                description="Track quality > 0.155",
+                description=f"Track quality > {self.cuts['trkqual_threshold']}",
                 mask=good_trkqual,
                 active=sw(14)
             )
@@ -653,10 +661,10 @@ class Analyze:
             # ============================================================================
             # CUT 15: has_hits
             # ============================================================================
-            has_hits = selector.has_n_hits(data["trk"], n_hits=20)
+            has_hits = selector.has_n_hits(data["trk"], n_hits=int(self.cuts['nhits_threshold']))
             cut_manager.add_cut(
                 name="has_hits",
-                description="Minimum of 20 active hits in the tracker",
+                description=f"Minimum of {int(self.cuts['nhits_threshold'])} active hits in the tracker",
                 mask=has_hits,
                 active=sw(15)
             )
@@ -664,11 +672,11 @@ class Analyze:
             # ============================================================================
             # CUT 16: within_t0err
             # ============================================================================
-            within_t0err = ((data['trkfit']["trksegpars_lh"]["t0err"]) < 0.85)
+            within_t0err = ((data['trkfit']["trksegpars_lh"]["t0err"]) < self.cuts['t0err_threshold'])
             within_t0err = ak.all(~at_trk_mid | within_t0err, axis=-1)
             cut_manager.add_cut(
                 name="within_t0err",
-                description="t0err < 0.85",
+                description=f"t0err < {self.cuts['t0err_threshold']}",
                 mask=within_t0err,
                 active=sw(16)
             )
@@ -678,7 +686,8 @@ class Analyze:
             # ============================================================================
             # Asymmetric veto: only veto if CRV cluster is in the future (0 < dt < 150)
             # C++ logic: if(deltat_crv > 0.f && deltat_crv < 150.f) fail_crv = true;
-            dt_threshold = 150
+            dt_threshold_lower = self.cuts['crv_veto_dt_lower']
+            dt_threshold_upper = self.cuts['crv_veto_dt_upper']
             trk_times_crv = data['trkfit']["trksegs"]["time"][at_trk_front]
             coinc_times = data["crv"]["crvcoincs.time"]
             
@@ -687,8 +696,8 @@ class Analyze:
 
             # Asymmetric timing: dt = track_time - crv_time
             dt_crv = trk_broadcast - coinc_broadcast
-            # Veto if 0 < dt < 150 (CRV cluster in future)
-            any_coinc = (dt_crv > 0) & (dt_crv < dt_threshold)
+            # Veto if dt_lower < dt < dt_upper (CRV cluster in future)
+            any_coinc = (dt_crv > dt_threshold_lower) & (dt_crv < dt_threshold_upper)
             min_dt_any = ak.any(any_coinc, axis=3)
 
             # Reduce over segments (axis=2)
@@ -696,7 +705,7 @@ class Analyze:
             data["no_crv_veto"] = ~veto
             cut_manager.add_cut(
                 name="no_crv_veto",
-                description="No crv-trk veto: 0 < dt < 150 ns (asymmetric)",
+                description=f"No crv-trk veto: {self.cuts['crv_veto_dt_lower']} < dt < {self.cuts['crv_veto_dt_upper']} ns (asymmetric)",
                 mask=~veto,
                 active=sw(17)
             )
@@ -714,27 +723,27 @@ class Analyze:
             )
 
             # ============================================================================
-            # CUT 18: within_t0_475 (475-1650 ns)
+            # CUT 18: within_t0_475
             # ============================================================================
-            within_t0_475 = ((475 < data['trkfit']["trksegs"]["time"]) & 
-                            (data['trkfit']["trksegs"]["time"] < 1650))
+            within_t0_475 = ((self.cuts['mom_range_t0_lower'] < data['trkfit']["trksegs"]["time"]) & 
+                            (data['trkfit']["trksegs"]["time"] < self.cuts['mom_range_t0_upper']))
             within_t0_475 = ak.all(~at_trk_front | within_t0_475, axis=-1)
             cut_manager.add_cut(
                 name="within_t0_475",
-                description="475 < t_0 < 1650 ns",
+                description=f"{self.cuts['mom_range_t0_lower']} < t_0 < {self.cuts['mom_range_t0_upper']} ns",
                 mask=within_t0_475,
                 active=sw(18)
             )
 
             # ============================================================================
-            # CUT 19: within_t0_540 (540-1650 ns)
+            # CUT 19: within_t0_540
             # ============================================================================
             within_t0_540 = ((540 < data['trkfit']["trksegs"]["time"]) & 
-                            (data['trkfit']["trksegs"]["time"] < 1650))
+                            (data['trkfit']["trksegs"]["time"] < self.cuts['mom_range_t0_upper']))
             within_t0_540 = ak.all(~at_trk_front | within_t0_540, axis=-1)
             cut_manager.add_cut(
                 name="within_t0_540",
-                description="540 < t_0 < 1650 ns",
+                description=f"540 < t_0 < {self.cuts['mom_range_t0_upper']} ns",
                 mask=within_t0_540,
                 active=sw(19)
             )
@@ -742,12 +751,12 @@ class Analyze:
             # ============================================================================
             # CUT 20: within_t0_640 (640-1650 ns)
             # ============================================================================
-            within_t0_640 = ((640 < data['trkfit']["trksegs"]["time"]) & 
-                            (data['trkfit']["trksegs"]["time"] < 1650))
+            within_t0_640 = ((self.cuts['signal_region_t_lower'] < data['trkfit']["trksegs"]["time"]) & 
+                            (data['trkfit']["trksegs"]["time"] < self.cuts['signal_region_t_upper']))
             within_t0_640 = ak.all(~at_trk_front | within_t0_640, axis=-1)
             cut_manager.add_cut(
                 name="within_t0_640",
-                description="640 < t_0 < 1650 ns",
+                description=f"{self.cuts['signal_region_t_lower']} < t_0 < {self.cuts['signal_region_t_upper']} ns",
                 mask=within_t0_640,
                 active=sw(20)
             )
@@ -776,17 +785,33 @@ class Analyze:
             
             # Apply signal region cuts: momentum and time at front
             signal_region = (
-                (mom_front_per_track > 103.34) & (mom_front_per_track < 104.74) &
-                (time_front_per_track > 640.0) & (time_front_per_track < 1650.0)
+                (mom_front_per_track > self.cuts['signal_region_p_lower']) & (mom_front_per_track < self.cuts['signal_region_p_upper']) &
+                (time_front_per_track > self.cuts['signal_region_t_lower']) & (time_front_per_track < self.cuts['signal_region_t_upper'])
             )
             
             cut_manager.add_cut(
                 name="signal_region",
-                description="Signal region: 103.34 < P_Front < 104.74, 640 < T_Front < 1650 ns",
+                description=f"Signal region: {self.cuts['signal_region_p_lower']} < P_Front < {self.cuts['signal_region_p_upper']}, {self.cuts['signal_region_t_lower']} < T_Front < {self.cuts['signal_region_t_upper']} ns",
                 mask=signal_region,
                 active=sw(21)
             )
             data["signal_region"] = signal_region
+
+            # ============================================================================
+            # CUT 22: d0 cut
+            # ============================================================================
+
+            within_d0 = (data['trkfit']["trksegpars_lh"]["d0"] < self.cuts['d0_cut'])
+
+            # trk-level definition (the actual cut)
+            within_d0 = ak.all(~at_trk_front | within_d0, axis=-1) 
+            cut_manager.add_cut(
+                name="within_d0",
+                description=f"Distance of closest approach (d_0 < {self.cuts['d0_cut']} mm)",
+                mask=within_d0,
+                active=sw(22)
+            )
+    
 
 
             self.logger.log("All cuts defined", "success")
