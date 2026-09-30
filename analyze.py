@@ -801,13 +801,14 @@ class Analyze:
             # CUT 22: d0 cut
             # ============================================================================
 
-            within_d0 = (data['trkfit']["trksegpars_lh"]["d0"] < self.cuts['d0_cut'])
+            within_d0 = ((data['trkfit']["trksegpars_lh"]["d0"] < self.cuts['d0_cut_upper']) 
+            & (data['trkfit']["trksegpars_lh"]["d0"] > self.cuts['d0_cut_lower']))
 
             # trk-level definition (the actual cut)
             within_d0 = ak.all(~at_trk_front | within_d0, axis=-1) 
             cut_manager.add_cut(
                 name="within_d0",
-                description=f"Distance of closest approach (d_0 < {self.cuts['d0_cut']} mm)",
+                description=f"Distance of closest approach ({self.cuts['d0_cut_lower']} < d_0 < {self.cuts['d0_cut_upper']} mm)",
                 mask=within_d0,
                 active=sw(22)
             )

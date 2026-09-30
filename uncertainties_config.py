@@ -22,7 +22,6 @@ STANDARD_SYSTEMATICS = {
         'description': 'Luminosity / beam intensity uncertainty',
         'processes': {
             'CE': 1.10,       # 10%
-            'Cosmic': 1.10,
             'DIO': 1.10,
             'RPC': 1.10,
             'RMC': 1.10,
