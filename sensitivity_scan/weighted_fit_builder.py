@@ -128,7 +128,7 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
                 pdf_vals = combine_pdf.pdf(eval_tensor, norm_range=obs_space)
                 pdf_vals = np.array(pdf_vals.numpy() if hasattr(pdf_vals, 'numpy') else pdf_vals)
                 
-                area = np.trapz(pdf_vals, mom_vals)
+                area = np.trapezoid(pdf_vals, mom_vals)
                 if area > 0: pdf_vals = pdf_vals / area
                 scaled_pdf = pdf_vals * total_events * bin_width
                 fit_vals_for_plot = (mom_vals, scaled_pdf)
@@ -166,7 +166,7 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
                         local_norm = pdf.norm_range if hasattr(pdf, 'norm_range') and pdf.norm_range else obs_space
                         comp_vals = pdf.pdf(eval_tensor, norm_range=local_norm)
                         comp_vals_np = np.array(comp_vals.numpy() if hasattr(comp_vals, 'numpy') else comp_vals)
-                        c_area = np.trapz(comp_vals_np, mom_vals)
+                        c_area = np.trapezoid(comp_vals_np, mom_vals)
                         if c_area > 0: comp_vals_np = comp_vals_np / c_area
                         
                         scaled_1d_pdf = comp_vals_np * yield_val * bin_width
@@ -206,9 +206,9 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
 
                 vals = combine_pdf.pdf(tf.constant(pts, dtype=tf.float32), norm_range=obs_space)
                 vals_np = np.array(vals.numpy() if hasattr(vals, 'numpy') else vals)
-                pdf_vals = np.trapz(vals_np.reshape(len(other_grid), len(mom_vals)), other_grid, axis=0)
+                pdf_vals = np.trapezoid(vals_np.reshape(len(other_grid), len(mom_vals)), other_grid, axis=0)
                 
-                area = np.trapz(pdf_vals, mom_vals)
+                area = np.trapezoid(pdf_vals, mom_vals)
                 if area > 0: pdf_vals = pdf_vals / area
                 scaled_pdf = pdf_vals * total_events * bin_width
                 fit_vals_for_plot = (mom_vals, scaled_pdf)
@@ -234,9 +234,9 @@ def plot_fit_with_true_shapes(mom_mag, combine_pdf=None, fit_result=None, compon
                         local_norm = pdf.space if hasattr(pdf, 'space') and pdf.space else obs_space
                         comp_vals = pdf.pdf(tf.constant(pts, dtype=tf.float32), norm_range=local_norm)
                         comp_vals_np = np.array(comp_vals.numpy() if hasattr(comp_vals, 'numpy') else comp_vals)
-                        comp_proj = np.trapz(comp_vals_np.reshape(len(other_grid), len(mom_vals)), other_grid, axis=0)
+                        comp_proj = np.trapezoid(comp_vals_np.reshape(len(other_grid), len(mom_vals)), other_grid, axis=0)
                         
-                        c_area = np.trapz(comp_proj, mom_vals)
+                        c_area = np.trapezoid(comp_proj, mom_vals)
                         if c_area > 0: 
                             comp_proj = comp_proj / c_area
                         
