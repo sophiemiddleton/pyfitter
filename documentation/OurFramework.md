@@ -35,5 +35,26 @@ These modules handle post-fit analysis, visualization, and the incorporation of 
 | [`results_module.py`](code-specifics/results_module_py.md) | **Results Handler** | Processes the `zfit` `FitResult` object, calculates final yields and confidence intervals, and formats the output. |
 | [`recoplot_module.py`](code-specifics/recoplot_module_py.md) | **Visualization** | Contains functions for generating plots of the fitted model overlayed on the data and various diagnostic plots. |
 
+## 🧪 Component Fit Modules (Testing & Diagnostics)
+
+The [`component_fits/`](../../component_fits/) directory contains **standalone unbinned maximum likelihood fitters** for testing individual physics component shapes and conducting focused, component-specific studies.
+
+| File | Component | Observable | PDF Model | Role |
+| :--- | :--- | :--- | :--- | :--- |
+| [`ce.py`](code-specifics/component_fits_py.md#1-cepy--conversion-electron-ce-fitter) | Conversion Electron | Momentum | Double-Sided Crystal Ball | Signal shape validation and optimization |
+| [`rmc.py`](code-specifics/component_fits_py.md#2-rmcpy--radiative-muon-capture-rmc-fitter) | RMC Background | Momentum | GammaPolyHybrid (custom) | Background shape validation |
+| [`dio.py`](code-specifics/component_fits_py.md#3-diopy--dielectric-interaction-dio-fitter) | DIO Background | Momentum | poly58 (physics-motivated) | Physics-based background fitting |
+| [`cosmics.py`](code-specifics/component_fits_py.md#4-cosmicspy--cosmic-background-fitter) | Cosmic Background | Time-of-Arrival | Chebyshev Polynomial | Control region studies |
+| [`rpc.py`](code-specifics/component_fits_py.md#5-rpcpy--rpc-background-fitter) | RPC Background | Time-of-Arrival | Exponential | Control region studies |
+
+These modules are **independent of the main likelihood chain** and are used for:
+- **Shape validation** against Monte Carlo expectations
+- **Parameter optimization** for PDF definitions
+- **Control region fits** in sideband regions
+- **Systematic studies** of individual components
+- **Publication plots** with diagnostic overlays
+
+See [**`component_fits/` Documentation**](code-specifics/component_fits_py.md) for detailed API and usage examples.
+
 
 
