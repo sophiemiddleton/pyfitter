@@ -132,7 +132,7 @@ mom_components = {
             'c1': (0.020031, -0.040969, 0.081031),
             'c2': (-0.081895,-0.141895,-0.021895 )
         },
-        'norm': (50, 0, 100),  # (value, lower_bound, upper_bound)
+        'norm': (40, 0, 100),  # (value, lower_bound, upper_bound)
         'treat_params': 'constrain',
         'startCode': [None],
         'genCode': [44, 38],
@@ -146,7 +146,7 @@ mom_components = {
             'c1': (-0.203,-0.2402,-0.1658),
             'c2': (-0.053,-0.0899,-0.0161)
         },
-        'norm': (30, 0, 50),  # (value, lower_bound, upper_bound)
+        'norm': (30, 0, 32),  # (value, lower_bound, upper_bound)
         'treat_params': 'constrain',
         'startCode': [178, 179],
         'genCode': [None],
@@ -175,7 +175,7 @@ mom_components = {
             'alpha': (1.00002, 0.1, 5.0),
             'n': (2.00004, 0.5, 10.0)
         },
-        'norm': (3, 0.0, 5),  # (value, lower_bound, upper_bound)
+        'norm': (1.5, 0.0, 2),  # (value, lower_bound, upper_bound)
         'treat_params': 'float',
         'fixed_params': ['mu', 'sigma', 'alpha', 'n'],  # Fix shape, let N_RMC float
         'startCode': [None],
