@@ -71,7 +71,8 @@ class Cosmics():
             normalize: If True, normalizes yields to 100k target events. If False (default), plots raw counts.
             out_file: Path of the output plot file.
             target_yield: Explicit yield to normalize the histogram and fit to (overrides the 100k default).
-        """        fig, (ax1, ax2) = plt.subplots(
+        """        
+        fig, (ax1, ax2) = plt.subplots(
             2,
             1,
             figsize=(8, 7),
@@ -83,7 +84,7 @@ class Cosmics():
         data_colors = [OKABE_ITO["black"], OKABE_ITO["blue"]]
         fit_colors = [OKABE_ITO["vermillion"], OKABE_ITO["purple"]]
 
-        fit_range = (500, 700)
+        fit_range = (480, 700)
         n_bins = 50
         bin_width = (fit_range[1] - fit_range[0]) / n_bins
         normalize = normalize or target_yield is not None
@@ -264,10 +265,11 @@ class Cosmics():
         normalize=False,
         out_file="CosmicMomentum.pdf",
         target_yield=None,
+        poly_order=1,
     ):
         """Plots the reconstructed momentum data and its statistical uncertainties
 
-        using an extended unbinned maximum likelihood fit with a 1st-order Chebyshev polynomial shape,
+        using an extended unbinned maximum likelihood fit with a Chebyshev polynomial shape,
         including goodness of fit and pull distribution.
 
         Args:
@@ -276,6 +278,7 @@ class Cosmics():
             normalize: If True, normalizes yields to 100k target events. If False (default), plots raw counts.
             out_file: Path of the output plot file.
             target_yield: Explicit yield to normalize the histogram and fit to (overrides the 100k default).
+            poly_order: Chebyshev polynomial order for the momentum fit (1 or 2).
         """
         fig, (ax1, ax2) = plt.subplots(
             2,
@@ -307,11 +310,16 @@ class Cosmics():
             if n_events_raw == 0:
                 continue
 
+            if poly_order not in (1, 2):
+                raise ValueError(f"poly_order must be 1 or 2, got {poly_order}")
+
             N_Cosmic = zfit.Parameter(
                 f"N_Cosmic_mom_{i}", n_events_raw, 100, n_events_raw * 10
             )
-            c1 = zfit.Parameter(f"c1_{i}", 0.1, -1, 1)
-            coeffs = [c1]
+            coeffs = [
+                zfit.Parameter(f"c{idx + 1}_{i}", 0.1, -1, 1)
+                for idx in range(poly_order)
+            ]
 
             poly_model = zfit.pdf.Chebyshev(obs=obs_mom, coeffs=coeffs, extended=N_Cosmic)
 
@@ -382,13 +390,17 @@ class Cosmics():
             )
             ndf = np.count_nonzero(chi2_mask) - len(result.params)
 
-            c1_val = result.params[c1]["value"]
-            c1_err = hesse_errors.get(c1, {}).get("error", 0.0)
+            coeff_strings = []
+            for c_param in coeffs:
+                c_val = result.params[c_param]["value"]
+                c_err = hesse_errors.get(c_param, {}).get("error", 0.0)
+                c_name = c_param.name.split("_")[0]
+                coeff_strings.append(f"${c_name} = {c_val:.4f} \\pm {c_err:.4f}$")
 
             # Extended statistics label formatted for the 2-column legend
             fit_label = (
-                f"{labels[i]} Fit\n"
-                f"$c_1 = {c1_val:.4f} \\pm {c1_err:.4f}$\n"
+                f"{labels[i]} Fit (Chebyshev order {poly_order})\n"
+                f"{chr(10).join(coeff_strings)}\n"
                 f"$\\chi^2 / \\text{{ndf}} = {chi2_val:.1f} / {ndf}$"
             )
 
@@ -462,6 +474,7 @@ def run_fits_from_parquet(
     tag="",
     outdir=".",
     target_yield=None,
+    poly_order=1,
 ):
     """Reads a parquet file and runs the time and momentum fits using Cosmics.
 
@@ -473,6 +486,7 @@ def run_fits_from_parquet(
         tag (str): Suffix appended to the output fit file names.
         outdir (str): Directory in which to write the output fit files.
         target_yield (float | None): Explicit yield to normalize the histogram and fit to.
+        poly_order (int): Chebyshev polynomial order for the momentum fit (1 or 2).
     """
     print(f"Loading parquet dataset from: {parquet_file_path}")
     df = pd.read_parquet(parquet_file_path)
@@ -504,6 +518,7 @@ def run_fits_from_parquet(
         normalize=normalize,
         out_file=str(out_path / f"CosmicMomentum{suffix}.pdf"),
         target_yield=target_yield,
+        poly_order=poly_order,
     )
 
 
@@ -533,6 +548,13 @@ def parse_args():
         "--normalize", action="store_true", help="Normalize yields to 100k events."
     )
     parser.add_argument(
+        "--poly-order",
+        type=int,
+        choices=[1, 2],
+        default=1,
+        help="Chebyshev polynomial order for the cosmic momentum fit (1 or 2).",
+    )
+    parser.add_argument(
         "-n",
         "--target-yield",
         type=float,
@@ -553,4 +575,5 @@ if __name__ == "__main__":
         tag=args.tag,
         outdir=args.outdir,
         target_yield=args.target_yield,
+        poly_order=args.poly_order,
     )

@@ -57,14 +57,25 @@ class RPC:
         self.print_prefix = "[Compare] "
         print(f"{self.print_prefix}Initialised")
 
-    def fit_time(self, data_list, labels, out_file="CR_RPCfit.pdf", target_yield=None):
+    def fit_time(
+        self,
+        data_list,
+        labels,
+        out_file="CR_RPCfit.pdf",
+        normalize=False,
+        target_yield=None,
+    ):
         """Plots the reconstructed time data and its statistical uncertainties
 
         using an extended unbinned maximum likelihood fit with an exponential shape,
         including goodness of fit and pull distribution.
 
-        target_yield: if given, the histogram and fit curve are rescaled so the
-        sample integrates to this yield. If None, raw counts are shown.
+        Args:
+            data_list: List of time data arrays to fit.
+            labels: List of dataset label strings.
+            out_file: Path of the output plot file.
+            normalize: If True, normalizes yields to 100k target events. If False (default), plots raw counts.
+            target_yield: Explicit yield to normalize the histogram and fit to (overrides the 100k default).
         """
         fig, (ax1, ax2) = plt.subplots(
             2,
@@ -81,6 +92,7 @@ class RPC:
         fit_range = (475, 550)
         n_bins = 50
         bin_width = (fit_range[1] - fit_range[0]) / n_bins
+        normalize = normalize or target_yield is not None
 
         last_norm = 0.0
         for i, data in enumerate(data_list):
@@ -106,10 +118,12 @@ class RPC:
             result = minimizer.minimize(loss=nll)
             hesse_errors = result.hesse()
 
-            target_events = target_yield
-            norm_factor = (
-                target_events / n_events_raw if target_events is not None else 1.0
-            )
+            # Determine normalization factor
+            if normalize:
+                target_events = target_yield if target_yield is not None else 100000.0
+                norm_factor = target_events / n_events_raw
+            else:
+                norm_factor = 1.0
 
             counts_raw, bins = np.histogram(
                 time_np, bins=n_bins, range=fit_range
@@ -201,7 +215,7 @@ class RPC:
 
             last_norm = result.params[N_RPC]["value"]
 
-        unit_suffix = " [A.U.]" if target_yield is not None else ""
+        unit_suffix = " [A.U.]" if normalize else ""
         ax1.set_ylabel(f"Events / {bin_width:.1f} ns{unit_suffix}")
 
         # Headroom expansion for top-right legend
@@ -234,13 +248,26 @@ class RPC:
 
         return last_norm
 
-    def fit_momentum(self, data_list, labels, opt, out_file="RPCfit.pdf", target_yield=None):
+    def fit_momentum(
+        self,
+        data_list,
+        labels,
+        opt,
+        out_file="RPCfit.pdf",
+        normalize=False,
+        target_yield=None,
+    ):
         """Fits a parametric shape (Chebyshev polynomial or Gaussian) to the reconstructed momentum data
 
         using an extended unbinned maximum likelihood fit with goodness of fit and pull distribution.
 
-        target_yield: if given, the histogram and fit curve are rescaled so the
-        sample integrates to this yield. If None, raw counts are shown.
+        Args:
+            data_list: List of momentum data arrays to fit.
+            labels: List of dataset label strings.
+            opt: Momentum fit shape option ('poly' or 'gaus').
+            out_file: Path of the output plot file.
+            normalize: If True, normalizes yields to 100k target events. If False (default), plots raw counts.
+            target_yield: Explicit yield to normalize the histogram and fit to (overrides the 100k default).
         """
         fig, (ax1, ax2) = plt.subplots(
             2,
@@ -253,6 +280,7 @@ class RPC:
 
         data_colors = [OKABE_ITO["black"], OKABE_ITO["blue"]]
         fit_colors = [OKABE_ITO["vermillion"], OKABE_ITO["purple"]]
+        normalize = normalize or target_yield is not None
 
         last_norm = 0.0
         for i, data in enumerate(data_list):
@@ -293,10 +321,12 @@ class RPC:
             n_bins = 50
             bin_width = (fit_range[1] - fit_range[0]) / n_bins
 
-            target_events = target_yield
-            norm_factor = (
-                target_events / n_events_raw if target_events is not None else 1.0
-            )
+            # Determine normalization factor
+            if normalize:
+                target_events = target_yield if target_yield is not None else 100000.0
+                norm_factor = target_events / n_events_raw
+            else:
+                norm_factor = 1.0
 
             counts_raw, bins = np.histogram(
                 mom_np, bins=n_bins, range=fit_range
@@ -354,11 +384,15 @@ class RPC:
 
             # N parameter removed to reflect scaled/arbitrary normalization
             if opt == "poly":
-                c1_v = result.params[c1]["value"]
-                c1_e = hesse_errors.get(c1, {}).get("error", 0.0)
+                coeff_strings = []
+                for c_param in coeffs:
+                    c_v = result.params[c_param]["value"]
+                    c_e = hesse_errors.get(c_param, {}).get("error", 0.0)
+                    c_name = c_param.name.split("_")[0]
+                    coeff_strings.append(f"${c_name} = {c_v:.3f} \\pm {c_e:.3f}$")
                 fit_label = (
                     f"{labels[i]} Fit\n"
-                    f"$c_1 = {c1_v:.3f} \\pm {c1_e:.3f}$\n"
+                    f"{chr(10).join(coeff_strings)}\n"
                     f"$\\chi^2 / \\text{{ndf}} = {chi2_val:.1f} / {ndf}$"
                 )
             elif opt == "gaus":
@@ -397,7 +431,7 @@ class RPC:
 
             last_norm = result.params[N_RPC]["value"]
 
-        unit_suffix = " [A.U.]" if target_yield is not None else ""
+        unit_suffix = " [A.U.]" if normalize else ""
         ax1.set_ylabel(f"Events / {bin_width:.1f} MeV/$c${unit_suffix}")
 
         # Headroom expansion for top-right legend
@@ -440,6 +474,7 @@ def run_rpc_fits_from_parquet(
     mom_option="poly",
     tag="",
     outdir=".",
+    normalize=False,
     target_yield=None,
 ):
     """Loads momentum and time arrays from a parquet file and runs the RPC fits.
@@ -450,7 +485,8 @@ def run_rpc_fits_from_parquet(
         mom_option (str): Momentum fit shape option ('poly' or 'gaus').
         tag (str): Suffix appended to the output fit file names.
         outdir (str): Directory in which to write the output fit files.
-        target_yield (float | None): Rescale histogram and fit to this yield.
+        normalize (bool): Normalize data yield to 100k events if True.
+        target_yield (float | None): Explicit yield to normalize the histogram and fit to.
     """
     print(f"Loading parquet dataset from: {parquet_file_path}")
     df = pd.read_parquet(parquet_file_path)
@@ -470,6 +506,7 @@ def run_rpc_fits_from_parquet(
         data_list=[time_array],
         labels=[sample_label],
         out_file=str(out_path / f"Time_{sample_label}{suffix}.pdf"),
+        normalize=normalize,
         target_yield=target_yield,
     )
 
@@ -479,6 +516,7 @@ def run_rpc_fits_from_parquet(
         labels=[sample_label],
         opt=mom_option,
         out_file=str(out_path / f"Mom__{sample_label}{suffix}.pdf"),
+        normalize=normalize,
         target_yield=target_yield,
     )
 
@@ -517,11 +555,14 @@ def parse_args():
         help="Momentum fit shape.",
     )
     parser.add_argument(
+        "--normalize", action="store_true", help="Normalize yields to 100k events."
+    )
+    parser.add_argument(
         "-n",
         "--target-yield",
         type=float,
         default=None,
-        help="Rescale the histogram and fit curve to this total yield (default: raw counts).",
+        help="Rescale the histogram and fit curve to this total yield (overrides --normalize).",
     )
     return parser.parse_args()
 
@@ -535,5 +576,6 @@ if __name__ == "__main__":
         mom_option=args.mom_option,
         tag=args.tag,
         outdir=args.outdir,
+        normalize=args.normalize,
         target_yield=args.target_yield,
     )
