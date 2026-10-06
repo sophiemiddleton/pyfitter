@@ -25,7 +25,7 @@ sysunc_components = {
         'component': ['mom'],
         'value': [0.1, 0.1],  # MeV
         'source': 'simulation',
-        'status': 'implemented',
+        'status': 'on-hold',
         'method': 'refit',
         'notes': 'Absolute momentum scale shift; impacts efficiency cuts (SU2020). Asymmetric variations allowed.'
     },
@@ -50,7 +50,7 @@ sysunc_components = {
         'value': [0.01, 0.01],  # 1% placeholder (or absolute if nominal is 0)
         'abs_value': [1.0, 1.0],  # Absolute uncertainty fallback: ±1 event
         'source': 'simulation',
-        'status': 'implemented',
+        'status': 'on-hold',
         'method': 'constraint',
         'fit_param': 'N_CE',
         'notes': 'Signal tracking efficiency uncertainty; 1% of yield, or ±1 event if yield is 0.'
@@ -64,7 +64,7 @@ sysunc_components = {
         'component': ['mom', 'time'],
         'value': [0.025, 0.025],  # 2.5%
         'source': 'theory',
-        'status': 'implemented',
+        'status': 'on-hold',
         'method': 'constraint',
         'fit_param': 'N_DIO',
         'notes': 'DIO cross-section / form-factor uncertainty. Apply as Gaussian constraint on N_DIO.'
@@ -89,7 +89,7 @@ sysunc_components = {
         'component': ['mom', 'time'],
         'value': [0.093, 0.093],  # 9.3% from magnesium composition
         'source': 'simulation',
-        'status': 'implemented',
+        'status': 'on-hold',
         'method': 'constraint',
         'fit_param': 'N_RPC',
         'notes': 'RPC stopping power and composition uncertainty. Apply as constraint on N_RPC.'
@@ -101,7 +101,7 @@ sysunc_components = {
         'component': ['mom', 'time'],
         'value': [0.27, 0.09],  # -27% to +9% from G4
         'source': 'simulation',
-        'status': 'implemented',
+        'status': 'on-hold',
         'method': 'constraint',
         'fit_param': 'N_RPC',
         'notes': 'Pion production in RPC affects RPC yield; asymmetric from Geant4 studies.'
@@ -113,7 +113,7 @@ sysunc_components = {
         'component': ['mom', 'time'],
         'value': [0.0045, 0.0045],  # 0.45%
         'source': 'simulation',
-        'status': 'implemented',
+        'status': 'on-hold',
         'method': 'constraint',
         'fit_param': 'N_RPC',
         'notes': 'Internal conversion in RPC affects RPC yield; expected to improve with data-driven measurement.'
@@ -139,7 +139,7 @@ sysunc_components = {
         'component': ['mom', 'time'],
         'value': [0.04, 0.04],  # 4%
         'source': 'simulation',
-        'status': 'implemented',
+        'status': 'on-hold',
         'method': 'constraint',
         'fit_param': 'N_Cosmic',
         'notes': 'Cosmic ray veto efficiency affects cosmic yield; from CRV detector studies (SU2020).'

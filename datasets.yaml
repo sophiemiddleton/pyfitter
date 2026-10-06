@@ -1,0 +1,65 @@
+# Dataset registry for the analysis chain (run_chain.py).
+#
+# Each entry gives the file list for a dataset, the physics process it
+# represents, and the initial acceptance used to seed expected yields.
+# Edit the acceptances here rather than passing them on the command line.
+
+# Fit run by run_chain.py after the selection: 1d (momentum), 2d (momentum+time) or both
+fit:
+  type: 2d
+
+# CLs limit run on the fitted datacard
+limit:
+  toys: 1000
+  seed: 42
+  cl: 0.90
+  freeze_nuisances: false
+
+datasets:
+
+  CeM_mix:
+    filelist: /exp/mu2e/app/users/sophie/pyfitter/MDC2025au/CeM_mix.txt
+    process: CE
+    acceptance: 0.4141
+    expected: 3.397527477
+  DIO_mix:
+    filelist: /exp/mu2e/app/users/sophie/pyfitter/MDC2025au/DIO_mix.txt
+    process: DIO
+    acceptance: 0.3748
+    expected: 79134.3
+  Cosmic_mix:
+    filelist: /exp/mu2e/app/users/sophie/pyfitter/MDC2025au/Cos_mix.txt
+    process: Cosmic
+    acceptance: 1.0
+    expected: 1.0
+  RPCInt_mix:
+    filelist: /exp/mu2e/app/users/sophie/pyfitter/MDC2025au/RPCInt.txt
+    process: RPC
+    acceptance: 0.0152
+    expected: 247999.34
+  RPCExt_mix:
+    process: RPC
+    filelist: /exp/mu2e/app/users/sophie/pyfitter/MDC2025au/RPCExt.txt
+    acceptance: 9.169e-05
+    expected: 35941932.98
+  RMCExt_mix:
+    process: RMC
+    filelist: /exp/mu2e/app/users/sophie/pyfitter/MDC2025au/RMCExt0N.txt
+    acceptance: 0.00070963
+    expected: 687000000.0
+    cut_efficiency: 3.019692623e-06
+
+
+
+# Named collections, selected with --group
+groups:
+  mix:
+    - CeM_mix
+    - DIO_mix
+    - Cos_mix
+    - RMCExt_mix
+    - RPCExt_mix
+    - RPCInt_mix
+
+  control:
+    - OffSpill

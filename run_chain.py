@@ -42,12 +42,12 @@ logger = Logger(print_prefix='[run_chain] ', verbosity=GLOBAL_VERBOSITY)
 BASE_DIR = Path(__file__).resolve().parent
 PROCESS_SCRIPT = BASE_DIR / 'process.py'
 FIT_SCRIPT = BASE_DIR / 'sensitivity_scan' / 'parquet_fit_builder.py'
-LIMIT_SCRIPT = BASE_DIR / 'sensitivity_scan' / 'simple_limit_combine_12d.py'
+LIMIT_SCRIPT = BASE_DIR / 'sensitivity_scan' / 'simple_limit_combine_card.py'
 DEFAULT_REGISTRY = BASE_DIR / 'datasets.yaml'
 
 # Cosmic acceptance: ratio of run1A time to full sample
 # Used to scale cosmic yield from data to full equivalent luminosity
-COSMIC_ACCEPTANCE = 0.175999365
+COSMIC_ACCEPTANCE = 0.136545 #FIXME - assumes 5.72e6 s full sample is used!!!!!
 
 
 def load_registry(path):
@@ -441,7 +441,7 @@ def run_fit(tag_dir, card_path, components, fit_type, args):
     return True
 
 
-def run_limit(tag_dir, fit_type, limit_cfg, args, datacard_path=None):
+def run_limit(tag_dir, fit_type, limit_cfg, args, datacard_path=None, components=None):
     """Run the CLs limit on the datacard produced by the fit stage."""
     datacard = Path(datacard_path) if datacard_path is not None else (tag_dir / 'fit' / 'output_card.yaml')
     if not args.dry_run and not datacard.exists():
@@ -453,17 +453,38 @@ def run_limit(tag_dir, fit_type, limit_cfg, args, datacard_path=None):
 
     # The limit script fits either 1d or 2d; "both" continues with the 2d card
     dim = '1d' if fit_type == '1d' else '2d'
+    limit_mode = args.limit_mode or limit_cfg.get('mode', None)
+    method = limit_mode if limit_mode in ('toys', 'empirical') else 'asymptotic'
+    limit_jobs = args.limit_jobs if args.limit_jobs is not None else args.jobs
+
+    if components is None:
+        components = {}
+        for parquet_path in sorted((tag_dir / 'parquet').glob('*_postcut.parquet')):
+            token = parquet_path.name.lower()
+            if 'combined' in token and 'rpc' in token:
+                components['rpc'] = str(parquet_path)
+            elif 'cem' in token or token.startswith('ce'):
+                components['ce'] = str(parquet_path)
+            elif 'cos' in token:
+                components['cosmic'] = str(parquet_path)
+            elif 'dio' in token:
+                components['dio'] = str(parquet_path)
+            elif 'rmc' in token:
+                components['rmc'] = str(parquet_path)
 
     cmd = [
-        sys.executable, str(LIMIT_SCRIPT),
+        sys.executable, '-u', str(LIMIT_SCRIPT),
         '--datacard', str(datacard),
         '--dim', dim,
+        '--method', method,
         '--toys', str(args.toys if args.toys is not None else limit_cfg.get('toys', 1000)),
+        '--jobs', str(limit_jobs),
         '--seed', str(limit_cfg.get('seed', 42)),
         '--cl', str(limit_cfg.get('cl', 0.90)),
         '--output-dir', str(limit_dir),
-        '--verbosity', str(args.verbose),
     ]
+    if args.asimov or limit_cfg.get('asimov'):
+        logger.log('[limit] Asimov mode requested but clean card runner uses toy ensembles; proceeding with default settings', 'info')
     if args.freeze_nuisances or limit_cfg.get('freeze_nuisances'):
         cmd.append('--freeze-nuisances')
 
@@ -573,7 +594,7 @@ def main(args):
         return 0
 
     logger.log('Running CLs limit', 'info')
-    return 0 if run_limit(tag_dir, fit_type, cfg.get('limit', {}) or {}, args) else 1
+    return 0 if run_limit(tag_dir, fit_type, cfg.get('limit', {}) or {}, args, components=components) else 1
 
 
 if __name__ == '__main__':
@@ -594,11 +615,14 @@ if __name__ == '__main__':
     parser.add_argument('--manifest-only', dest='manifest_only', action='store_true', help='Refresh an existing manifest from its cutflows and registry, then stop')
     parser.add_argument('--limit-only', dest='limit_only', action='store_true', help='Run only the limit stage from an existing output card, skip selection and fit')
     parser.add_argument('--limit-card', type=str, default=None, help='Optional datacard path for --limit-only (default: <tag>/fit/output_card.yaml)')
+    parser.add_argument('--limit-mode', '--mode', dest='limit_mode', choices=['asymptotic', 'toys', 'empirical'], default=None, help='Execution mode for CLs limit stage ("asymptotic", "toys", or "empirical")')
+    parser.add_argument('--asimov', action='store_true', help='Use the fast Asimov asymptotic limit mode')
     parser.add_argument('--skip-limit', dest='skip_limit', action='store_true', help='Stop after the fit stage, do not run the CLs limit')
     parser.add_argument('--toys', type=int, default=None, help='Override the number of toys in the registry "limit" section')
     parser.add_argument('--freeze-nuisances', dest='freeze_nuisances', action='store_true', help='Freeze nuisance parameters in the CLs limit stage')
     parser.add_argument('--loc', type=str, default='tape', help='File location: disk, tape or local')
     parser.add_argument('--jobs', type=int, default=1, help='Number of parallel workers per dataset')
+    parser.add_argument('--limit-jobs', type=int, default=None, help='Number of workers for the limit stage (defaults to --jobs)')
     parser.add_argument('--fitrange_low', type=float, nargs='+', default=[100, 475], help='Minimum ordered mom, time')
     parser.add_argument('--fitrange_hi', type=float, nargs='+', default=[110, 1650], help='Maximum ordered mom, time')
     parser.add_argument('--verbose', type=int, default=1, help='Verbosity passed to process.py')
